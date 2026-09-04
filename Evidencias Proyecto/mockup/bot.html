@@ -1,0 +1,514 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>SmartWMS Bot – Copiloto Telegram</title>
+  <meta name="description" content="Bot de Telegram SmartWMS: asistente IA de bodega para consultas de stock, procedimientos logísticos y guía operativa." />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet" />
+  <style>
+    :root {
+      --tg-bg: #17212b;
+      --tg-chat-bg: #0e1621;
+      --tg-sidebar: #17212b;
+      --tg-bubble-in: #182533;
+      --tg-bubble-out: #2b5278;
+      --tg-header: #17212b;
+      --tg-border: rgba(255,255,255,0.06);
+      --accent: #5288c1;
+      --accent2: #63a4e0;
+      --green: #4dcd7f;
+      --yellow: #f0bc44;
+      --red: #e27070;
+      --text: #d4d4d8;
+      --muted: #708499;
+      --white: #ffffff;
+    }
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: 'Inter', sans-serif; background: #0a0f1a; min-height: 100vh; display: flex; align-items: center; justify-content: center; padding: 20px; }
+
+    /* ─── PHONE WRAPPER ─── */
+    .tg-wrapper {
+      width: 420px;
+      height: 860px;
+      background: var(--tg-chat-bg);
+      border-radius: 40px;
+      border: 3px solid rgba(255,255,255,0.1);
+      box-shadow: 0 40px 100px rgba(0,0,0,0.7), 0 0 0 1px rgba(255,255,255,0.03);
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+      position: relative;
+    }
+
+    /* ─── STATUS BAR ─── */
+    .status-bar { background: var(--tg-header); padding: 12px 20px 8px; display: flex; align-items: center; justify-content: space-between; flex-shrink: 0; }
+    .sb-time { font-size: 14px; font-weight: 600; color: var(--white); }
+    .sb-icons { display: flex; gap: 5px; align-items: center; color: var(--white); font-size: 12px; }
+
+    /* ─── SCREENS ─── */
+    .screen { display: none; flex-direction: column; flex: 1; overflow: hidden; }
+    .screen.active { display: flex; }
+
+    /* ─── WELCOME SCREEN ─── */
+    #screen-welcome {
+      background: linear-gradient(160deg, #17212b 0%, #0e1a2e 60%, #0a1020 100%);
+      align-items: center;
+      justify-content: center;
+      padding: 40px 30px;
+      gap: 0;
+    }
+    .tg-logo-ring {
+      width: 100px; height: 100px; border-radius: 50%;
+      background: linear-gradient(135deg, #5288c1, #8b5cf6);
+      display: flex; align-items: center; justify-content: center;
+      font-size: 48px; margin-bottom: 24px;
+      box-shadow: 0 0 0 12px rgba(82,136,193,0.1), 0 0 0 24px rgba(82,136,193,0.05);
+    }
+    .tg-bot-name { font-size: 26px; font-weight: 800; color: var(--white); text-align: center; margin-bottom: 6px; }
+    .tg-bot-handle { font-size: 14px; color: var(--accent2); text-align: center; margin-bottom: 6px; }
+    .tg-bot-desc { font-size: 13px; color: var(--muted); text-align: center; margin-bottom: 32px; line-height: 1.6; }
+    .tg-role-select { width: 100%; margin-bottom: 32px; }
+    .tg-role-select label { font-size: 12px; color: var(--muted); display: block; margin-bottom: 8px; text-align: center; text-transform: uppercase; letter-spacing: 1px; font-weight: 600; }
+    .role-btns { display: flex; gap: 10px; }
+    .role-btn { flex: 1; padding: 12px 10px; background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.1); border-radius: 12px; cursor: pointer; text-align: center; transition: all 0.2s; font-family: 'Inter',sans-serif; color: var(--text); }
+    .role-btn:hover { border-color: var(--accent); background: rgba(82,136,193,0.1); }
+    .role-btn.selected { border-color: var(--accent); background: rgba(82,136,193,0.2); color: var(--white); }
+    .role-btn .rb-icon { font-size: 24px; display: block; margin-bottom: 4px; }
+    .role-btn .rb-label { font-size: 12px; font-weight: 600; }
+    .tg-start-btn { width: 100%; padding: 14px; background: linear-gradient(135deg, var(--accent), #3a6fa8); border: none; border-radius: 14px; color: #fff; font-size: 15px; font-weight: 700; cursor: pointer; font-family: 'Inter',sans-serif; transition: transform 0.15s, box-shadow 0.2s; }
+    .tg-start-btn:hover { transform: translateY(-1px); box-shadow: 0 8px 20px rgba(82,136,193,0.4); }
+    .privacy-note { font-size: 11px; color: var(--muted); text-align: center; margin-top: 14px; line-height: 1.5; }
+
+    /* ─── CHAT SCREEN ─── */
+    #screen-chat { display: none; flex-direction: column; }
+    #screen-chat.active { display: flex; }
+
+    /* Chat Header */
+    .chat-header { background: var(--tg-header); padding: 12px 16px; display: flex; align-items: center; gap: 12px; flex-shrink: 0; border-bottom: 1px solid var(--tg-border); }
+    .ch-back { background: none; border: none; color: var(--accent2); font-size: 20px; cursor: pointer; padding: 2px 6px; }
+    .ch-avatar { width: 42px; height: 42px; border-radius: 50%; background: linear-gradient(135deg, var(--accent), #8b5cf6); display: flex; align-items: center; justify-content: center; font-size: 20px; flex-shrink: 0; position: relative; }
+    .ch-online { position: absolute; bottom: 1px; right: 1px; width: 11px; height: 11px; background: var(--green); border-radius: 50%; border: 2px solid var(--tg-header); }
+    .ch-info { flex: 1; }
+    .ch-name { font-size: 15px; font-weight: 700; color: var(--white); }
+    .ch-status { font-size: 11px; color: var(--green); }
+    .ch-actions { display: flex; gap: 14px; color: var(--accent2); font-size: 18px; }
+    .ch-action { cursor: pointer; opacity: 0.7; transition: opacity 0.2s; }
+    .ch-action:hover { opacity: 1; }
+
+    /* Chat Messages */
+    .chat-messages { flex: 1; overflow-y: auto; padding: 14px 14px 6px; display: flex; flex-direction: column; gap: 2px; background: var(--tg-chat-bg); }
+    .chat-messages::-webkit-scrollbar { width: 3px; }
+    .chat-messages::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.08); border-radius: 2px; }
+
+    /* Date divider */
+    .date-divider { text-align: center; margin: 8px 0; }
+    .date-divider span { background: rgba(255,255,255,0.06); color: var(--muted); font-size: 11px; font-weight: 500; padding: 4px 12px; border-radius: 12px; }
+
+    /* Message bubbles */
+    .msg-row { display: flex; margin-bottom: 1px; }
+    .msg-row.out { justify-content: flex-end; }
+    .msg-row.in { justify-content: flex-start; }
+
+    .bubble {
+      max-width: 78%; padding: 8px 12px 6px; border-radius: 18px; position: relative;
+      font-size: 13.5px; line-height: 1.5; word-break: break-word;
+    }
+    .msg-row.in .bubble { background: var(--tg-bubble-in); border-bottom-left-radius: 4px; color: var(--text); }
+    .msg-row.out .bubble { background: var(--tg-bubble-out); border-bottom-right-radius: 4px; color: #fff; }
+
+    .bubble-tail-in { content: ''; }
+    .msg-time { font-size: 10px; color: rgba(255,255,255,0.4); text-align: right; margin-top: 4px; display: flex; align-items: center; justify-content: flex-end; gap: 4px; }
+    .msg-row.in .msg-time { color: var(--muted); justify-content: flex-start; }
+    .msg-check { font-size: 12px; color: var(--accent2); }
+
+    /* Bot sender name */
+    .bubble-sender { font-size: 11px; font-weight: 700; color: var(--accent2); margin-bottom: 3px; }
+
+    /* Inline keyboard */
+    .inline-kb { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+    .ikb-btn { background: rgba(82,136,193,0.2); border: 1px solid rgba(82,136,193,0.4); border-radius: 8px; padding: 6px 12px; font-size: 12px; font-weight: 600; color: var(--accent2); cursor: pointer; transition: all 0.2s; font-family: 'Inter',sans-serif; }
+    .ikb-btn:hover { background: rgba(82,136,193,0.35); }
+    .ikb-btn:active { transform: scale(0.95); }
+
+    /* Command card */
+    .cmd-card { background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.08); border-radius: 10px; padding: 10px 12px; margin-top: 6px; font-size: 12px; }
+    .cmd-row { display: flex; align-items: center; justify-content: space-between; padding: 4px 0; }
+    .cmd-row:not(:last-child) { border-bottom: 1px solid rgba(255,255,255,0.06); }
+    .cmd-key { color: var(--accent2); font-weight: 600; font-family: monospace; font-size: 12px; }
+    .cmd-desc { color: var(--muted); font-size: 11px; }
+
+    /* Stock result card */
+    .stock-result { background: rgba(77,205,127,0.08); border: 1px solid rgba(77,205,127,0.25); border-radius: 10px; padding: 12px; margin-top: 8px; }
+    .sr-title { font-size: 12px; font-weight: 700; color: var(--green); margin-bottom: 8px; }
+    .sr-row { display: flex; justify-content: space-between; padding: 3px 0; font-size: 12px; }
+    .sr-row span { color: var(--muted); }
+    .sr-row strong { color: var(--text); }
+
+    /* Typing indicator */
+    .typing-bubble { background: var(--tg-bubble-in); padding: 10px 14px; border-radius: 18px; border-bottom-left-radius: 4px; display: inline-flex; align-items: center; gap: 4px; }
+    .typing-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--muted); animation: typing-anim 1.2s infinite; }
+    .typing-dot:nth-child(2) { animation-delay: 0.2s; }
+    .typing-dot:nth-child(3) { animation-delay: 0.4s; }
+    @keyframes typing-anim { 0%,60%,100%{opacity:0.3;transform:translateY(0)} 30%{opacity:1;transform:translateY(-3px)} }
+
+    /* Chat input */
+    .chat-input-area { background: var(--tg-header); padding: 10px 12px; flex-shrink: 0; border-top: 1px solid var(--tg-border); }
+    .cmd-suggestion { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 8px; }
+    .cmd-sug { background: rgba(82,136,193,0.12); border: 1px solid rgba(82,136,193,0.25); border-radius: 6px; padding: 4px 10px; font-size: 11px; color: var(--accent2); cursor: pointer; font-family: 'Inter',sans-serif; transition: background 0.2s; }
+    .cmd-sug:hover { background: rgba(82,136,193,0.25); }
+    .input-row { display: flex; align-items: center; gap: 8px; }
+    .tg-input { flex: 1; background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.08); border-radius: 22px; padding: 10px 16px; color: var(--white); font-size: 14px; font-family: 'Inter',sans-serif; outline: none; transition: border-color 0.2s; }
+    .tg-input:focus { border-color: var(--accent); }
+    .tg-input::placeholder { color: var(--muted); }
+    .send-btn { width: 42px; height: 42px; border-radius: 50%; background: var(--accent); border: none; color: #fff; font-size: 16px; cursor: pointer; display: flex; align-items: center; justify-content: center; transition: all 0.15s; flex-shrink: 0; }
+    .send-btn:hover { background: #4a7ab5; }
+    .send-btn:active { transform: scale(0.9); }
+    .attach-btn { width: 34px; height: 34px; border-radius: 50%; background: rgba(255,255,255,0.05); border: none; color: var(--muted); font-size: 18px; cursor: pointer; display: flex; align-items: center; justify-content: center; transition: all 0.15s; flex-shrink: 0; }
+    .attach-btn:hover { color: var(--text); }
+
+    /* Tag badge */
+    .tag { display: inline-flex; align-items: center; gap: 3px; padding: 2px 8px; border-radius: 12px; font-size: 11px; font-weight: 600; margin-left: 6px; }
+    .tag.ok { background: rgba(77,205,127,0.2); color: var(--green); }
+    .tag.warn { background: rgba(240,188,68,0.2); color: var(--yellow); }
+    .tag.crit { background: rgba(226,112,112,0.2); color: var(--red); }
+
+    /* Animations */
+    @keyframes msg-in { from{opacity:0;transform:translateY(6px) scale(0.97)} to{opacity:1;transform:none} }
+    .msg-row { animation: msg-in 0.2s ease both; }
+  </style>
+</head>
+<body>
+
+<div class="tg-wrapper">
+  <!-- Status Bar -->
+  <div class="status-bar">
+    <div class="sb-time" id="tg-clock">09:34</div>
+    <div class="sb-icons">📶 🔋 100%</div>
+  </div>
+
+  <!-- ═══ WELCOME SCREEN ═══ -->
+  <div class="screen active" id="screen-welcome">
+    <div class="tg-logo-ring">🤖</div>
+    <div class="tg-bot-name">SmartWMS Bot</div>
+    <div class="tg-bot-handle">@smartwms_copilot_bot</div>
+    <div class="tg-bot-desc">Tu copiloto de bodega inteligente. Consulta stock, guía operativa, procedimientos y soporte en tiempo real.</div>
+
+    <div class="tg-role-select">
+      <label>Acceder como:</label>
+      <div class="role-btns">
+        <div class="role-btn selected" id="role-op" onclick="selectRole('operario')">
+          <span class="rb-icon">👷</span>
+          <div class="rb-label">Operario</div>
+        </div>
+        <div class="role-btn" id="role-sup" onclick="selectRole('supervisor')">
+          <span class="rb-icon">🎯</span>
+          <div class="rb-label">Supervisor</div>
+        </div>
+      </div>
+    </div>
+
+    <button class="tg-start-btn" onclick="startChat()">🚀 Iniciar Chat con el Bot</button>
+    <div class="privacy-note">Al iniciar, aceptas que SmartWMS Bot acceda a los datos del sistema de bodega. Tu actividad queda registrada.</div>
+  </div>
+
+  <!-- ═══ CHAT SCREEN ═══ -->
+  <div class="screen" id="screen-chat">
+    <div class="chat-header">
+      <button class="ch-back" onclick="showWelcome()">←</button>
+      <div class="ch-avatar">🤖<div class="ch-online"></div></div>
+      <div class="ch-info">
+        <div class="ch-name">SmartWMS Bot</div>
+        <div class="ch-status" id="bot-status">● en línea</div>
+      </div>
+      <div class="ch-actions">
+        <div class="ch-action" title="Buscar">🔍</div>
+        <div class="ch-action" title="Más opciones">⋮</div>
+      </div>
+    </div>
+
+    <div class="chat-messages" id="chat-messages">
+      <div class="date-divider"><span>Hoy, 01 Sep 2026</span></div>
+    </div>
+
+    <div class="chat-input-area">
+      <div class="cmd-suggestion" id="cmd-suggestions">
+        <button class="cmd-sug" onclick="quickSend('/stock')">📦 /stock</button>
+        <button class="cmd-sug" onclick="quickSend('/picking')">🗺️ /picking</button>
+        <button class="cmd-sug" onclick="quickSend('/ayuda')">❓ /ayuda</button>
+        <button class="cmd-sug" onclick="quickSend('/alertas')">⚠️ /alertas</button>
+      </div>
+      <div class="input-row">
+        <button class="attach-btn" title="Adjuntar">📎</button>
+        <input class="tg-input" id="tg-input" type="text" placeholder="Escribe un mensaje o /comando…" onkeydown="if(event.key==='Enter')sendTg()" />
+        <button class="send-btn" onclick="sendTg()">➤</button>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<script>
+let userRole = 'operario';
+let userName = 'Carlos';
+let msgCount = 0;
+
+function selectRole(r) {
+  userRole = r;
+  userName = r === 'supervisor' ? 'Juan (Jefe)' : 'Carlos';
+  document.querySelectorAll('.role-btn').forEach(b=>b.classList.remove('selected'));
+  document.getElementById('role-' + (r==='operario'?'op':'sup')).classList.add('selected');
+}
+
+function startChat() {
+  document.getElementById('screen-welcome').classList.remove('active');
+  document.getElementById('screen-chat').classList.add('active');
+  setTimeout(sendWelcomeFlow, 400);
+}
+
+function showWelcome() {
+  document.getElementById('screen-chat').classList.remove('active');
+  document.getElementById('screen-welcome').classList.add('active');
+}
+
+function updateClock() {
+  const now = new Date();
+  document.getElementById('tg-clock').textContent = now.toLocaleTimeString('es-CL',{hour:'2-digit',minute:'2-digit'});
+}
+setInterval(updateClock, 30000); updateClock();
+
+// ─── MESSAGE FACTORY ───
+function getTime() {
+  return new Date().toLocaleTimeString('es-CL',{hour:'2-digit',minute:'2-digit'});
+}
+
+function addInMsg(html, buttons, delay) {
+  const chat = document.getElementById('chat-messages');
+  return new Promise(resolve => {
+    setTimeout(() => {
+      // typing
+      const typingRow = document.createElement('div');
+      typingRow.className = 'msg-row in'; typingRow.id = 'typing-row';
+      typingRow.innerHTML = '<div class="typing-bubble"><div class="typing-dot"></div><div class="typing-dot"></div><div class="typing-dot"></div></div>';
+      chat.appendChild(typingRow);
+      typingRow.scrollIntoView({behavior:'smooth'});
+
+      setTimeout(() => {
+        typingRow.remove();
+        const row = document.createElement('div');
+        row.className = 'msg-row in';
+        let bubbHtml = `<div class="bubble"><div class="bubble-sender">🤖 SmartWMS Bot</div>${html}`;
+        if(buttons && buttons.length) {
+          bubbHtml += '<div class="inline-kb">' + buttons.map(b=>`<button class="ikb-btn" onclick="quickSend('${b.cmd}')">${b.label}</button>`).join('') + '</div>';
+        }
+        bubbHtml += `<div class="msg-time">${getTime()}</div></div>`;
+        row.innerHTML = bubbHtml;
+        chat.appendChild(row);
+        row.scrollIntoView({behavior:'smooth'});
+        resolve();
+      }, 900 + Math.random()*500);
+    }, delay || 0);
+  });
+}
+
+function addOutMsg(text) {
+  const chat = document.getElementById('chat-messages');
+  const row = document.createElement('div');
+  row.className = 'msg-row out';
+  row.innerHTML = `<div class="bubble">${text}<div class="msg-time">${getTime()} <span class="msg-check">✓✓</span></div></div>`;
+  chat.appendChild(row);
+  row.scrollIntoView({behavior:'smooth'});
+}
+
+// ─── WELCOME FLOW ───
+async function sendWelcomeFlow() {
+  const roleLabel = userRole === 'supervisor' ? 'Jefe de Bodega 🎯' : 'Operario 👷';
+  await addInMsg(`¡Hola <strong>${userName}</strong>! 👋 Bienvenido a <strong>SmartWMS Bot</strong>, tu copiloto inteligente de bodega.<br/><br/>Estás conectado como: <strong>${roleLabel}</strong>`);
+
+  if(userRole === 'operario') {
+    await addInMsg(`Puedo ayudarte con:<br/>• 📦 Consultar stock de productos<br/>• 🗺️ Guiarte en el proceso de picking<br/>• 📋 Resolver dudas sobre procedimientos<br/>• 📥 Soporte para putaway y packing`, [
+      {label:'📦 Ver mi orden activa', cmd:'¿Cuál es mi orden activa?'},
+      {label:'📋 Ver comandos', cmd:'/ayuda'},
+    ]);
+  } else {
+    await addInMsg(`Puedo ayudarte con:<br/>• 📊 Reportes de KPIs y Lead Time<br/>• ⚠️ Alertas de stock crítico<br/>• 🌡️ Estado de sensores IoT<br/>• 👷 Performance del equipo`, [
+      {label:'📊 Ver KPIs del día', cmd:'/kpis'},
+      {label:'⚠️ Ver alertas activas', cmd:'/alertas'},
+    ]);
+  }
+}
+
+// ─── BOT BRAIN ───
+const botReplies = {
+  '/ayuda': {
+    role: 'both',
+    fn: (role) => {
+      const cmds = role === 'operario' ? [
+        {k:'/stock [SKU]', d:'Consultar stock de un producto'},
+        {k:'/orden', d:'Ver tu orden activa'},
+        {k:'/picking', d:'Guía de proceso de picking'},
+        {k:'/putaway', d:'Protocolo de ingreso de stock'},
+        {k:'/packing', d:'Cómo cerrar un pedido'},
+        {k:'/alertas', d:'Ver alertas del sistema'},
+      ] : [
+        {k:'/kpis', d:'Indicadores del día'},
+        {k:'/stock [SKU]', d:'Consultar stock específico'},
+        {k:'/alertas', d:'Ver alertas activas (IoT + stock)'},
+        {k:'/equipo', d:'Performance del equipo'},
+        {k:'/pedidos', d:'Monitor de pedidos en curso'},
+        {k:'/iot', d:'Estado sensores IoT'},
+      ];
+      return `📋 <strong>Comandos disponibles:</strong><div class="cmd-card">${cmds.map(c=>`<div class="cmd-row"><span class="cmd-key">${c.k}</span><span class="cmd-desc">${c.d}</span></div>`).join('')}</div>`;
+    }
+  },
+  '/alertas': {
+    role: 'both',
+    fn: () => `⚠️ <strong>Alertas Activas (${new Date().toLocaleDateString('es-CL')}):</strong><br/><br/>🌡️ <strong>Temperatura</strong> – Zona A: 27.3°C (límite: 25°C)<br/>📦 <strong>Stock Crítico</strong> – SKU-00412: 3 uds<br/>📦 <strong>Stock Crítico</strong> – SKU-00789: 1 ud<br/>💥 <strong>Impacto detectado</strong> – Pallet #P-007 (3.8G)`,
+    buttons: [{label:'🌡️ Ver IoT', cmd:'/iot'},{label:'📦 Ver stock', cmd:'/stock'}]
+  },
+  '/stock': {
+    role: 'both',
+    fn: () => `📦 <strong>Resumen de Inventario:</strong><div class="stock-result"><div class="sr-title">Estado actual del almacén</div><div class="sr-row"><span>Total SKUs</span><strong>1,842</strong></div><div class="sr-row"><span>Stock saludable</span><strong style="color:var(--green)">1,796 ✅</strong></div><div class="sr-row"><span>Bajo stock</span><strong style="color:var(--yellow)">34 ⚠️</strong></div><div class="sr-row"><span>Críticos</span><strong style="color:var(--red)">12 🔴</strong></div></div>`,
+    buttons: [{label:'Ver SKUs críticos', cmd:'¿Qué SKUs están en rojo?'}]
+  },
+  '/kpis': {
+    role: 'supervisor',
+    fn: () => `📊 <strong>KPIs del día – 01/09/2026:</strong><div class="stock-result"><div class="sr-title">Rendimiento Operativo</div><div class="sr-row"><span>Órdenes completadas</span><strong>31</strong></div><div class="sr-row"><span>Órdenes en curso</span><strong>16</strong></div><div class="sr-row"><span>Lead Time promedio</span><strong style="color:var(--green)">18 min ↓</strong></div><div class="sr-row"><span>Exactitud picking</span><strong style="color:var(--green)">94.7%</strong></div><div class="sr-row"><span>Operarios activos</span><strong>6 / 6</strong></div></div>`,
+    buttons: [{label:'👷 Ver equipo', cmd:'/equipo'}]
+  },
+  '/equipo': {
+    role: 'supervisor',
+    fn: () => `👷 <strong>Performance del Equipo Hoy:</strong><br/><br/>🥇 Carlos Ramos – 14 órdenes, 16 min avg, 96% exactitud<br/>🥈 Ana Muñoz – 11 órdenes, 17 min avg, 93% exactitud<br/>🥉 Pedro Leal – 9 órdenes, 21 min avg, 88% exactitud<br/>4️⃣ María García – 8 órdenes, 22 min avg, 87% exactitud`
+  },
+  '/iot': {
+    role: 'both',
+    fn: () => `🌡️ <strong>Estado Sensores IoT (ESP32):</strong><br/><br/>🌡️ Zona A Temp: <strong style="color:var(--red)">27.3°C ⚠️ ALERTA</strong><br/>💧 Zona A Hum: 68% (normal)<br/>🌡️ Zona B Temp: <strong style="color:var(--green)">21.4°C ✅</strong><br/>💧 Zona B Hum: 52% ✅<br/>💥 Pallet P-007: <strong style="color:var(--red)">3.8G – EN CUARENTENA</strong>`
+  },
+  '/picking': {
+    role: 'operario',
+    fn: () => `🗺️ <strong>Protocolo de Picking SmartWMS:</strong><br/><br/>1️⃣ Recibe la orden en la app móvil<br/>2️⃣ Presiona <strong>"Iniciar Picking"</strong><br/>3️⃣ Sigue la ruta secuencial (A → B → C…)<br/>4️⃣ Escanea el QR de cada producto <strong>(Zero-Touch)</strong><br/>5️⃣ Tono verde ✅ = correcto, avanza<br/>6️⃣ Tono rojo ❌ = QR incorrecto, reintenta<br/>7️⃣ Al terminar, ve a la Mesa de Salida`,
+    buttons: [{label:'📦 ¿Qué hago en Packing?', cmd:'/packing'}]
+  },
+  '/packing': {
+    role: 'operario',
+    fn: () => `📦 <strong>Proceso de Cierre (Packing):</strong><br/><br/>1️⃣ Verifica que <strong>todos los items</strong> estén recolectados<br/>2️⃣ Dirígete a la <strong>Mesa de Salida</strong><br/>3️⃣ Escanea el QR de <strong>"Empaque Listo"</strong> (está en la mesa)<br/>4️⃣ Si hay items faltantes → ❌ no se permitirá el cierre<br/>5️⃣ Cierre exitoso → Estado cambia a <strong>"Listo para Courier"</strong><br/>6️⃣ El stock se descuenta definitivamente del sistema`
+  },
+  '/putaway': {
+    role: 'operario',
+    fn: () => `📥 <strong>Protocolo de Putaway (Ingreso de Stock):</strong><br/><br/>1️⃣ Recibe la mercancía física<br/>2️⃣ En la app, selecciona <strong>"Putaway / Ingreso"</strong><br/>3️⃣ Escanea el QR del <strong>estante o ubicación</strong> destino<br/>4️⃣ Escanea el QR del <strong>producto (SKU)</strong><br/>5️⃣ El sistema registrará el stock automáticamente<br/>⚠️ Si el estante no está en el layout → error de ubicación`
+  },
+  '/orden': {
+    role: 'operario',
+    fn: () => `📦 <strong>Tu Orden Activa:</strong><div class="stock-result"><div class="sr-title">ORD-1041 – En curso</div><div class="sr-row"><span>Cliente</span><strong>Tienda Online #42</strong></div><div class="sr-row"><span>Items totales</span><strong>8 productos</strong></div><div class="sr-row"><span>Recolectados</span><strong style="color:var(--green)">5 / 8</strong></div><div class="sr-row"><span>Tiempo en curso</span><strong style="color:var(--yellow)">14 min</strong></div></div>`,
+    buttons: [{label:'🗺️ Ver ruta picking', cmd:'/picking'}]
+  },
+  '/pedidos': {
+    role: 'supervisor',
+    fn: () => `📦 <strong>Monitor de Pedidos en Tiempo Real:</strong><br/><br/>🔵 En Picking: <strong>12</strong> órdenes<br/>📦 Empacando: <strong>8</strong> órdenes<br/>✅ Listo para Courier: <strong>19</strong> órdenes<br/>⏳ Pendientes: <strong>5</strong> órdenes<br/>🔴 Cuarentena: <strong>3</strong> órdenes`,
+    buttons: [{label:'⚠️ Ver cuarentena', cmd:'¿Qué pedidos están en cuarentena?'}]
+  }
+};
+
+const aiAnswers = [
+  {
+    keywords: ['stock', 'cuántas', 'cuantas', 'inventario', 'unidades', 'quedan'],
+    fn: (q) => {
+      const m = q.match(/sku-?(\w+)/i);
+      if(m) {
+        const skus = {'00412':'Tornillo M8 x 30mm','00567':'Teclado Mecánico TKL','00789':'Cable USB-C 2m','00234':'Mouse Inalámbrico','01100':'Monitor 24" HDMI','00890':'Audífonos Bluetooth'};
+        const stocks = {'00412':3,'00567':145,'00789':1,'00234':12,'01100':8,'00890':67};
+        const locs = {'00412':'A-03-B','00567':'C-03-B','00789':'C-01-A','00234':'C-02-A','01100':'B-05-C','00890':'D-02-A'};
+        const sk = m[1].padStart(5,'0');
+        if(stocks[sk]) {
+          const s = stocks[sk]; const tag = s<=5?'crit':s<=15?'warn':'ok';
+          const tagTxt = s<=5?'🔴 Crítico':s<=15?'⚠️ Bajo Stock':'✅ Saludable';
+          return `<strong>SKU-${sk} – ${skus[sk]||'Producto'}</strong><div class="stock-result"><div class="sr-title">Resultado de consulta</div><div class="sr-row"><span>Stock disponible</span><strong><span class="tag ${tag}">${tagTxt}</span> ${s} unidades</strong></div><div class="sr-row"><span>Ubicación</span><strong>${locs[sk]||'—'}</strong></div></div>`;
+        }
+      }
+      return `Ejecutando Function Calling en base de datos...<br/><br/>📦 Hay actualmente <strong>1,842 SKUs</strong> registrados. ¿Puedes indicarme el SKU específico? Ejemplo: <em>¿Cuánto stock tiene SKU-00567?</em>`;
+    }
+  },
+  {
+    keywords: ['orden', 'activa', 'pedido', 'asignada'],
+    fn: () => `Tu orden activa es <strong>#ORD-1041</strong> de Tienda Online #42.<br/>Llevas <strong>5 de 8 items</strong> recolectados. Lead Time actual: 14 min. ¡Sigue así! 💪`
+  },
+  {
+    keywords: ['cuarentena', 'dañado', 'impacto', 'roto'],
+    fn: () => `Un producto en <strong>🔴 Cuarentena</strong> fue marcado automáticamente por el sensor <strong>MPU6050</strong> al detectar un impacto superior a 2.5G.<br/><br/>También puede marcarse manualmente por el supervisor.<br/><strong>No puede usarse en picking</strong> hasta que el supervisor lo libere desde el panel web.`
+  },
+  {
+    keywords: ['temperatura', 'calor', 'frio', 'dht', 'sensor', 'iot'],
+    fn: () => `🌡️ <strong>Estado actual de temperatura:</strong><br/><br/>🔴 Zona A: <strong>27.3°C</strong> – ¡ALERTA! Excede el límite de 25°C<br/>✅ Zona B: <strong>21.4°C</strong> – Normal<br/><br/>El supervisor fue notificado automáticamente. Si eres el supervisor, accede al panel IoT para gestionar la alerta.`
+  },
+  {
+    keywords: ['rojo', 'critico', 'agotado', 'bajo stock', 'bajo'],
+    fn: () => `⚠️ <strong>SKUs en estado crítico:</strong><br/><br/>🔴 SKU-00412 (Tornillo M8) – solo <strong>3 uds</strong><br/>🔴 SKU-00789 (Cable USB-C) – solo <strong>1 ud</strong><br/><br/>📉 <strong>SKUs con bajo stock:</strong><br/>⚠️ SKU-01100 (Monitor 24") – 8 uds (mín: 10)<br/>⚠️ SKU-00234 (Mouse Inalámbrico) – 12 uds (mín: 15)`
+  },
+  {
+    keywords: ['protocolo', 'proceso', 'cómo', 'como', 'guia', 'paso', 'procedimiento'],
+    fn: () => `Tengo protocolos disponibles para:<br/><br/>• <strong>/picking</strong> – Proceso de recolección de items<br/>• <strong>/putaway</strong> – Ingreso de stock al almacén<br/>• <strong>/packing</strong> – Cierre de pedido en Mesa de Salida<br/><br/>Escribe el comando o pregunta directamente: <em>¿Cómo hago el picking?</em>`,
+    buttons: [{label:'/picking',cmd:'/picking'},{label:'/putaway',cmd:'/putaway'},{label:'/packing',cmd:'/packing'}]
+  },
+  {
+    keywords: ['lead time', 'tiempo', 'demora', 'promedio', 'kpi'],
+    fn: () => `📊 El <strong>Lead Time promedio</strong> de hoy es <strong>18 minutos</strong>.<br/><br/>Comparado con ayer (21 min), mejoró <strong>↓ 3 minutos</strong>. El objetivo del equipo es mantenerlo bajo 20 min.`
+  },
+  {
+    keywords: ['hola', 'hey', 'buenas', 'buenos', 'saludos'],
+    fn: (q, role, name) => `¡Hola ${name}! 👋 Soy SmartWMS Bot, tu asistente de bodega. Puedo ayudarte con consultas de stock, procedimientos logísticos, alertas y más. Escribe <strong>/ayuda</strong> para ver todos los comandos disponibles.`
+  },
+  {
+    keywords: ['gracias', 'ok', 'perfecto', 'listo', 'entendido'],
+    fn: () => `¡De nada! 😊 Si necesitas algo más, aquí estoy. Recuerda que puedes escribir <strong>/ayuda</strong> en cualquier momento para ver los comandos disponibles.`
+  },
+];
+
+function getBotReply(text) {
+  const tl = text.toLowerCase().trim();
+
+  // Command match
+  const cmd = tl.split(' ')[0];
+  if(botReplies[cmd]) {
+    const r = botReplies[cmd];
+    const html = r.fn ? r.fn(userRole, userName) : r.text;
+    return {html, buttons: r.buttons || []};
+  }
+
+  // AI keyword match
+  for(const rule of aiAnswers) {
+    if(rule.keywords.some(k => tl.includes(k))) {
+      return {html: rule.fn(tl, userRole, userName), buttons: rule.buttons || []};
+    }
+  }
+
+  // Off-topic
+  if(tl.length > 3 && !/\?/.test(tl) && !['stock','picking','orden','bodega','sku','pedido','operario','supervisor','almac','inventario'].some(k=>tl.includes(k))) {
+    if(Math.random()>0.4) {
+      return {html: `Hmm, eso parece estar fuera de mi área de expertise 😅<br/><br/>Soy un <strong>asistente de bodega</strong> especializado en SmartWMS. No puedo ayudarte con ese tema.<br/><br/>¿Tienes alguna duda sobre inventario, picking, putaway, packing o procedimientos logísticos?`};
+    }
+  }
+
+  // Default
+  return {html: `Procesando tu consulta en la base de datos vectorial...<br/><br/>No encontré información exacta para eso. ¿Puedes reformular la pregunta? También puedes escribir <strong>/ayuda</strong> para ver los comandos disponibles.`, buttons:[{label:'📋 /ayuda', cmd:'/ayuda'}]};
+}
+
+async function sendTg() {
+  const inp = document.getElementById('tg-input');
+  const text = inp.value.trim();
+  if(!text) return;
+  inp.value = '';
+  addOutMsg(text);
+  document.getElementById('bot-status').textContent = '● escribiendo…';
+  const reply = getBotReply(text);
+  await addInMsg(reply.html, reply.buttons, 300);
+  document.getElementById('bot-status').textContent = '● en línea';
+}
+
+function quickSend(text) {
+  document.getElementById('tg-input').value = text;
+  sendTg();
+}
+</script>
+</body>
+</html>
