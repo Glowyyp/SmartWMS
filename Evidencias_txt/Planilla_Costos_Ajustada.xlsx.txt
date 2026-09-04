@@ -1,0 +1,157 @@
+
+--- SHEET: REMUNERACIONES ---
+"REMUNERACIONES, HONORARIOS E INCENTIVOS",Unnamed: 1,Unnamed: 2,Unnamed: 3,Unnamed: 4,Unnamed: 5,Unnamed: 6,Unnamed: 7
+,,,,,,,
+,HONORARIOS,INCENTIVOS,REMUNERACIONES, ,DEDICACION,MESES A,TOTAL
+ITEM,J. COMPLETA,J. COMPLETA,J. COMPLETA,SUBTOTAL,AL PROYECTO,CONTRATAR,PROYECTO
+,M$/MES,M$/MES,M$/MES,M$/MES,% DE JORNADA,Nº,M$
+Profesionales,,,,,,,
+Jefe de Proyecto ,2500000,,,2500000,1,4,10000000
+Lider tecnico(Programador),1800000,,,1800000,1,4,7200000
+Analista Funcional,,,,,,,0
+Desarrollador BD,2200000,,,2200000,1,4,8800000
+,,,,,,,0
+SUBTOTAL,,,,,,,26000000
+,,,,,,,
+,,,,,,,
+,,,,,,,
+,,,,,,,
+,,,,,,,
+,,,,,,,
+,,,,,,,
+ ,,,,,,,
+ ,,,,,,,
+
+--- SHEET: EQUIPOS E INFRAESTRUCTURA ---
+Unnamed: 0,Unnamed: 1,Unnamed: 2,Unnamed: 3,Unnamed: 4,Unnamed: 5
+,,,,,
+ , ,COSTO,UNITARIO,CANTIDAD,COSTO
+NOMBRE DEL EQUIPO,DESCRIPCIÓN,CASO ADQUISICIONES,CASO ARRIENDO O USO,UNIDADES,TOTAL
+,,M$/UNIDAD,UNIDADES EXISTENTES (M$/MES),O MESES,M$
+Handhelds / Disp. Móviles,Equipos reforzados para bodega,250000,,12,3000000
+Etiquetadoras Industriales,Impresoras de etiquetas SKU,180000,,3,540000
+PC Jefe de Bodega,Computador de escritorio,800000,,1,800000
+Access Point Industrial,Refuerzo de Wi-Fi para zonas muertas,350000,,2,700000
+,,,,,0
+,,,,,0
+,,,,,0
+SUBTOTAL,,,,,5040000
+,,,,,
+,,,,,
+,,,,,
+INFRAESTRUCTURA,,,,,
+,,,,,
+ , ,COSTO,UNITARIO,CANTIDAD,COSTO
+NOMBRE DE LA INFRAESTRUCTURA,DESCRIPCIÓN,CASO ADQUISICIONES,CASO ARRIENDO O USO,UNIDADES,TOTAL
+,,O HABILITACIÓNM$/UNIDAD,UNIDADES EXISTENTES (M$/MES),O MESES,M$
+Google Cloud Platform,"Instancias y BD en Santiago 
+(Ley 21.719)",,18000,12,216000
+,,,,,0
+,,,,,0
+,,,,,0
+,,,,,0
+SUBTOTAL,,,,,216000
+
+--- SHEET: SOFTWARE Y FUNGIBLES ---
+Unnamed: 0,Unnamed: 1,Unnamed: 2,Unnamed: 3
+,,,
+ ,COSTO, ,COSTO
+DESCRIPCIÓN,UNITARIO,CANTIDAD,TOTAL
+,M$/UNIDAD,,M$
+Antivirus / Endpoint Security,15000,1,15000
+Software Backup para PC Jefe Bodega,45000,1,45000
+SUBTOTAL,,,60000
+,,,
+,,,
+,,,
+,,,
+,,,
+FUNGIBLES,,,
+,,,
+ ,COSTO, ,COSTO
+DESCRIPCIÓN,UNITARIO,CANTIDAD,TOTAL
+,M$/UNIDAD,,M$
+Cintas de impresión para Etiquetadoras,25000,4,100000
+Material Gráfico / Manuales Capacitación,100000,1,100000
+Papelería y Útiles de Oficina,50000,1,50000
+,,,0
+,,,0
+SUBTOTAL,,,250000
+
+--- SHEET: OTROS ---
+Unnamed: 0,Unnamed: 1,Unnamed: 2,Unnamed: 3
+PROPIEDAD INTELECTUAL,,,
+,,,
+ ,COSTO, ,COSTO
+DESCRIPCIÓN,UNITARIO,CANTIDAD,TOTAL
+,M$/UNIDAD,,M$
+Registro de Marca y Software (INAPI),150000,1,150000
+,,,0
+,,,0
+SUBTOTAL,,,150000
+,,,
+,,,
+GASTOS GENERALES E IMPREVISTOS,,,
+,,,
+ ,COSTO, ,COSTO
+DESCRIPCIÓN,UNITARIO,CANTIDAD,TOTAL
+,M$/UNIDAD,,M$
+Auditoría Externa (ISO 27001 / 25010),2000000,1,2000000
+Reserva de Contingencia (Riesgos),1500000,1,1500000
+,,,0
+,,,0
+SUBTOTAL,,,3500000
+,,,
+,,,
+,,,
+,,,
+,,,
+GASTOS COMUNES,,,
+,,,
+ ,COSTO, ,COSTO
+DESCRIPCIÓN,UNITARIO,CANTIDAD,TOTAL
+,M$/UNIDAD,,M$
+Gastos operativos de la cabina (Luz/Internet),50000,1,50000
+,,,0
+,,,0
+,,,0
+SUBTOTAL,,,50000
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+GASTOS DE ADMINISTRACIÓN SUPERIOR,,,
+ ,,,
+ ,COSTO, ,COSTO
+DESCRIPCIÓN,UNITARIO,CANTIDAD,TOTAL
+,M$/UNIDAD,,M$
+Overhead Administrativo (Gestión corporativa),500000,1,500000
+,,,0
+SUBTOTAL,,,500000
+
+--- SHEET: TOTAL ---
+COSTO TOTAL DEL PROYECTO (Valores en Pesos Chilenos - CLP),Unnamed: 1
+,
+,
+,COSTO
+ITEM,TOTAL
+,$
+"HONORARIOS, INCENTIVOS, REMUNERACIONES",26000000
+EQUIPOS,5040000
+INFRAESTRUCTURA,216000
+SOFTWARE,60000
+PROPIEDAD INTELECTUAL,150000
+GASTOS COMUNES,50000
+GASTOS GENERALES E IMPREVISTOS,3500000
+FUNGIBLES,250000
+GASTOS DE ADMINISTRACIÓN SUPERIOR,500000
+TOTAL,35766000
+,
+"NOTA: Los valores expresados corresponden a Pesos Chilenos ($). El total del proyecto asciende a $35766000,0 CLP.",
+,
+VALORIZACIÓN EN UF,
+Valor UF referencial ,38500
+Total Proyecto en UF,928.987012987013

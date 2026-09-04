@@ -1,0 +1,49 @@
+RESUMEN DE RIESGOS Y MITIGACIÓN - SMARTWMS
+==========================================
+
+Para la presentación, debes dominar estos 6 riesgos identificados, enfocándote principalmente en los primeros 3 que son los más relevantes para el negocio y la tecnología.
+
+1. RIESGO CRÍTICO: Disrupción de Internet en la Bodega
+- Problema: Si se cae el internet, la API en la nube (GCP) queda inaccesible.
+- Mitigación: Exigir a gerencia la instalación de un enlace de red dual (Fibra Óptica + Respaldo 5G automático).
+- Contingencia: La PWA (Aplicación Móvil) guardará la ruta actual de picking en "memoria caché local". El operario puede seguir trabajando offline y los datos se sincronizan solos al volver el internet.
+
+2. RIESGO MEDIO-ALTO: Rechazo de los Operarios al Nuevo Sistema
+- Problema: Que los trabajadores se frustren al usar la interfaz móvil (Zero-Touch) y genere retrasos operativos.
+- Mitigación: Hacer una Prueba de Concepto (PoC) temprana en la Semana 8 con operarios reales para adaptar el diseño a sus necesidades (UX).
+- Contingencia: Implementar un botón de anulación manual ("Ingresar SKU por teclado") por si falla la cámara o el QR, protegido por un PIN del supervisor.
+
+3. RIESGO MEDIO-ALTO: Retrasos en el Calendario (Timebox de 16 semanas)
+- Problema: No alcanzar a entregar el proyecto a tiempo para el 11 de Diciembre.
+- Mitigación: Utilizar la priorización MoSCoW (Must, Should, Could, Won't). 
+- Contingencia: En caso de emergencia, sacrificar el desarrollo de Inteligencia Artificial (Copiloto) para asegurar que el sistema principal transaccional de bodega (WMS) quede 100% operativo.
+
+4. RIESGO MEDIO: Sobregiro de Costos en la Nube (GCP)
+- Problema: Que un pico de uso o ataque genere una factura altísima en Google Cloud.
+- Mitigación: Configurar alertas automáticas de presupuesto (50%, 80%, 100%) y limitar el autoescalado de Cloud Run a máximo 10 instancias.
+
+5. RIESGO MEDIO: Falsos Positivos en Sensores IoT (Impactos)
+- Problema: Que los sensores MPU6050 registren impactos por simples vibraciones o pisadas fuertes.
+- Mitigación: Programar un filtro "anti-rebote" (debounce) en el código C++ del microcontrolador ESP32 para ignorar impactos menores a 2.5G.
+
+6. RIESGO BAJO: Brechas de Seguridad y Robo de Datos
+- Problema: Interceptación de datos de la bodega.
+- Mitigación: Todo el tráfico viaja encriptado vía HTTPS/TLS 1.3, las contraseñas usan Bcrypt (72 bytes de límite seguro), y las sesiones de los operarios expiran automáticamente a las 8 horas (fin de turno) usando tokens JWT.
+
+
+==========================================
+GUION DE PRESENTACIÓN PARA EL PROFESOR
+==========================================
+(Lee esto en voz alta un par de veces para que suene natural, con seguridad y pausas claras)
+
+"Profesor, buenas tardes/días. Yo soy Luis Lizana y voy a presentarles la gestión de riesgos de nuestro proyecto SmartWMS.
+
+Como en cualquier proyecto de adopción de nube e IoT, identificamos 6 riesgos, pero quiero centrarme en los tres más críticos para la continuidad del negocio.
+
+El primer riesgo, y el más crítico, es la pérdida de conexión a internet en la bodega, ya que nuestra arquitectura es Cloud-Native en Google Cloud. Para mitigarlo preventivamente, exigiremos un enlace redundante 5G. Sin embargo, nuestro plan de contingencia tecnológico es dotar a la aplicación web progresiva (PWA) de los operarios con memoria caché offline. Así, si cae la red, el operario termina su ruta de recolección localmente y la aplicación sincroniza la data en bloque (batch) cuando el internet regresa.
+
+El segundo riesgo alto es el factor humano: el posible rechazo de los operarios a la nueva interfaz Zero-Touch. Para mitigar esto, agendamos una Prueba de Concepto en la semana 8 con operarios reales para adaptar la experiencia de usuario (UX). Además, si el lector de cámara falla, habilitamos un botón de contingencia manual validado por PIN de supervisor para no detener la operación.
+
+Y el tercer gran riesgo es el tiempo: no alcanzar a salir a producción en las 16 semanas pactadas. Aquí fuimos estrictos aplicando la priorización MoSCoW. Si en la semana 12 detectamos un retraso crítico, activaremos el plan de contingencia que consiste en descartar formalmente los módulos de Inteligencia Artificial, para canalizar todo el esfuerzo en garantizar la salida a producción del WMS Core transaccional, asegurando así el retorno de inversión del cliente.
+
+Con estos planes, garantizamos no solo la resiliencia tecnológica del software, sino también la viabilidad operativa y económica del proyecto. Muchas gracias."

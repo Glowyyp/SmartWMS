@@ -1,0 +1,77 @@
+COMPARATIVA DE TECNOLOGÍAS - PROYECTO SMARTWMS
+==============================================
+Esta comparativa explica qué tecnologías componen el Prototipo Funcional (MVP) actual y cuáles son las tecnologías definitivas planificadas para Producción.
+
+1. BACKEND Y BASE DE DATOS
+--------------------------
+[AHORA - MVP Local]
+- Python + FastAPI: Para levantar la API rápidamente de forma local.
+- SQLite: Base de datos local (users.db), no requiere configuración de servidores, ideal para pruebas.
+- Uvicorn: Servidor ASGI para correr el backend en el computador local.
+
+[FUTURO - Producción]
+- Cloud SQL (PostgreSQL): Reemplazo de SQLite por una base de datos relacional robusta en la nube.
+- GCP Cloud Run (Serverless): La API vivirá en Google Cloud, escalando automáticamente (max 10 instancias según riesgos) y disponible 24/7.
+- Google Secret Manager: Bóveda de alta seguridad para almacenar tokens (Telegram, Gemini) y contraseñas de BD.
+
+
+2. FRONTEND E INTERFAZ DE USUARIO
+---------------------------------
+[AHORA - MVP Local]
+- HTML5, CSS3, Vanilla JavaScript: Código puro y ligero sin frameworks adicionales.
+- Chart.js: Para renderizar los dashboards del supervisor.
+
+[FUTURO - Producción]
+- PWA (Progressive Web App): Evolución de la interfaz a una aplicación instalable en dispositivos móviles/Handhelds.
+- Service Workers y Caché Offline: Si el Wi-Fi de la bodega cae, la app guarda los escaneos localmente y sincroniza al recuperar la red.
+- UI Zero-Touch: Interfaz optimizada para el escaneo físico mediante cámaras o láser infrarrojo de las handhelds.
+
+
+3. INTELIGENCIA ARTIFICIAL Y COMUNICACIONES
+-------------------------------------------
+[AHORA - MVP Local]
+- Google Gemini 1.5 Flash: Modelo de lenguaje integrado vía API para el Copiloto IA.
+- Python Telegram Bot: Integración para envío de notificaciones y alertas simuladas al celular del supervisor.
+
+[FUTURO - Producción]
+- pgvector + LLMs avanzados: Inteligencia artificial integrada directamente a nivel de base de datos para análisis predictivo (Business Intelligence) y detección de anomalías.
+
+
+4. HARDWARE E INTERNET DE LAS COSAS (IoT)
+-----------------------------------------
+[AHORA - MVP Local]
+- Simulación por Software: Botones en el frontend web que simulan los eventos (ej. "Simular Evento PIR") para comprobar que la lógica de alertas y Telegram funciona correctamente.
+
+[FUTURO - Producción]
+- Microcontroladores ESP32: Programados en C++ (con algoritmos anti-rebote/debounce) enviando telemetría vía Wi-Fi industrial mediante HTTPS/TLS 1.3.
+- Sensor MPU6050 (Acelerómetro): Detección de caídas y medición de Fuerza G en pallets (Pasa a cuarentena si supera 2.5G).
+- Sensores DHT22: Medición de temperatura y humedad ambiental (para zonas secas y cámaras de frío).
+- Sensor HC-SR501 (PIR): Detección de movimiento infrarrojo en estantes para evitar robos y validación cruzada con la app.
+
+----------------------------------------------
+RESUMEN PARA EL PROFESOR:
+"Actualmente estamos en fase Prototipo utilizando Python, FastAPI y SQLite localmente para validar la lógica y usabilidad. Sin embargo, la arquitectura final está diseñada para ser Cloud-Native en Google Cloud Platform (Cloud Run + PostgreSQL), utilizando una aplicación PWA con soporte offline para los operarios y hardware real (microcontroladores ESP32) para nuestra red de sensores IoT."
+
+==============================================
+ANEXO: DETALLES DEL CÓDIGO ACTUAL (MVP)
+==============================================
+Si el profesor te pregunta cómo está programado el sistema actual que están mostrando, aquí tienes los detalles exactos del código fuente:
+
+1. ARCHIVO main.py (El Motor de la API)
+- Utiliza el framework 'FastAPI' para levantar los endpoints (Rutas) del servidor.
+- Levanta en el puerto 8000 usando 'uvicorn'.
+- Tiene rutas clave como POST /api/login, POST /api/register y POST /api/chat.
+- Usa pydantic (BaseModel) para validar los datos que llegan desde el frontend.
+
+2. ARCHIVO database.py (Base de Datos Local)
+- Utiliza 'SQLAlchemy' como ORM (Mapeo Objeto-Relacional). Esto significa que en lugar de escribir consultas SQL a mano, usamos clases de Python.
+- Define la clase 'User' (Usuarios) que crea la tabla en 'users.db' con campos como id, email, hashed_password y role.
+
+3. ARCHIVO auth.py (Seguridad y Tokens)
+- Encriptación: Usa 'passlib' con 'bcrypt' para asegurar las contraseñas. (Dato curioso: el código convierte las contraseñas a bytes y las corta en 72 bytes para evitar un bug de límite estricto de bcrypt cuando se usan caracteres especiales como tildes o la ñ).
+- Sesiones: Genera tokens JWT (JSON Web Tokens) mediante 'PyJWT'. Cuando un usuario se loguea, se le entrega este token para que el frontend recuerde su sesión.
+
+4. FRONTEND (operario.html / supervisor.html)
+- Conexión: Usan la función nativa 'fetch()' de JavaScript para conectarse al backend en 'http://127.0.0.1:8000'.
+- Almacenamiento: Cuando el backend devuelve el Token JWT exitoso, el frontend lo guarda en 'localStorage.setItem('token', data.access_token)'.
+- Chat de IA: El componente chat_widget.js captura las preguntas del usuario y hace un POST al endpoint /api/chat, el cual consulta internamente a la API de Google Gemini 1.5.

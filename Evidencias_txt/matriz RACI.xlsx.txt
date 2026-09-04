@@ -1,0 +1,23 @@
+
+--- SHEET: Matriz R A C I ---
+Matriz RACI - Proyecto SmartWMS (Arquitectura Cloud GCP),Unnamed: 1,Unnamed: 2,Unnamed: 3,Unnamed: 4,Unnamed: 5,Unnamed: 6
+,,,,,,
+Leyenda de Responsabilidades:,,,,,,
+R (Responsible): Quien ejecuta y desarrolla el trabajo.,,,,,,
+"A (Accountable): Quien rinde cuentas y tiene la autoridad para aprobar. (Solo puede haber una ""A"" por fila).",,,,,,
+"C (Consulted): Quien aporta información, conocimientos o validación durante el proceso.",,,,,,
+"I (Informed): Quien es notificado sobre los resultados o avances, pero no participa directamente.",,,,,,
+,,,,,,
+Tareas e Hitos del Proyecto (Enfoque Cloud),Sponsor / Gerencia General,Product Owner / Jefe de Bodega,Scrum Master / Jefe de Proyecto,Equipo de Desarrollo (Devs & Cloud),Equipo de TI / Redes Local,Operarios de Bodega (Usuarios)
+1. Aprobación del Acta y Presupuesto (OPEX GCP),A,C,R,I,I,I
+2. Definición del Product Backlog (Historias),I,A,R,C,I,C
+3. Diseño de Arquitectura Cloud y Modelo de Datos,I,I,A,R,I,-
+"4. Aprovisionamiento en GCP (Cloud Run, Cloud SQL)",I,I,A,R,I,-
+5. Habilitación de Red Wi-Fi Local (Salida a Internet),I,A,C,C,R,-
+6. Desarrollo API Serverless y Webhooks (Sprint 1),I,C,A,R,I,-
+7. Plataforma Web Administrativa (Sprint 2),I,A,C,R,I,-
+8. App Móvil Zero-Touch (Sprint 3),I,A,C,R,I,C
+9. Copiloto IA (pgvector/LLM) y BI (Sprints 4-5),C,A,C,R,I,C
+10. Hardware IoT transmitiendo a GCP HTTPS (Sprint 6),I,A,C,R,C,I
+11. Pruebas de Estrés Cloud y Capacitación (Sprint 7),I,A,R,C,I,C
+12. Paso a Producción y Despliegue Final en GCP,A,C,R,R,C,I

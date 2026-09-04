@@ -1,0 +1,208 @@
+/* Widget Styles */
+.wms-chat-widget {
+  position: absolute;
+  bottom: 24px;
+  right: 24px;
+  z-index: 9999;
+  font-family: 'Inter', sans-serif;
+}
+
+.wms-chat-fab {
+  width: 56px;
+  height: 56px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, var(--accent, #3b82f6), var(--accent2, #06b6d4));
+  color: white;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 24px;
+  cursor: pointer;
+  box-shadow: 0 8px 24px rgba(59,130,246,0.4);
+  transition: transform 0.2s;
+}
+
+.wms-chat-fab:hover {
+  transform: scale(1.05);
+}
+
+.wms-chat-window {
+  position: absolute;
+  bottom: 76px;
+  right: 0;
+  width: 320px;
+  height: 480px;
+  background: var(--surface, #111827);
+  border: 1px solid var(--border, rgba(255,255,255,0.1));
+  border-radius: 16px;
+  box-shadow: 0 20px 40px rgba(0,0,0,0.5);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  opacity: 0;
+  pointer-events: none;
+  transform: translateY(20px);
+  transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.wms-chat-widget.open .wms-chat-window {
+  opacity: 1;
+  pointer-events: auto;
+  transform: translateY(0);
+}
+
+.wms-chat-header {
+  background: rgba(255,255,255,0.05);
+  padding: 16px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  border-bottom: 1px solid var(--border, rgba(255,255,255,0.05));
+}
+
+.wms-chat-header-icon {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, var(--accent, #3b82f6), #8b5cf6);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 18px;
+}
+
+.wms-chat-header-info h4 {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--text, #f1f5f9);
+}
+
+.wms-chat-header-info p {
+  margin: 0;
+  font-size: 11px;
+  color: var(--green, #10b981);
+}
+
+.wms-chat-close {
+  margin-left: auto;
+  background: none;
+  border: none;
+  color: var(--muted, #64748b);
+  cursor: pointer;
+  font-size: 20px;
+}
+
+.wms-chat-messages {
+  flex: 1;
+  padding: 16px;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.wms-chat-messages::-webkit-scrollbar { width: 4px; }
+.wms-chat-messages::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.1); border-radius: 2px; }
+
+.wms-msg {
+  max-width: 85%;
+  padding: 10px 14px;
+  border-radius: 14px;
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--text, #f1f5f9);
+  word-wrap: break-word;
+}
+
+.wms-msg.bot {
+  align-self: flex-start;
+  background: rgba(255,255,255,0.08);
+  border-bottom-left-radius: 4px;
+}
+
+.wms-msg.user {
+  align-self: flex-end;
+  background: var(--accent, #3b82f6);
+  color: #fff;
+  border-bottom-right-radius: 4px;
+}
+
+.wms-msg-buttons {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-top: 8px;
+}
+
+.wms-msg-btn {
+  background: rgba(59,130,246,0.15);
+  border: 1px solid rgba(59,130,246,0.3);
+  color: var(--accent, #3b82f6);
+  padding: 6px 10px;
+  border-radius: 8px;
+  font-size: 11px;
+  font-weight: 600;
+  cursor: pointer;
+  text-align: left;
+  transition: background 0.2s;
+}
+
+.wms-msg-btn:hover {
+  background: rgba(59,130,246,0.25);
+}
+
+.wms-chat-input-area {
+  padding: 12px;
+  background: rgba(255,255,255,0.02);
+  border-top: 1px solid var(--border, rgba(255,255,255,0.05));
+  display: flex;
+  gap: 8px;
+}
+
+.wms-chat-input {
+  flex: 1;
+  background: rgba(255,255,255,0.05);
+  border: 1px solid rgba(255,255,255,0.1);
+  border-radius: 20px;
+  padding: 8px 14px;
+  color: var(--text, #f1f5f9);
+  font-size: 13px;
+  font-family: inherit;
+  outline: none;
+}
+
+.wms-chat-input:focus {
+  border-color: var(--accent, #3b82f6);
+}
+
+.wms-chat-send {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  background: var(--accent, #3b82f6);
+  border: none;
+  color: #fff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  font-size: 16px;
+}
+
+.typing-dot {
+  display: inline-block;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--muted, #64748b);
+  animation: wms-typing 1.4s infinite;
+  margin: 0 2px;
+}
+.typing-dot:nth-child(2) { animation-delay: 0.2s; }
+.typing-dot:nth-child(3) { animation-delay: 0.4s; }
+
+@keyframes wms-typing {
+  0%, 60%, 100% { transform: translateY(0); opacity: 0.4; }
+  30% { transform: translateY(-4px); opacity: 1; }
+}

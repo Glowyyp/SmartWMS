@@ -1,0 +1,1321 @@
+Casos de Uso
+Historias de Usuario — Proyecto SmartWMS
+30 escenarios · 15 historias de usuario · 8 módulos funcionales
+
+SEC
+Seguridad y Acceso
+
+BE
+Backend y Base de Datos
+
+WEB
+Aplicación Web (Gestión)
+
+LOG
+Logística e Integración
+
+MOV
+Operación Móvil (Bodega)
+
+AI
+Inteligencia Artificial
+
+BI
+Business Intelligence
+
+IOT
+IoT y Sensores
+
+US-SEC-01
+Escenario 1
+Autenticación correcta
+Historia: Necesito iniciar sesión con mis credenciales
+
+Sistema El Wen WMS
+
+
+
+
+
+Operario
+
+ENTRADA
+
+
+
+
+
+Operario
+
+SALIDA
+
+
+
+
+
+
+
+Necesito iniciar sesión con mis credenciales
+
+Cuando envíe petición al endpoint /login
+
+En caso que las credenciales existan en la BD
+
+El sistema validará el hash y retornará un JWT con rol.
+FUNCIONALIDAD
+EVENTO (disparador)
+CONTEXTO (precondición)
+RESULTADO ESPERADO
+Seguridad y Acceso
+1 / 30
+
+US-SEC-01
+Escenario 2
+Token inválido/expirado
+Historia: Necesito iniciar sesión con mis credenciales
+
+Sistema El Wen WMS
+
+
+
+
+
+Operario
+
+ENTRADA
+
+
+
+
+
+Operario
+
+SALIDA
+
+
+
+
+
+
+
+Necesito iniciar sesión con mis credenciales
+
+Cuando consuma endpoint protegido
+
+En caso que se use un token expirado o inexistente
+
+El sistema denegará el acceso con HTTP 401 Unauthorized.
+FUNCIONALIDAD
+EVENTO (disparador)
+CONTEXTO (precondición)
+RESULTADO ESPERADO
+Seguridad y Acceso
+2 / 30
+
+US-BE-01
+Escenario 1
+Creación de tablas base
+Historia: Necesito provisionar la base de datos PostgreSQL con control ACID
+
+Sistema El Wen WMS
+
+
+
+
+
+Jefe de Bodega
+
+ENTRADA
+
+
+
+
+
+Jefe de Bodega
+
+SALIDA
+
+
+
+
+
+
+
+Necesito provisionar la base de datos PostgreSQL con control ACID
+
+Cuando se levante el contenedor BD
+
+En caso que el servidor local ejecute el script inicial
+
+El sistema creará las tablas relacionales y llaves foráneas.
+FUNCIONALIDAD
+EVENTO (disparador)
+CONTEXTO (precondición)
+RESULTADO ESPERADO
+Backend y Base de Datos
+3 / 30
+
+US-BE-01
+Escenario 2
+Bloqueo por concurrencia
+Historia: Necesito provisionar la base de datos PostgreSQL con control ACID
+
+Sistema El Wen WMS
+
+
+
+
+
+Jefe de Bodega
+
+ENTRADA
+
+
+
+
+
+Jefe de Bodega
+
+SALIDA
+
+
+
+
+
+
+
+Necesito provisionar la base de datos PostgreSQL con control ACID
+
+Cuando se ejecute descuento simultáneo
+
+En caso que dos transacciones modifiquen el mismo stock
+
+PostgreSQL bloqueará la fila (Row-Level Locking) evitando condiciones de carrera.
+FUNCIONALIDAD
+EVENTO (disparador)
+CONTEXTO (precondición)
+RESULTADO ESPERADO
+Backend y Base de Datos
+4 / 30
+
+US-WEB-01
+Escenario 1
+Registro exitoso
+Historia: Necesito configurar el layout físico (zonas, pasillos y racks)
+
+Sistema El Wen WMS
+
+
+
+
+
+Jefe de Bodega
+
+ENTRADA
+
+
+
+
+
+Jefe de Bodega
+
+SALIDA
+
+
+
+
+
+
+
+Necesito configurar el layout físico (zonas, pasillos y racks)
+
+Cuando haga clic en 'Guardar Ubicación'
+
+En caso que los datos sean obligatorios y el código único
+
+El sistema registrará la ubicación y actualizará el mapa visual.
+FUNCIONALIDAD
+EVENTO (disparador)
+CONTEXTO (precondición)
+RESULTADO ESPERADO
+Aplicación Web (Gestión)
+5 / 30
+
+US-WEB-01
+Escenario 2
+Código duplicado
+Historia: Necesito configurar el layout físico (zonas, pasillos y racks)
+
+Sistema El Wen WMS
+
+
+
+
+
+Jefe de Bodega
+
+ENTRADA
+
+
+
+
+
+Jefe de Bodega
+
+SALIDA
+
+
+
+
+
+
+
+Necesito configurar el layout físico (zonas, pasillos y racks)
+
+Cuando haga clic en 'Guardar Ubicación'
+
+En caso que intente registrar un rack ya existente
+
+El sistema bloqueará la acción mostrando alerta de duplicidad.
+FUNCIONALIDAD
+EVENTO (disparador)
+CONTEXTO (precondición)
+RESULTADO ESPERADO
+Aplicación Web (Gestión)
+6 / 30
+
+US-LOG-01
+Escenario 1
+Ingesta de orden exitosa
+Historia: Necesito enviar órdenes de compra vía Webhooks
+
+Sistema El Wen WMS
+
+
+
+
+
+
+Sistema E-commerce
+
+ENTRADA
+
+
+
+
+
+Operario
+
+SALIDA
+
+
+
+
+
+
+
+Necesito enviar órdenes de compra vía Webhooks
+
+Cuando la API reciba el POST
+
+En caso que el JSON sea válido
+
+El sistema registrará la orden y reservará el stock físicamente.
+FUNCIONALIDAD
+EVENTO (disparador)
+CONTEXTO (precondición)
+RESULTADO ESPERADO
+Logística e Integración
+7 / 30
+
+US-LOG-01
+Escenario 2
+Rechazo de payload
+Historia: Necesito enviar órdenes de compra vía Webhooks
+
+Sistema El Wen WMS
+
+
+
+
+
+
+Sistema E-commerce
+
+ENTRADA
+
+
+
+
+
+
+Sistema E-commerce
+
+SALIDA
+
+
+
+
+
+
+
+Necesito enviar órdenes de compra vía Webhooks
+
+Cuando la API reciba el POST
+
+En caso que falten campos obligatorios (SKU, cant)
+
+El sistema retornará HTTP 400 Bad Request indicando el error.
+FUNCIONALIDAD
+EVENTO (disparador)
+CONTEXTO (precondición)
+RESULTADO ESPERADO
+Logística e Integración
+8 / 30
+
+US-LOG-02
+Escenario 1
+Asignación exitosa
+Historia: Necesito registrar el almacenamiento (Putaway) escaneando QR
+
+Sistema El Wen WMS
+
+
+
+
+
+Operario
+
+ENTRADA
+
+
+
+
+
+Jefe de Bodega
+
+SALIDA
+
+
+
+
+
+
+
+Necesito registrar el almacenamiento (Putaway) escaneando QR
+
+Cuando se procese la lectura de ambos códigos
+
+En caso que escanee un QR de estante válido y luego un SKU válido
+
+El sistema asignará el stock a la ubicación mediante un UPDATE en BD.
+FUNCIONALIDAD
+EVENTO (disparador)
+CONTEXTO (precondición)
+RESULTADO ESPERADO
+Logística e Integración
+9 / 30
+
+US-LOG-02
+Escenario 2
+Ubicación inexistente
+Historia: Necesito registrar el almacenamiento (Putaway) escaneando QR
+
+Sistema El Wen WMS
+
+
+
+
+
+Operario
+
+ENTRADA
+
+
+
+
+
+Operario
+
+SALIDA
+
+
+
+
+
+
+
+Necesito registrar el almacenamiento (Putaway) escaneando QR
+
+Cuando se decodifique el QR
+
+En caso que el QR de estante no esté registrado en el layout
+
+El sistema emitirá un error indicando 'Ubicación no encontrada'.
+FUNCIONALIDAD
+EVENTO (disparador)
+CONTEXTO (precondición)
+RESULTADO ESPERADO
+Logística e Integración
+10 / 30
+
+US-WEB-02
+Escenario 1
+Actualización reactiva
+Historia: Necesito visualizar un monitor de pedidos en tiempo real
+
+Sistema El Wen WMS
+
+
+
+
+
+Operario
+
+ENTRADA
+
+
+
+
+
+Jefe de Bodega
+
+SALIDA
+
+
+
+
+
+
+
+Necesito visualizar un monitor de pedidos en tiempo real
+
+Cuando el backend emita la actualización
+
+En caso que un operario cambie estado del pedido
+
+El tablero se actualizará automáticamente (WebSockets).
+FUNCIONALIDAD
+EVENTO (disparador)
+CONTEXTO (precondición)
+RESULTADO ESPERADO
+Aplicación Web (Gestión)
+11 / 30
+
+US-WEB-02
+Escenario 2
+Filtrado por estado
+Historia: Necesito visualizar un monitor de pedidos en tiempo real
+
+Sistema El Wen WMS
+
+
+
+
+
+Jefe de Bodega
+
+ENTRADA
+
+
+
+
+
+Jefe de Bodega
+
+SALIDA
+
+
+
+
+
+
+
+Necesito visualizar un monitor de pedidos en tiempo real
+
+Cuando aplique el filtro en la web
+
+En caso que seleccione el filtro 'En Picking'
+
+El listado mostrará solo órdenes que se encuentran en ese estado.
+FUNCIONALIDAD
+EVENTO (disparador)
+CONTEXTO (precondición)
+RESULTADO ESPERADO
+Aplicación Web (Gestión)
+12 / 30
+
+US-MOV-01
+Escenario 1
+Ruta secuencial
+Historia: Necesito recibir la ruta guiada de recolección (picking)
+
+Sistema El Wen WMS
+
+
+
+
+
+Operario
+
+ENTRADA
+
+
+
+
+
+Operario
+
+SALIDA
+
+
+
+
+
+
+
+Necesito recibir la ruta guiada de recolección (picking)
+
+Cuando presione 'Iniciar Picking'
+
+En caso que inicie una orden asignada con productos
+
+La app ordenará los ítems según la lógica del layout físico.
+FUNCIONALIDAD
+EVENTO (disparador)
+CONTEXTO (precondición)
+RESULTADO ESPERADO
+Operación Móvil (Bodega)
+13 / 30
+
+US-MOV-01
+Escenario 2
+Cierre de ruta
+Historia: Necesito recibir la ruta guiada de recolección (picking)
+
+Sistema El Wen WMS
+
+
+
+
+
+Operario
+
+ENTRADA
+
+
+
+
+
+Operario
+
+SALIDA
+
+
+
+
+
+
+
+Necesito recibir la ruta guiada de recolección (picking)
+
+Cuando valide y descuente el último producto
+
+En caso que procese el último ítem de la orden
+
+La app indicará éxito y guiará al operario hacia la zona de Packing.
+FUNCIONALIDAD
+EVENTO (disparador)
+CONTEXTO (precondición)
+RESULTADO ESPERADO
+Operación Móvil (Bodega)
+14 / 30
+
+US-MOV-02
+Escenario 1
+Avance automático
+Historia: Necesito escanear códigos QR de manera continua (Zero-Touch)
+
+Sistema El Wen WMS
+
+
+
+
+
+Operario
+
+ENTRADA
+
+
+
+
+
+Operario
+
+SALIDA
+
+
+
+
+
+
+
+Necesito escanear códigos QR de manera continua (Zero-Touch)
+
+Cuando la cámara decodifique el QR
+
+En caso que el SKU escaneado coincida con la orden
+
+El sistema emitirá pitido verde, descontará la unidad y avanzará.
+FUNCIONALIDAD
+EVENTO (disparador)
+CONTEXTO (precondición)
+RESULTADO ESPERADO
+Operación Móvil (Bodega)
+15 / 30
+
+US-MOV-02
+Escenario 2
+Lectura incorrecta
+Historia: Necesito escanear códigos QR de manera continua (Zero-Touch)
+
+Sistema El Wen WMS
+
+
+
+
+
+Operario
+
+ENTRADA
+
+
+
+
+
+Operario
+
+SALIDA
+
+
+
+
+
+
+
+Necesito escanear códigos QR de manera continua (Zero-Touch)
+
+Cuando la cámara decodifique el QR
+
+En caso que el SKU no pertenezca a la orden activa
+
+Emitirá tono grave de error, deteniendo el escaneo continuo.
+FUNCIONALIDAD
+EVENTO (disparador)
+CONTEXTO (precondición)
+RESULTADO ESPERADO
+Operación Móvil (Bodega)
+16 / 30
+
+US-MOV-03
+Escenario 1
+Cierre de pedido
+Historia: Necesito escanear un QR de Empaque Listo en la mesa de salida
+
+Sistema El Wen WMS
+
+
+
+
+
+Operario
+
+ENTRADA
+
+
+
+
+
+
+Sistema E-commerce
+
+SALIDA
+
+
+
+
+
+
+
+Necesito escanear un QR de Empaque Listo en la mesa de salida
+
+Cuando escanee el QR de Empaque Listo
+
+En caso que todos los ítems estén recolectados previamente
+
+Cambiará el estado a 'Listo para Courier' y descontará stock definitivo.
+FUNCIONALIDAD
+EVENTO (disparador)
+CONTEXTO (precondición)
+RESULTADO ESPERADO
+Operación Móvil (Bodega)
+17 / 30
+
+US-MOV-03
+Escenario 2
+Intento con ítems faltantes
+Historia: Necesito escanear un QR de Empaque Listo en la mesa de salida
+
+Sistema El Wen WMS
+
+
+
+
+
+Operario
+
+ENTRADA
+
+
+
+
+
+Operario
+
+SALIDA
+
+
+
+
+
+
+
+Necesito escanear un QR de Empaque Listo en la mesa de salida
+
+Cuando escanee el QR de Empaque Listo
+
+En caso que falten productos en la lista del pedido
+
+Denegará el cierre mostrando una alerta roja de ítems faltantes.
+FUNCIONALIDAD
+EVENTO (disparador)
+CONTEXTO (precondición)
+RESULTADO ESPERADO
+Operación Móvil (Bodega)
+18 / 30
+
+US-AI-01
+Escenario 1
+Consulta de stock exitosa
+Historia: Necesito consultar stock mediante lenguaje natural
+
+Sistema El Wen WMS
+
+
+
+
+
+Jefe de Bodega
+
+ENTRADA
+
+
+
+
+
+Jefe de Bodega
+
+SALIDA
+
+
+
+
+
+
+
+Necesito consultar stock mediante lenguaje natural
+
+Cuando pregunte en el chat por el stock
+
+En caso que el producto exista en PostgreSQL
+
+Ejecutará Function Calling, consultará la BD y responderá con datos.
+FUNCIONALIDAD
+EVENTO (disparador)
+CONTEXTO (precondición)
+RESULTADO ESPERADO
+Inteligencia Artificial
+19 / 30
+
+US-AI-01
+Escenario 2
+Producto inexistente
+Historia: Necesito consultar stock mediante lenguaje natural
+
+Sistema El Wen WMS
+
+
+
+
+
+Jefe de Bodega
+
+ENTRADA
+
+
+
+
+
+Jefe de Bodega
+
+SALIDA
+
+
+
+
+
+
+
+Necesito consultar stock mediante lenguaje natural
+
+Cuando pregunte en el chat por el stock
+
+En caso que el SKU consultado no exista
+
+La IA responderá que no existe, evitando alucinaciones de inventario.
+FUNCIONALIDAD
+EVENTO (disparador)
+CONTEXTO (precondición)
+RESULTADO ESPERADO
+Inteligencia Artificial
+20 / 30
+
+US-AI-02
+Escenario 1
+Recuperación de protocolo
+Historia: Necesito hacer preguntas operativas al Copiloto (RAG)
+
+Sistema El Wen WMS
+
+
+
+
+
+Operario
+
+ENTRADA
+
+
+
+
+
+Operario
+
+SALIDA
+
+
+
+
+
+
+
+Necesito hacer preguntas operativas al Copiloto (RAG)
+
+Cuando consulte por un procedimiento logístico
+
+En caso que el manual esté en la BD vectorial
+
+Buscará el fragmento exacto y generará una instrucción paso a paso.
+FUNCIONALIDAD
+EVENTO (disparador)
+CONTEXTO (precondición)
+RESULTADO ESPERADO
+Inteligencia Artificial
+21 / 30
+
+US-AI-02
+Escenario 2
+Consulta Off-topic
+Historia: Necesito hacer preguntas operativas al Copiloto (RAG)
+
+Sistema El Wen WMS
+
+
+
+
+
+Operario
+
+ENTRADA
+
+
+
+
+
+Operario
+
+SALIDA
+
+
+
+
+
+
+
+Necesito hacer preguntas operativas al Copiloto (RAG)
+
+Cuando consulte un tema ajeno
+
+En caso que la pregunta no sea del ámbito logístico
+
+Denegará amablemente indicando que es un asistente de bodega.
+FUNCIONALIDAD
+EVENTO (disparador)
+CONTEXTO (precondición)
+RESULTADO ESPERADO
+Inteligencia Artificial
+22 / 30
+
+US-BI-01
+Escenario 1
+Visualización de KPI
+Historia: Necesito visualizar un gráfico de Lead Time
+
+Sistema El Wen WMS
+
+
+
+
+
+Jefe de Bodega
+
+ENTRADA
+
+
+
+
+
+Jefe de Bodega
+
+SALIDA
+
+
+
+
+
+
+
+Necesito visualizar un gráfico de Lead Time
+
+Cuando acceda a la pestaña Dashboards BI
+
+En caso que existan órdenes completadas en el sistema
+
+Calculará el delta de tiempo por orden y renderizará el gráfico.
+FUNCIONALIDAD
+EVENTO (disparador)
+CONTEXTO (precondición)
+RESULTADO ESPERADO
+Business Intelligence
+23 / 30
+
+US-BI-01
+Escenario 2
+Ausencia de datos
+Historia: Necesito visualizar un gráfico de Lead Time
+
+Sistema El Wen WMS
+
+
+
+
+
+Jefe de Bodega
+
+ENTRADA
+
+
+
+
+
+Jefe de Bodega
+
+SALIDA
+
+
+
+
+
+
+
+Necesito visualizar un gráfico de Lead Time
+
+Cuando aplique el filtro de fechas
+
+En caso que filtre un periodo sin operación
+
+Limpiará el gráfico indicando la falta de datos suficientes.
+FUNCIONALIDAD
+EVENTO (disparador)
+CONTEXTO (precondición)
+RESULTADO ESPERADO
+Business Intelligence
+24 / 30
+
+US-BI-02
+Escenario 1
+Detección de bajo stock
+Historia: Necesito ver un widget de alerta predictiva de stock
+
+Sistema El Wen WMS
+
+
+
+
+
+Jefe de Bodega
+
+ENTRADA
+
+
+
+
+
+Jefe de Bodega
+
+SALIDA
+
+
+
+
+
+
+
+Necesito ver un widget de alerta predictiva de stock
+
+Cuando el tablero termine de cargar
+
+En caso que el stock caiga bajo su umbral mínimo configurado
+
+Mostrará los SKUs críticos en color rojo indicando unidades restantes.
+FUNCIONALIDAD
+EVENTO (disparador)
+CONTEXTO (precondición)
+RESULTADO ESPERADO
+Business Intelligence
+25 / 30
+
+US-BI-02
+Escenario 2
+Inventario saludable
+Historia: Necesito ver un widget de alerta predictiva de stock
+
+Sistema El Wen WMS
+
+
+
+
+
+Jefe de Bodega
+
+ENTRADA
+
+
+
+
+
+Jefe de Bodega
+
+SALIDA
+
+
+
+
+
+
+
+Necesito ver un widget de alerta predictiva de stock
+
+Cuando el tablero termine de cargar
+
+En caso que todo el stock esté sobre el umbral mínimo
+
+Mostrará un estado en verde indicando: Stock Saludable.
+FUNCIONALIDAD
+EVENTO (disparador)
+CONTEXTO (precondición)
+RESULTADO ESPERADO
+Business Intelligence
+26 / 30
+
+US-IOT-01
+Escenario 1
+Lectura normal
+Historia: Necesito monitorear temperatura/humedad ambiental con DHT22
+
+Sistema El Wen WMS
+
+
+
+
+
+Jefe de Bodega
+
+ENTRADA
+
+
+
+
+
+Jefe de Bodega
+
+SALIDA
+
+
+
+
+
+
+
+Necesito monitorear temperatura/humedad ambiental con DHT22
+
+Cuando el backend reciba la telemetría
+
+En caso que el ESP32 envíe lectura dentro de rangos seguros
+
+Guardará el dato en BD silenciosamente y actualizará el panel en verde.
+FUNCIONALIDAD
+EVENTO (disparador)
+CONTEXTO (precondición)
+RESULTADO ESPERADO
+IoT y Sensores
+27 / 30
+
+US-IOT-01
+Escenario 2
+Alerta umbral excedido
+Historia: Necesito monitorear temperatura/humedad ambiental con DHT22
+
+Sistema El Wen WMS
+
+
+
+
+
+Jefe de Bodega
+
+ENTRADA
+
+
+
+
+
+Jefe de Bodega
+
+SALIDA
+
+
+
+
+
+
+
+Necesito monitorear temperatura/humedad ambiental con DHT22
+
+Cuando el backend reciba la telemetría
+
+En caso que la lectura supere el límite máximo seguro
+
+Disparará una alarma sonora y visual en la pantalla web del Jefe.
+FUNCIONALIDAD
+EVENTO (disparador)
+CONTEXTO (precondición)
+RESULTADO ESPERADO
+IoT y Sensores
+28 / 30
+
+US-IOT-02
+Escenario 1
+Detección de impacto
+Historia: Necesito detectar impactos físicos de la carga con MPU6050
+
+Sistema El Wen WMS
+
+
+
+
+
+Jefe de Bodega
+
+ENTRADA
+
+
+
+
+
+Jefe de Bodega
+
+SALIDA
+
+
+
+
+
+
+
+Necesito detectar impactos físicos de la carga con MPU6050
+
+Cuando el sensor transmita el evento de impacto
+
+En caso que la Fuerza G supere el límite preestablecido tolerado
+
+Cambiará el estado del producto a 'En Cuarentena' y emitirá alerta.
+FUNCIONALIDAD
+EVENTO (disparador)
+CONTEXTO (precondición)
+RESULTADO ESPERADO
+IoT y Sensores
+29 / 30
+
+US-IOT-02
+Escenario 2
+Movimiento normal
+Historia: Necesito detectar impactos físicos de la carga con MPU6050
+
+Sistema El Wen WMS
+
+
+
+
+
+Jefe de Bodega
+
+ENTRADA
+
+
+
+
+
+Jefe de Bodega
+
+SALIDA
+
+
+
+
+
+
+
+Necesito detectar impactos físicos de la carga con MPU6050
+
+Cuando el sensor transmita la lectura continua
+
+En caso que registre un movimiento de manipulación leve
+
+Ignorará la lectura por ser de bajo impacto, evitando falsas alarmas.
+FUNCIONALIDAD
+EVENTO (disparador)
+CONTEXTO (precondición)
+RESULTADO ESPERADO
+IoT y Sensores
+30 / 30

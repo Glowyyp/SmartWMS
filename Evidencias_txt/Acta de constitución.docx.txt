@@ -1,0 +1,82 @@
+
+Indice de Contenidos
+Indice de Contenidos	1
+Información del proyecto	2
+Datos	2
+Patrocinadores	2
+Gerente de Proyecto	2
+Lista de Interesados (stakeholders)	2
+Cronograma de hitos principales	2
+Presupuesto estimado	2
+Descripción del proyecto	3
+Objetivos del Negocio	3
+Justificación del proyecto – Contexto	3
+Problema-Necesidad	3
+Descripción del producto	3
+Solución Propuesta	3
+Objetivos del proyecto	3
+Objetivos de desarrollo	4
+Entregables	4
+Descripción del sistema	4
+Requerimientos de alto nivel	4
+Premisas y restricciones	4
+Riesgos iniciales de alto nivel	5
+Especificaciones técnicas de las herramientas de desarrollo	5
+Tipo de Interfaz de Hardware	5
+Tipo de Interfaz de Software	5
+Tipo de Interfaz de Usuario	5
+Requisitos de aprobación del proyecto	5
+Aprobaciones y control de cambios	5
+
+Información del proyecto
+Datos
+
+Patrocinadores
+
+Gerente de Proyecto
+
+
+Lista de Interesados (stakeholders)
+
+
+Cronograma de hitos principales
+
+Presupuesto estimado
+Descripción del proyecto
+Objetivos del Negocio
+
+Justificación del proyecto – Contexto
+
+Problema-Necesidad
+
+Descripción del producto
+Solución Propuesta
+
+Objetivos del proyecto
+
+
+
+
+Objetivos de desarrollo
+
+Entregables
+
+
+Descripción del sistema
+Requerimientos de alto nivel
+
+Premisas y restricciones
+
+Riesgos iniciales de alto nivel
+
+Especificaciones técnicas de las herramientas de desarrollo
+
+Tipo de Interfaz de Hardware
+
+Tipo de Interfaz de Software
+
+Tipo de Interfaz de Usuario
+
+
+Requisitos de aprobación del proyecto
+Aprobaciones y control de cambios

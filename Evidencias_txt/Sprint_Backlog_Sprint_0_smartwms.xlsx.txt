@@ -1,0 +1,12 @@
+
+--- SHEET: Sprint 0 ---
+Identificador (ID) de item de product backlog,Enunciado del item de Product Backlog,Tarea,Dueño / Voluntario,Estatus,Horas estimadas totales
+PM-01,"Como Sponsor / Stakeholder, necesito la documentación de inicio del proyecto, con la finalidad de aprobar formalmente el alcance, presupuesto y roles.",Redactar Acta de Constitución (Project Charter) y definir alcance (In/Out-of-scope).,Jefe de Proyecto,Done,8
+,,Elaborar Matriz RACI para asignación de roles y responsabilidades.,Jefe de Proyecto,Done,3
+,,"Estructurar Product Backlog (Historias de Usuario, Criterios de Aceptación).",Jefe de Proyecto,Done,8
+,,Definir matriz de riesgos cualitativa (Probabilidad x Impacto) y planes de mitigación.,Jefe de Proyecto,Done,4
+,,Documentar especificación de Casos de Uso de Alto Nivel (30 Escenarios) y diagramas UML.,Analista Funcional,Done,6
+ARCH-01,"Como Arquitecto de Software, necesito diseñar la arquitectura técnica y de infraestructura, con la finalidad de establecer los cimientos del sistema en GCP.","Diseñar diagramas de arquitectura de software (C4 Model, UML, Secuencia, Despliegue).",Arquitecto Cloud,Done,8
+,,Diseñar el Modelo Entidad-Relación (MER) lógico y físico para la base de datos PostgreSQL.,Arquitecto Cloud,Done,5
+,,"Crear proyecto en Google Cloud Platform (GCP) y habilitar APIs base (Cloud Run, Cloud SQL).",Arquitecto Cloud,Done,3
+,,"Configurar red VPC, subredes y políticas iniciales de acceso (IAM) en la nube.",Arquitecto Cloud,Done,4

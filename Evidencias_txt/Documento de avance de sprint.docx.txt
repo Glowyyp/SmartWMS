@@ -1,0 +1,47 @@
+Informe de cierre sprint 0
+
+
+
+
+
+Introducción 
+El proyecto corresponde al desarrollo de SmartWMS, un Sistema de Gestión de Almacenes (WMS) nativo en la nube (Cloud-Native) desplegado en Google Cloud Platform (GCP) bajo un modelo SaaS. La solución integra una aplicación móvil con tecnología Zero-Touch para operarios, un panel web de administración gerencial (Business Intelligence), telemetría IoT (sensores ESP32) para control de impacto/clima, y un Copiloto de Inteligencia Artificial (LLM/RAG). Su objetivo principal es optimizar el Lead Time de recolección, reducir a cero los errores de digitación y democratizar el acceso a logística avanzada transformando los costos fijos de infraestructura (CAPEX) en costos operativos flexibles (OPEX).
+Resumen Sprint
+El Sprint 0 (Kick-off y Cloud Setup) se ejecutó durante las Semanas 1 y 2 del cronograma oficial del proyecto. Durante esta iteración fundacional, el equipo se enfocó exclusivamente en la planificación estratégica, el levantamiento de requerimientos, el diseño de la arquitectura de software y la estructuración del entorno base en la nube. Se logró un 100% de cumplimiento en los entregables críticos de ingeniería definidos para esta fase inicial. Al haberse completado la totalidad de las horas estimadas sin bloqueos técnicos ni administrativos, no existen tareas postergadas ni deuda técnica que deba ser arrastrada a iteraciones futuras.
+Tareas realizadas
+El trabajo del Sprint 0 se dividió en dos grandes épicas de gestión y arquitectura, completando las siguientes tareas sin postergaciones:
+Gestión de Proyecto y Requisitos (Épica PM-01):
+Redacción y aprobación del Acta de Constitución (Project Charter), definiendo explícitamente los límites del sistema (In-Scope y Out-of-Scope) y el presupuesto base consolidado con reserva de contingencia.
+
+Elaboración de la Matriz RACI para la asignación de responsabilidades.
+
+Estructuración del Product Backlog definitivo (15 Historias de Usuario con sus respectivos Criterios de Aceptación).
+
+Definición cualitativa de la Matriz de Riesgos (Probabilidad x Impacto) con planes de mitigación y contingencia semaforizados.
+
+Modelado de 30 Casos de Uso de Alto Nivel (15 flujos normales y 15 cursos alternativos) y diseño del diagrama UML general del sistema.
+Arquitectura y Cloud Setup (Épica ARCH-01):
+Diseño de los planos arquitectónicos de software (C4 Model, Diagramas UML de Secuencia y Despliegue).
+
+Diseño del Modelo Entidad-Relación (MER) lógico y físico para la persistencia de datos.
+
+Creación del proyecto en Google Cloud Platform (GCP), habilitación de APIs (Cloud Run, Cloud SQL) y configuración de la red perimetral VPC.
+Próximo Sprint 
+El Sprint 1 (Seguridad y Backend Core) abordará la construcción de la lógica de negocio central y la securización de la infraestructura. El equipo se compromete macroscópicamente a realizar:
+Desarrollo de API REST: Configuración del proyecto en FastAPI (Python) y construcción de endpoints asíncronos.
+Seguridad y Autenticación: Implementación del endpoint /login con cifrado de contraseñas, emisión de tokens JWT y validación de roles (RBAC) cumpliendo la Ley 21.719.
+Persistencia de Datos: Mapeo de la base de datos PostgreSQL utilizando el ORM SQLAlchemy, aplicación de migraciones (Alembic) y habilitación de la extensión vectorial pgvector en GCP.
+Integración E-commerce: Diseño del Contrato de API (Swagger) y desarrollo del Webhook de entrada para la ingesta automatizada de órdenes de compra.
+Despliegue: Dockerización del backend y paso a producción inicial en contenedores de Google Cloud Run.
+Anexos 
+Acta de constitución de proyecto.
+Matriz R A C I.
+Product Backlog.
+Historias de usuario.
+Sprint Backlog.
+Casos de uso escenarios.
+Caso de uso general.
+Planilla de costos.
+Matriz de riesgos (alto nivel, semaforizado y plan de mitigación).
+Planos arquitectónicos Diagramas UML.
+Modelo entidad – relación.
