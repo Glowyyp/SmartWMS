@@ -1,0 +1,132 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- fragment_historial.xml — Historial de pedidos del operario -->
+<LinearLayout
+    xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="@color/bg_dark"
+    android:orientation="vertical"
+    android:padding="20dp">
+
+    <!-- Header -->
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal"
+        android:gravity="center_vertical"
+        android:layout_marginBottom="20dp">
+
+        <LinearLayout
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:orientation="vertical">
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Historial"
+                android:textSize="22sp"
+                android:textStyle="bold"
+                android:textColor="@color/text_primary"/>
+
+            <TextView
+                android:id="@+id/tv_historial_subtitle"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Todos los pedidos"
+                android:textSize="13sp"
+                android:textColor="@color/text_muted"
+                android:layout_marginTop="2dp"/>
+        </LinearLayout>
+
+        <!-- Filtro estado -->
+        <Spinner
+            android:id="@+id/spinner_filter"
+            android:layout_width="130dp"
+            android:layout_height="40dp"
+            android:background="@drawable/bg_spinner"
+            android:spinnerMode="dropdown"/>
+    </LinearLayout>
+
+    <!-- Loading -->
+    <ProgressBar
+        android:id="@+id/progress_historial"
+        style="?android:attr/progressBarStyleHorizontal"
+        android:layout_width="match_parent"
+        android:layout_height="4dp"
+        android:indeterminate="true"
+        android:visibility="gone"
+        android:progressTint="@color/purple_primary"
+        android:layout_marginBottom="8dp"/>
+
+    <!-- Error -->
+    <TextView
+        android:id="@+id/tv_historial_error"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:textColor="@color/error_color"
+        android:textSize="13sp"
+        android:background="#1fef4444"
+        android:padding="12dp"
+        android:visibility="gone"
+        android:layout_marginBottom="8dp"/>
+
+    <!-- Estado vacío -->
+    <LinearLayout
+        android:id="@+id/layout_empty_historial"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        android:gravity="center"
+        android:padding="48dp"
+        android:visibility="gone">
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="📋"
+            android:textSize="48sp"
+            android:layout_marginBottom="12dp"/>
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="Sin pedidos en el historial"
+            android:textSize="16sp"
+            android:textStyle="bold"
+            android:textColor="@color/text_primary"
+            android:layout_marginBottom="8dp"/>
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="Los pedidos completados o cancelados aparecerán aquí."
+            android:textSize="13sp"
+            android:textColor="@color/text_muted"
+            android:gravity="center"/>
+    </LinearLayout>
+
+    <!-- Lista de pedidos del historial -->
+    <androidx.recyclerview.widget.RecyclerView
+        android:id="@+id/rv_historial"
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_weight="1"/>
+
+    <!-- Botón refrescar -->
+    <com.google.android.material.button.MaterialButton
+        android:id="@+id/btn_refresh_historial"
+        android:layout_width="match_parent"
+        android:layout_height="48dp"
+        android:text="🔄 Actualizar"
+        android:textSize="14sp"
+        android:backgroundTint="@color/surface_dark"
+        app:strokeColor="@color/purple_primary"
+        app:strokeWidth="1dp"
+        android:textColor="@color/purple_light"
+        style="@style/Widget.MaterialComponents.Button.OutlinedButton"
+        android:layout_marginTop="8dp"/>
+
+</LinearLayout>

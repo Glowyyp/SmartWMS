@@ -1,0 +1,216 @@
+// dashboard.component.scss
+
+.app-toolbar {
+  background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%) !important;
+  color: white !important;
+  position: sticky;
+  top: 0;
+  z-index: 100;
+  box-shadow: 0 2px 20px rgba(0, 0, 0, 0.3);
+
+  .toolbar-logo {
+    margin-right: 0.5rem;
+    color: #6c63ff;
+  }
+
+  .toolbar-title {
+    font-weight: 700;
+    font-size: 1.25rem;
+    letter-spacing: -0.5px;
+  }
+
+  .spacer { flex: 1 1 auto; }
+
+  .role-chip {
+    margin-right: 0.75rem;
+    background: rgba(108, 99, 255, 0.2) !important;
+    color: #a89cff !important;
+    border: 1px solid rgba(108, 99, 255, 0.3);
+  }
+}
+
+.dashboard-container {
+  padding: 2rem;
+  max-width: 1400px;
+  margin: 0 auto;
+  background: #0f0f1a;
+  min-height: calc(100vh - 64px);
+}
+
+// ─── Métricas KPI ──────────────────────────────────────────────────────────
+
+.metrics-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: 1.25rem;
+  margin-bottom: 2rem;
+}
+
+.metric-card {
+  border-radius: 16px !important;
+  background: #1a1a2e !important;
+  border: 1px solid rgba(255, 255, 255, 0.05);
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+  cursor: default;
+
+  &:hover {
+    transform: translateY(-4px);
+    box-shadow: 0 12px 30px rgba(0, 0, 0, 0.4) !important;
+  }
+
+  &--primary .metric-icon { color: #6c63ff; }
+  &--success .metric-icon { color: #3ecf8e; }
+  &--warning .metric-icon { color: #f59e0b; }
+  &--danger  .metric-icon { color: #ef4444; }
+}
+
+.metric-content {
+  display: flex;
+  align-items: flex-start;
+  gap: 1rem;
+  padding: 1.5rem !important;
+}
+
+.metric-icon-wrapper {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 52px;
+  height: 52px;
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.05);
+  flex-shrink: 0;
+
+  .metric-icon {
+    font-size: 28px;
+    width: 28px;
+    height: 28px;
+  }
+}
+
+.metric-data {
+  flex: 1;
+
+  .metric-title {
+    color: rgba(255, 255, 255, 0.5);
+    font-size: 0.8rem;
+    font-weight: 500;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    margin: 0 0 0.25rem;
+  }
+
+  .metric-value {
+    color: white;
+    font-size: 1.75rem;
+    font-weight: 700;
+    margin: 0 0 0.25rem;
+    line-height: 1;
+  }
+
+  .metric-subtitle {
+    color: rgba(255, 255, 255, 0.4);
+    font-size: 0.75rem;
+    margin: 0;
+  }
+}
+
+.metric-trend {
+  display: flex;
+  align-items: center;
+  gap: 0.2rem;
+  font-size: 0.8rem;
+  font-weight: 600;
+  align-self: flex-start;
+
+  mat-icon { font-size: 16px; width: 16px; height: 16px; }
+
+  &--up    { color: #3ecf8e; }
+  &--down  { color: #ef4444; }
+  &--neutral { color: rgba(255,255,255,0.4); }
+}
+
+// ─── Órdenes recientes ────────────────────────────────────────────────────
+
+.orders-card {
+  border-radius: 16px !important;
+  background: #1a1a2e !important;
+  border: 1px solid rgba(255, 255, 255, 0.05);
+
+  mat-card-header {
+    display: flex;
+    align-items: center;
+    padding: 1.25rem 1.5rem 0 !important;
+
+    mat-card-title {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      color: white;
+      font-size: 1.1rem;
+      font-weight: 600;
+      mat-icon { color: #6c63ff; }
+    }
+  }
+}
+
+.orders-table {
+  margin-top: 1rem;
+}
+
+.table-header {
+  display: grid;
+  grid-template-columns: 120px 1fr 100px 140px 120px;
+  padding: 0.75rem 1rem;
+  background: rgba(255, 255, 255, 0.03);
+  border-radius: 8px;
+  color: rgba(255, 255, 255, 0.4);
+  font-size: 0.75rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  margin-bottom: 0.5rem;
+}
+
+.table-row {
+  display: grid;
+  grid-template-columns: 120px 1fr 100px 140px 120px;
+  padding: 1rem;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+  align-items: center;
+  color: rgba(255, 255, 255, 0.8);
+  font-size: 0.875rem;
+  transition: background 0.15s ease;
+
+  &:hover { background: rgba(255, 255, 255, 0.03); }
+  &:last-child { border-bottom: none; }
+
+  .order-id {
+    font-family: 'Courier New', monospace;
+    color: #6c63ff;
+    font-weight: 600;
+  }
+
+  .order-total {
+    font-weight: 700;
+    color: #3ecf8e;
+  }
+
+  .order-status {
+    display: flex;
+    align-items: center;
+    gap: 0.25rem;
+    font-weight: 500;
+
+    mat-icon { font-size: 16px; width: 16px; height: 16px; }
+
+    &--completed { color: #3ecf8e; }
+    &--failed    { color: #ef4444; }
+    &--processing { color: #f59e0b; }
+  }
+
+  .order-time {
+    color: rgba(255, 255, 255, 0.4);
+    font-size: 0.8rem;
+  }
+}

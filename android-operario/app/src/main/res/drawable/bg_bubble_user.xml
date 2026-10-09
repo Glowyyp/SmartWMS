@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- drawable/bg_bubble_user.xml — Fondo de burbuja del usuario -->
+<shape xmlns:android="http://schemas.android.com/apk/res/android"
+    android:shape="rectangle">
+    <solid android:color="#4f46e5"/>
+    <corners
+        android:topLeftRadius="16dp"
+        android:topRightRadius="4dp"
+        android:bottomLeftRadius="16dp"
+        android:bottomRightRadius="16dp"/>
+</shape>

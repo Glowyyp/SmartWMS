@@ -1,0 +1,35 @@
+# Entornos virtuales y cachés de Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.env
+.env
+.venv/
+env/
+venv/
+ENV/
+
+# Node.js / Angular / Frontend
+node_modules/
+dist/
+.angular/
+
+# Android / Java / Kotlin
+*.apk
+*.ap_
+*.aab
+*.dex
+*.class
+bin/
+gen/
+out/
+build/
+.gradle/
+local.properties
+.idea/
+*.iml
+*.cxx
+
+# Varios
+.DS_Store
+Thumbs.db

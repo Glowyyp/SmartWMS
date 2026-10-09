@@ -1,0 +1,33 @@
+# ============================================================
+# SmartWMS E-Commerce — Backend Dependencies
+# ============================================================
+
+# Framework y servidor
+fastapi==0.115.0
+uvicorn[standard]==0.30.6
+
+# Base de datos
+sqlalchemy==2.0.35
+psycopg2-binary==2.9.9       # Driver PostgreSQL para local/GCP Cloud SQL
+# pg8000==1.31.2             # Driver alternativo puro-Python (mejor compatibilidad GCP)
+
+# Validación y tipos
+pydantic==2.9.2
+pydantic[email]==2.9.2       # Habilita EmailStr
+
+# Variables de entorno
+python-dotenv==1.0.1
+
+# Simulador de webhooks
+httpx==0.27.2
+
+# Utilidades del simulador (datos falsos)
+faker==28.4.1
+
+# Seguridad (firma HMAC del webhook)
+cryptography==43.0.1
+
+# Autenticación JWT y hashing de contraseñas
+passlib[bcrypt]==1.7.4
+python-jose[cryptography]==3.3.0
+python-multipart==0.0.9        # Necesario para OAuth2PasswordRequestForm (login form)

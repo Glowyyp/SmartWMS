@@ -1,0 +1,96 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- item_work_order.xml — Card de cada pedido de bodega en la lista del operario -->
+<androidx.cardview.widget.CardView
+    xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:layout_marginBottom="12dp"
+    app:cardCornerRadius="14dp"
+    app:cardBackgroundColor="@color/surface_dark"
+    app:cardElevation="4dp">
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        android:padding="16dp">
+
+        <!-- Cabecera: número de pedido + badge -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:gravity="center_vertical">
+
+            <TextView
+                android:id="@+id/tv_order_number"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:text="WO-0001"
+                android:textSize="16sp"
+                android:textStyle="bold"
+                android:textColor="@color/text_primary"
+                android:fontFamily="monospace"/>
+
+            <TextView
+                android:id="@+id/tv_order_status"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Pendiente"
+                android:textSize="11sp"
+                android:textStyle="bold"
+                android:textColor="#f59e0b"
+                android:background="@drawable/bg_chip"
+                android:paddingHorizontal="10dp"
+                android:paddingVertical="4dp"/>
+        </LinearLayout>
+
+        <!-- Creado por -->
+        <TextView
+            android:id="@+id/tv_created_by"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="Creado por: —"
+            android:textSize="12sp"
+            android:textColor="@color/text_muted"
+            android:layout_marginTop="6dp"/>
+
+        <!-- Items preview -->
+        <TextView
+            android:id="@+id/tv_items_preview"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="0 SKU(s)"
+            android:textSize="12sp"
+            android:textColor="@color/purple_light"
+            android:layout_marginTop="4dp"/>
+
+        <!-- Fecha -->
+        <TextView
+            android:id="@+id/tv_created_at"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:textSize="11sp"
+            android:textColor="@color/text_muted"
+            android:layout_marginTop="4dp"/>
+
+        <!-- Flecha -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:gravity="end"
+            android:layout_marginTop="8dp">
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Ver pedido →"
+                android:textSize="13sp"
+                android:textColor="@color/purple_primary"
+                android:textStyle="bold"/>
+        </LinearLayout>
+
+    </LinearLayout>
+</androidx.cardview.widget.CardView>

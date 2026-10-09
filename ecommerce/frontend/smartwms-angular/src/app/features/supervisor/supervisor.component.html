@@ -1,0 +1,646 @@
+<div class="supervisor-layout">
+  <!-- ── SIDEBAR ──────────────────────────────────────────────────────────── -->
+  <aside class="sidebar">
+    <div class="sidebar-brand">
+      <mat-icon class="brand-icon">warehouse</mat-icon>
+      <span>SmartWMS</span>
+    </div>
+
+    <nav class="sidebar-nav">
+      <button class="nav-item" [class.active]="activeTab() === 0" (click)="activeTab.set(0)">
+        <mat-icon>dashboard</mat-icon><span>Órdenes</span>
+        @if (orders().length) {
+          <span class="nav-badge">{{ orders().length }}</span>
+        }
+      </button>
+      <!-- NUEVA pestaña: Pedidos de Bodega -->
+      <button class="nav-item" [class.active]="activeTab() === 6" (click)="activeTab.set(6)" id="nav-pedidos">
+        <mat-icon>assignment</mat-icon><span>Pedidos</span>
+        @if (pendingWoCount()) {
+          <span class="nav-badge">{{ pendingWoCount() }}</span>
+        }
+      </button>
+      <button class="nav-item" [class.active]="activeTab() === 1" (click)="activeTab.set(1)">
+        <mat-icon>inventory_2</mat-icon><span>Inventario</span>
+        @if (lowStockCount()) {
+          <span class="nav-badge danger">{{ lowStockCount() }}</span>
+        }
+      </button>
+      <button class="nav-item" [class.active]="activeTab() === 2" (click)="activeTab.set(2)">
+        <mat-icon>group</mat-icon><span>Usuarios</span>
+      </button>
+      <button class="nav-item" [class.active]="activeTab() === 3" (click)="activeTab.set(3)">
+        <mat-icon>map</mat-icon><span>Layout</span>
+      </button>
+      <button class="nav-item" [class.active]="activeTab() === 4" (click)="activeTab.set(4)">
+        <mat-icon>insights</mat-icon><span>BI / Métricas</span>
+      </button>
+      <button class="nav-item" [class.active]="activeTab() === 5" (click)="activeTab.set(5)">
+        <mat-icon>sensors</mat-icon><span>Telemetría IoT</span>
+        @if (iotData().impactAlert) {
+          <span class="nav-badge danger">!</span>
+        }
+      </button>
+    </nav>
+
+    <div class="sidebar-footer">
+      <div class="user-info">
+        <mat-icon class="avatar-icon">manage_accounts</mat-icon>
+        <div>
+          <p class="user-role">{{ getRoleLabel(userRole()) }}</p>
+        </div>
+      </div>
+      <button mat-icon-button (click)="logout()" matTooltip="Cerrar sesión">
+        <mat-icon>logout</mat-icon>
+      </button>
+    </div>
+  </aside>
+
+  <!-- ── CONTENIDO PRINCIPAL ──────────────────────────────────────────────── -->
+  <main class="main-content">
+
+    <!-- ── TAB 0: ÓRDENES (webhook) ────────────────────────────────────────── -->
+    @if (activeTab() === 0) {
+      <section class="panel-section">
+        <div class="section-header">
+          <div>
+            <h1 class="section-title">Monitor de Órdenes</h1>
+            <p class="section-subtitle">Actualización automática cada 30 segundos</p>
+          </div>
+          <div class="header-actions">
+            <select id="order-status-filter" class="status-select" [(ngModel)]="selectedStatus" (ngModelChange)="onStatusFilter()">
+              <option value="">Todos los estados</option>
+              <option value="received">Recibidas</option>
+              <option value="processing">Procesando</option>
+              <option value="completed">Completadas</option>
+              <option value="failed">Fallidas</option>
+              <option value="cancelled">Canceladas</option>
+            </select>
+            <button mat-stroked-button (click)="loadOrders()">
+              <mat-icon>refresh</mat-icon> Actualizar
+            </button>
+          </div>
+        </div>
+
+        @if (ordersError()) {
+          <div class="error-banner"><mat-icon>error_outline</mat-icon> {{ ordersError() }}</div>
+        }
+        @if (ordersLoading()) { <mat-progress-bar mode="indeterminate"></mat-progress-bar> }
+
+        <div class="table-card">
+          <table mat-table [dataSource]="orders()" class="wms-table">
+            <ng-container matColumnDef="id">
+              <th mat-header-cell *matHeaderCellDef>#</th>
+              <td mat-cell *matCellDef="let o">{{ o.id }}</td>
+            </ng-container>
+            <ng-container matColumnDef="external_order_id">
+              <th mat-header-cell *matHeaderCellDef>ID Externo</th>
+              <td mat-cell *matCellDef="let o"><code class="mono">{{ o.external_order_id }}</code></td>
+            </ng-container>
+            <ng-container matColumnDef="customer_name">
+              <th mat-header-cell *matHeaderCellDef>Cliente</th>
+              <td mat-cell *matCellDef="let o">{{ o.customer_name }}</td>
+            </ng-container>
+            <ng-container matColumnDef="total">
+              <th mat-header-cell *matHeaderCellDef>Total</th>
+              <td mat-cell *matCellDef="let o" class="amount">${{ o.total | number:'1.2-2' }}</td>
+            </ng-container>
+            <ng-container matColumnDef="status">
+              <th mat-header-cell *matHeaderCellDef>Estado</th>
+              <td mat-cell *matCellDef="let o">
+                <span class="status-chip" [ngClass]="getOrderStatusClass(o.status)">{{ o.status }}</span>
+              </td>
+            </ng-container>
+            <ng-container matColumnDef="received_at">
+              <th mat-header-cell *matHeaderCellDef>Recibida</th>
+              <td mat-cell *matCellDef="let o">{{ o.received_at | date:'dd/MM HH:mm' }}</td>
+            </ng-container>
+            <tr mat-header-row *matHeaderRowDef="orderColumns; sticky: true"></tr>
+            <tr mat-row *matRowDef="let row; columns: orderColumns;" class="table-row"></tr>
+          </table>
+          @if (!orders().length && !ordersLoading()) {
+            <div class="empty-state"><mat-icon>receipt_long</mat-icon><p>No hay órdenes para mostrar</p></div>
+          }
+        </div>
+      </section>
+    }
+
+    <!-- ── TAB 6: PEDIDOS DE BODEGA ────────────────────────────────────────── -->
+    @if (activeTab() === 6) {
+      <section class="panel-section">
+        <div class="section-header">
+          <div>
+            <h1 class="section-title">Pedidos de Bodega</h1>
+            <p class="section-subtitle">
+              {{ pendingWoCount() }} pendiente(s) · Actualización automática cada 15s
+            </p>
+          </div>
+          <div class="header-actions">
+            <select class="status-select" [(ngModel)]="woStatusFilter" (ngModelChange)="onWoStatusFilter()">
+              <option value="">Todos los estados</option>
+              <option value="pending">Pendientes</option>
+              <option value="dispatched">Despachados</option>
+              <option value="cancelled">Cancelados</option>
+            </select>
+            <button mat-stroked-button (click)="loadWorkOrders()">
+              <mat-icon>refresh</mat-icon> Actualizar
+            </button>
+            <button mat-flat-button color="primary" id="btn-new-order" (click)="openNewOrderForm()">
+              <mat-icon>add_circle</mat-icon> Nuevo Pedido
+            </button>
+          </div>
+        </div>
+
+        <!-- ── Formulario de nuevo pedido ─────────────────────────────────── -->
+        @if (showNewOrderForm()) {
+          <div class="add-product-form" id="new-order-form">
+            <h2 class="form-title"><mat-icon>assignment_add</mat-icon> Crear Nuevo Pedido</h2>
+
+            <!-- Buscador de SKU -->
+            <div class="form-field" style="position:relative">
+              <label class="form-label">Buscar producto por SKU o nombre</label>
+              <input class="form-input" id="sku-search-input" type="text" placeholder="Ej: SKU-00567 o Teclado..."
+                [ngModel]="skuSearch()" (ngModelChange)="skuSearch.set($event)" autocomplete="off"/>
+
+              <!-- Resultados de búsqueda -->
+              @if (skuSearchResults().length > 0) {
+                <div class="sku-dropdown">
+                  @for (p of skuSearchResults(); track p.sku) {
+                    <div class="sku-option" (click)="addLineFromProduct(p)" [id]="'sku-opt-' + p.sku">
+                      <div class="sku-opt-main">
+                        <code class="mono">{{ p.sku }}</code>
+                        <span class="sku-opt-name">{{ p.product_name }}</span>
+                      </div>
+                      <span class="sku-opt-stock">{{ p.available_qty }} disponibles</span>
+                    </div>
+                  }
+                </div>
+              }
+            </div>
+
+            <!-- Líneas del pedido -->
+            @if (orderLines().length > 0) {
+              <div class="order-lines">
+                <div class="order-lines-header">
+                  <span>SKU</span><span>Producto</span><span>Disponible</span><span>Cantidad</span><span></span>
+                </div>
+                @for (line of orderLines(); track line.sku) {
+                  <div class="order-line-row">
+                    <code class="mono">{{ line.sku }}</code>
+                    <span class="line-name">{{ line.product_name }}</span>
+                    <span class="line-available">{{ line.available_qty }}</span>
+                    <input class="qty-input" type="number" [id]="'qty-' + line.sku"
+                      [value]="line.quantity" min="1" [max]="line.available_qty"
+                      (change)="updateLineQty(line.sku, +$any($event.target).value)" />
+                    <button mat-icon-button color="warn" (click)="removeLine(line.sku)" [id]="'rm-' + line.sku">
+                      <mat-icon>close</mat-icon>
+                    </button>
+                  </div>
+                }
+              </div>
+            } @else {
+              <p class="empty-lines-hint">Busca productos arriba para agregarlos al pedido.</p>
+            }
+
+            <!-- Selector de Operario -->
+            <div class="form-field">
+              <label class="form-label">Asignar a Operario (opcional)</label>
+              @if (operariosLoading()) {
+                <div class="form-loading-hint">Cargando operarios...</div>
+              } @else if (operarios().length === 0) {
+                <div class="form-loading-hint">No hay operarios registrados.</div>
+              } @else {
+                <select class="form-input" id="operario-select"
+                  [ngModel]="selectedOperario()" (ngModelChange)="selectedOperario.set($event)">
+                  <option value="">Sin asignar (visible para todos)</option>
+                  @for (op of operarios(); track op.id) {
+                    <option [value]="op.email">{{ op.full_name ?? op.email }} — {{ op.email }}</option>
+                  }
+                </select>
+              }
+            </div>
+
+            <div class="form-actions">
+              <button id="confirm-order-btn" mat-flat-button color="primary"
+                [disabled]="creatingOrder() || orderLines().length === 0"
+                (click)="confirmNewOrder()">
+                <mat-icon>check_circle</mat-icon>
+                {{ creatingOrder() ? 'Creando...' : 'Confirmar Pedido' }}
+              </button>
+              <button mat-stroked-button (click)="showNewOrderForm.set(false)">Cancelar</button>
+            </div>
+          </div>
+        }
+
+        @if (workOrdersLoading()) { <mat-progress-bar mode="indeterminate"></mat-progress-bar> }
+        @if (workOrdersError()) {
+          <div class="error-banner"><mat-icon>error_outline</mat-icon> {{ workOrdersError() }}</div>
+        }
+
+        <!-- Tabla de pedidos -->
+        <div class="table-card">
+          <table mat-table [dataSource]="workOrders()" class="wms-table">
+            <ng-container matColumnDef="assigned_operario_email">
+              <th mat-header-cell *matHeaderCellDef>Operario Asignado</th>
+              <td mat-cell *matCellDef="let wo">
+                @if (wo.assigned_operario_email) {
+                  <span class="operario-chip">
+                    <mat-icon>person</mat-icon>
+                    {{ wo.assigned_operario_email }}
+                  </span>
+                } @else {
+                  <span class="text-muted">Sin asignar</span>
+                }
+              </td>
+            </ng-container>
+            <ng-container matColumnDef="order_number">
+              <th mat-header-cell *matHeaderCellDef>N° Pedido</th>
+              <td mat-cell *matCellDef="let wo">
+                <code class="mono">{{ wo.order_number }}</code>
+              </td>
+            </ng-container>
+            <ng-container matColumnDef="status">
+              <th mat-header-cell *matHeaderCellDef>Estado</th>
+              <td mat-cell *matCellDef="let wo">
+                <span class="status-chip" [ngClass]="getWoStatusClass(wo.status)">
+                  {{ getWoStatusLabel(wo.status) }}
+                </span>
+              </td>
+            </ng-container>
+            <ng-container matColumnDef="created_by_email">
+              <th mat-header-cell *matHeaderCellDef>Creado por</th>
+              <td mat-cell *matCellDef="let wo">{{ wo.created_by_email ?? '—' }}</td>
+            </ng-container>
+            <ng-container matColumnDef="created_at">
+              <th mat-header-cell *matHeaderCellDef>Fecha</th>
+              <td mat-cell *matCellDef="let wo">{{ wo.created_at | date:'dd/MM HH:mm' }}</td>
+            </ng-container>
+            <ng-container matColumnDef="items_count">
+              <th mat-header-cell *matHeaderCellDef>Items</th>
+              <td mat-cell *matCellDef="let wo">
+                <span class="items-detail" [matTooltip]="wo.items | json">
+                  {{ wo.items.length }} SKU(s)
+                </span>
+              </td>
+            </ng-container>
+            <ng-container matColumnDef="dispatched_by_email">
+              <th mat-header-cell *matHeaderCellDef>Despachado por</th>
+              <td mat-cell *matCellDef="let wo">{{ wo.dispatched_by_email ?? '—' }}</td>
+            </ng-container>
+            <ng-container matColumnDef="dispatched_at">
+              <th mat-header-cell *matHeaderCellDef>Despacho</th>
+              <td mat-cell *matCellDef="let wo">{{ wo.dispatched_at ? (wo.dispatched_at | date:'dd/MM HH:mm') : '—' }}</td>
+            </ng-container>
+            <ng-container matColumnDef="actions">
+              <th mat-header-cell *matHeaderCellDef></th>
+              <td mat-cell *matCellDef="let wo">
+                @if (wo.status === 'pending') {
+                  <button mat-icon-button color="warn" matTooltip="Cancelar pedido"
+                    (click)="cancelWorkOrder(wo)" [id]="'cancel-wo-' + wo.id">
+                    <mat-icon>cancel</mat-icon>
+                  </button>
+                }
+              </td>
+            </ng-container>
+            <tr mat-header-row *matHeaderRowDef="woColumns; sticky: true"></tr>
+            <tr mat-row *matRowDef="let row; columns: woColumns;" class="table-row"></tr>
+          </table>
+          @if (!workOrders().length && !workOrdersLoading()) {
+            <div class="empty-state">
+              <mat-icon>assignment</mat-icon>
+              <p>No hay pedidos. Crea el primero con el botón "Nuevo Pedido".</p>
+            </div>
+          }
+        </div>
+      </section>
+    }
+
+    <!-- ── TAB 1: INVENTARIO ───────────────────────────────────────────────── -->
+    @if (activeTab() === 1) {
+      <section class="panel-section">
+        <div class="section-header">
+          <div>
+            <h1 class="section-title">Inventario</h1>
+            <p class="section-subtitle">
+              {{ products().length }} productos ·
+              <span class="critical-text">{{ lowStockCount() }} con stock crítico</span>
+            </p>
+          </div>
+          <div class="header-actions">
+            <input id="inventory-search" class="search-input" type="text" placeholder="Buscar SKU o producto..."
+              [ngModel]="inventorySearch()" (ngModelChange)="inventorySearch.set($event)" />
+            <button mat-flat-button color="primary" (click)="showAddForm.set(!showAddForm())" id="toggle-add-form-btn">
+              <mat-icon>{{ showAddForm() ? 'close' : 'add' }}</mat-icon>
+              {{ showAddForm() ? 'Cancelar' : 'Agregar Producto' }}
+            </button>
+          </div>
+        </div>
+
+        @if (showAddForm()) {
+          <div class="add-product-form" id="add-product-form">
+            <h2 class="form-title"><mat-icon>inventory_2</mat-icon> Nuevo Producto</h2>
+            <div class="form-grid">
+              <div class="form-field">
+                <label class="form-label">SKU *</label>
+                <input class="form-input" id="new-sku" type="text" placeholder="Ej: SKU-00100"
+                  [value]="newProduct().sku"
+                  (input)="updateNewProduct('sku', $any($event.target).value)" />
+              </div>
+              <div class="form-field">
+                <label class="form-label">Nombre del Producto *</label>
+                <input class="form-input" id="new-name" type="text" placeholder="Ej: Teclado Mecánico RGB"
+                  [value]="newProduct().product_name"
+                  (input)="updateNewProduct('product_name', $any($event.target).value)" />
+              </div>
+              <div class="form-field">
+                <label class="form-label">Stock Inicial</label>
+                <input class="form-input" id="new-stock" type="number" min="0" placeholder="0"
+                  [value]="newProduct().stock_quantity"
+                  (input)="updateNewProduct('stock_quantity', +$any($event.target).value)" />
+              </div>
+              <div class="form-field">
+                <label class="form-label">Precio Unitario *</label>
+                <input class="form-input" id="new-price" type="number" min="0.01" step="0.01" placeholder="0.00"
+                  [value]="newProduct().unit_price || ''"
+                  (input)="updateNewProduct('unit_price', +$any($event.target).value)" />
+              </div>
+              <div class="form-field">
+                <label class="form-label">Punto de Reorden</label>
+                <input class="form-input" id="new-reorder" type="number" min="0" placeholder="10"
+                  [value]="newProduct().reorder_point"
+                  (input)="updateNewProduct('reorder_point', +$any($event.target).value)" />
+              </div>
+              <div class="form-field">
+                <label class="form-label">Ubicación en Almacén (Zona)</label>
+                <select class="form-input" id="new-location"
+                  [ngModel]="newProduct().warehouse_location ?? ''"
+                  (ngModelChange)="updateNewProduct('warehouse_location', $event)">
+                  <option value="">Sin ubicación asignada</option>
+                  <option value="A">Zona A — Insumos</option>
+                  <option value="B">Zona B — Electrónica</option>
+                  <option value="C">Zona C — Periféricos</option>
+                  <option value="D">Zona D — Cuarentena</option>
+                </select>
+              </div>
+            </div>
+            <div class="form-actions">
+              <button id="save-product-btn" mat-flat-button color="primary"
+                [disabled]="addingProduct()" (click)="createProduct()">
+                <mat-icon>save</mat-icon>
+                {{ addingProduct() ? 'Guardando...' : 'Guardar Producto' }}
+              </button>
+              <button mat-stroked-button (click)="showAddForm.set(false)">Cancelar</button>
+            </div>
+          </div>
+        }
+
+        @if (productsLoading()) { <mat-progress-bar mode="indeterminate"></mat-progress-bar> }
+
+        <div class="table-card">
+          <table mat-table [dataSource]="filteredProducts()" class="wms-table">
+            <ng-container matColumnDef="sku">
+              <th mat-header-cell *matHeaderCellDef>SKU</th>
+              <td mat-cell *matCellDef="let p"><code class="mono">{{ p.sku }}</code></td>
+            </ng-container>
+            <ng-container matColumnDef="product_name">
+              <th mat-header-cell *matHeaderCellDef>Producto</th>
+              <td mat-cell *matCellDef="let p">{{ p.product_name }}</td>
+            </ng-container>
+            <ng-container matColumnDef="stock_physical">
+              <th mat-header-cell *matHeaderCellDef>Stock Físico</th>
+              <td mat-cell *matCellDef="let p">
+                <span class="stock-value" [class.critical]="getStockStatus(p) === 'critical'" [class.warning]="getStockStatus(p) === 'warning'">
+                  {{ p.stock_quantity }}
+                </span>
+              </td>
+            </ng-container>
+            <ng-container matColumnDef="stock_reserved">
+              <th mat-header-cell *matHeaderCellDef>Reservado</th>
+              <td mat-cell *matCellDef="let p">
+                <span class="reserved-badge" [class.has-reserved]="p.reserved_qty > 0">
+                  @if (p.reserved_qty > 0) { -{{ p.reserved_qty }} } @else { — }
+                </span>
+              </td>
+            </ng-container>
+            <ng-container matColumnDef="stock_available">
+              <th mat-header-cell *matHeaderCellDef>Disponible</th>
+              <td mat-cell *matCellDef="let p">
+                <span class="available-badge" [class.low]="p.available_qty <= p.reorder_point">
+                  {{ p.available_qty }}
+                </span>
+              </td>
+            </ng-container>
+            <ng-container matColumnDef="unit_price">
+              <th mat-header-cell *matHeaderCellDef>Precio</th>
+              <td mat-cell *matCellDef="let p">${{ p.unit_price | number:'1.2-2' }}</td>
+            </ng-container>
+            <ng-container matColumnDef="reorder_point">
+              <th mat-header-cell *matHeaderCellDef>Reorden</th>
+              <td mat-cell *matCellDef="let p">{{ p.reorder_point }}</td>
+            </ng-container>
+            <ng-container matColumnDef="status">
+              <th mat-header-cell *matHeaderCellDef>Estado</th>
+              <td mat-cell *matCellDef="let p">
+                <span class="status-chip" [ngClass]="getStockStatus(p) === 'ok' ? 'chip-success' : 'chip-danger'">
+                  {{ getStockStatus(p) === 'ok' ? 'Saludable' : 'Crítico' }}
+                </span>
+              </td>
+            </ng-container>
+            <ng-container matColumnDef="actions">
+              <th mat-header-cell *matHeaderCellDef></th>
+              <td mat-cell *matCellDef="let p">
+                <button mat-icon-button color="warn" matTooltip="Eliminar (solo admin)"
+                  (click)="deleteProduct(p.id, p.sku)" [id]="'del-product-' + p.id">
+                  <mat-icon>delete_outline</mat-icon>
+                </button>
+              </td>
+            </ng-container>
+            <tr mat-header-row *matHeaderRowDef="inventoryColumns; sticky: true"></tr>
+            <tr mat-row *matRowDef="let row; columns: inventoryColumns;" class="table-row"></tr>
+          </table>
+        </div>
+      </section>
+    }
+
+    <!-- ── TAB 2: USUARIOS ────────────────────────────────────────────────── -->
+    @if (activeTab() === 2) {
+      <section class="panel-section">
+        <div class="section-header">
+          <div>
+            <h1 class="section-title">Usuarios Registrados</h1>
+            <p class="section-subtitle">{{ users().length }} usuarios en el sistema</p>
+          </div>
+          <button mat-stroked-button (click)="loadUsers()">
+            <mat-icon>refresh</mat-icon> Actualizar
+          </button>
+        </div>
+        @if (usersLoading()) { <mat-progress-bar mode="indeterminate"></mat-progress-bar> }
+        <div class="users-grid">
+          @for (u of users(); track u.id) {
+            <div class="user-card">
+              <div class="user-avatar">{{ (u.email[0] || '?').toUpperCase() }}</div>
+              <div class="user-details">
+                <p class="user-email">{{ u.email }}</p>
+                <p class="user-name">{{ u.full_name || '—' }}</p>
+                <span class="role-badge" [ngClass]="getRoleBadgeClass(u.role)">{{ getRoleLabel(u.role) }}</span>
+              </div>
+              <div class="user-meta">
+                <span class="active-dot" [class.inactive]="!u.is_active" [matTooltip]="u.is_active ? 'Activo' : 'Inactivo'"></span>
+                <p class="user-date">{{ u.created_at | date:'dd/MM/yy' }}</p>
+              </div>
+            </div>
+          }
+          @if (!users().length && !usersLoading()) {
+            <div class="empty-state"><mat-icon>group_off</mat-icon><p>No hay usuarios registrados</p></div>
+          }
+        </div>
+      </section>
+    }
+
+    <!-- ── TAB 3: LAYOUT FÍSICO ──────────────────────────────────────────── -->
+    @if (activeTab() === 3) {
+      <section class="panel-section">
+        <div class="section-header">
+          <h1 class="section-title">Layout Físico del Almacén</h1>
+          <p class="section-subtitle">Zonas, pasillos y racks — US-WEB-01</p>
+        </div>
+        <div class="warehouse-layout">
+          @for (zone of [
+            {id:'A', label:'Zona A — Insumos', color:'#6366f1', racks:['A-01','A-02','A-03']},
+            {id:'B', label:'Zona B — Electrónica', color:'#8b5cf6', racks:['B-01','B-02','B-03','B-04']},
+            {id:'C', label:'Zona C — Periféricos', color:'#06b6d4', racks:['C-01','C-02','C-03']},
+            {id:'D', label:'Zona D — Cuarentena', color:'#f59e0b', racks:['D-01','D-02']},
+          ]; track zone.id) {
+            <div class="zone-card" [style.border-color]="zone.color">
+              <div class="zone-header" [style.background]="zone.color + '22'">
+                <mat-icon [style.color]="zone.color">shelves</mat-icon>
+                <span [style.color]="zone.color">{{ zone.label }}</span>
+              </div>
+              <div class="racks-grid">
+                @for (rack of zone.racks; track rack) {
+                  <div class="rack-item" [id]="'rack-' + rack">
+                    <mat-icon class="rack-icon">view_column</mat-icon>
+                    <span>{{ rack }}</span>
+                  </div>
+                }
+              </div>
+            </div>
+          }
+        </div>
+      </section>
+    }
+
+    <!-- ── TAB 4: BI / MÉTRICAS ──────────────────────────────────────────── -->
+    @if (activeTab() === 4) {
+      <section class="panel-section">
+        <div class="section-header">
+          <h1 class="section-title">Business Intelligence</h1>
+          <p class="section-subtitle">Lead Time y alertas predictivas de stock</p>
+        </div>
+        <div class="bi-grid">
+          <div class="bi-card bi-card--primary">
+            <mat-icon>timer</mat-icon>
+            <h3>Lead Time Promedio</h3>
+            <p class="bi-value">{{ leadTimeAvg() }}h</p>
+            <p class="bi-subtitle">US-BI-01 · Tiempo de procesamiento</p>
+          </div>
+          <div class="bi-card" [class.bi-card--danger]="criticalStockCount() > 0" [class.bi-card--success]="criticalStockCount() === 0">
+            <mat-icon>{{ criticalStockCount() > 0 ? 'warning' : 'check_circle' }}</mat-icon>
+            <h3>Stock Crítico</h3>
+            <p class="bi-value">{{ criticalStockCount() }}</p>
+            <p class="bi-subtitle">US-BI-02 · SKUs bajo punto de reorden</p>
+          </div>
+          <div class="bi-card bi-card--info">
+            <mat-icon>assignment</mat-icon>
+            <h3>Pedidos Pendientes</h3>
+            <p class="bi-value">{{ pendingWoCount() }}</p>
+            <p class="bi-subtitle">Pedidos de bodega sin despachar</p>
+          </div>
+          <div class="bi-card bi-card--purple">
+            <mat-icon>group</mat-icon>
+            <h3>Usuarios del Sistema</h3>
+            <p class="bi-value">{{ users().length }}</p>
+            <p class="bi-subtitle">Activos en SmartWMS</p>
+          </div>
+        </div>
+        <div class="stock-alert-section">
+          <h2 class="subsection-title">Alertas Predictivas de Stock</h2>
+          <div class="stock-alerts">
+            @for (p of products(); track p.sku) {
+              @if (getStockStatus(p) !== 'ok') {
+                <div class="stock-alert-row" [class.critical]="getStockStatus(p) === 'critical'">
+                  <mat-icon>{{ getStockStatus(p) === 'critical' ? 'error' : 'warning' }}</mat-icon>
+                  <div class="stock-alert-info">
+                    <span class="alert-sku">{{ p.sku }}</span>
+                    <span class="alert-name">{{ p.product_name }}</span>
+                  </div>
+                  <span class="alert-qty">Físico: {{ p.stock_quantity }} | Disponible: {{ p.available_qty }}</span>
+                  <mat-progress-bar mode="determinate"
+                    [value]="(p.stock_quantity / (p.reorder_point * 3)) * 100"
+                    [color]="getStockStatus(p) === 'critical' ? 'warn' : 'accent'"
+                    class="alert-bar">
+                  </mat-progress-bar>
+                </div>
+              }
+            }
+            @if (criticalStockCount() === 0) {
+              <div class="all-ok">
+                <mat-icon>check_circle</mat-icon>
+                <p>Todo el inventario está en niveles saludables</p>
+              </div>
+            }
+          </div>
+        </div>
+      </section>
+    }
+
+    <!-- ── TAB 5: TELEMETRÍA IoT ─────────────────────────────────────────── -->
+    @if (activeTab() === 5) {
+      <section class="panel-section">
+        <div class="section-header">
+          <h1 class="section-title">Telemetría IoT</h1>
+          <p class="section-subtitle">Última actualización: {{ iotData().lastUpdate | date:'HH:mm:ss' }}</p>
+        </div>
+        @if (iotData().impactAlert) {
+          <div class="impact-alert">
+            <mat-icon>vibration</mat-icon>
+            <div>
+              <strong>ALERTA DE IMPACTO DETECTADA</strong>
+              <p>Sensor de cuarentena activado en Zona D. Revisión requerida. (US-IOT-02)</p>
+            </div>
+          </div>
+        }
+        <div class="iot-grid">
+          <div class="iot-card" [class.warning]="iotData().temperature > 25">
+            <mat-icon class="iot-icon">thermostat</mat-icon>
+            <h3>Temperatura</h3>
+            <p class="iot-value">{{ iotData().temperature }}°C</p>
+            <p class="iot-threshold">Umbral máx: 25°C (US-IOT-01)</p>
+            <mat-progress-bar mode="determinate" [value]="(iotData().temperature / 30) * 100"
+              [color]="iotData().temperature > 25 ? 'warn' : 'primary'">
+            </mat-progress-bar>
+          </div>
+          <div class="iot-card" [class.warning]="iotData().humidity > 75">
+            <mat-icon class="iot-icon">water_drop</mat-icon>
+            <h3>Humedad</h3>
+            <p class="iot-value">{{ iotData().humidity }}%</p>
+            <p class="iot-threshold">Umbral máx: 75% (US-IOT-01)</p>
+            <mat-progress-bar mode="determinate" [value]="iotData().humidity"
+              [color]="iotData().humidity > 75 ? 'warn' : 'primary'">
+            </mat-progress-bar>
+          </div>
+          <div class="iot-card" [class.alert]="iotData().impactAlert">
+            <mat-icon class="iot-icon">vibration</mat-icon>
+            <h3>Sensor de Impacto</h3>
+            <p class="iot-value">{{ iotData().impactAlert ? 'ALERTA' : 'Normal' }}</p>
+            <p class="iot-threshold">Zona D — Cuarentena (US-IOT-02)</p>
+          </div>
+        </div>
+      </section>
+    }
+
+  </main>
+
+  <!-- Chatbot flotante compartido -->
+  <app-chatbot></app-chatbot>
+</div>

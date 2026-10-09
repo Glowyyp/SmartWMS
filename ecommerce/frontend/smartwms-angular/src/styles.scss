@@ -1,0 +1,71 @@
+/* styles.scss — Estilos globales de SmartWMS Angular
+   Angular Material instala su propio tema; aquí complementamos con
+   estilos base del sistema de diseño oscuro de SmartWMS.
+*/
+
+@use '@angular/material' as mat;
+
+// ─── Importar fuente Google Fonts ──────────────────────────────────────────
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap');
+
+// ─── Reset y base ──────────────────────────────────────────────────────────
+*, *::before, *::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+html, body {
+  height: 100%;
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  background: #0f0f1a;
+  color: white;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+// ─── Scrollbar personalizada ───────────────────────────────────────────────
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track { background: #1a1a2e; }
+::-webkit-scrollbar-thumb {
+  background: rgba(108, 99, 255, 0.4);
+  border-radius: 3px;
+}
+::-webkit-scrollbar-thumb:hover { background: #6c63ff; }
+
+// ─── Angular Material: Snackbar de error ───────────────────────────────────
+.error-snack {
+  background: #ef4444 !important;
+  color: white !important;
+  border-radius: 10px !important;
+}
+
+// ─── Utilidades de layout ──────────────────────────────────────────────────
+.spacer { flex: 1 1 auto; }
+
+// ─── Animación de entrada global ───────────────────────────────────────────
+@keyframes fadeInUp {
+  from { opacity: 0; transform: translateY(20px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+.animate-in { animation: fadeInUp 0.4s ease-out both; }
+
+// ─── View Transitions API (Angular 17+ router) ─────────────────────────────
+::view-transition-old(root) {
+  animation: 200ms ease-out both fade-out;
+}
+::view-transition-new(root) {
+  animation: 300ms ease-in both fade-in;
+}
+
+@keyframes fade-out {
+  from { opacity: 1; }
+  to   { opacity: 0; }
+}
+@keyframes fade-in {
+  from { opacity: 0; transform: translateY(8px); }
+  to   { opacity: 1; transform: translateY(0); }
+}

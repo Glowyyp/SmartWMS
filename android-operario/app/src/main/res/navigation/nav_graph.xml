@@ -1,0 +1,56 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- nav_graph.xml — Grafo de navegacion con 5 tabs: Inicio, Picking, Putaway, Historial, Chat IA -->
+<!-- PackingFragment sigue disponible como destino interno desde PickingFragment -->
+<navigation
+    xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:id="@+id/nav_graph"
+    app:startDestination="@id/homeFragment">
+
+    <!-- TAB 1: Inicio (nuevo dashboard) -->
+    <fragment
+        android:id="@+id/homeFragment"
+        android:name="com.smartwms.operario.ui.fragments.HomeFragment"
+        android:label="Inicio" />
+
+    <!-- TAB 2: Picking (existente — sin cambios) -->
+    <fragment
+        android:id="@+id/pickingFragment"
+        android:name="com.smartwms.operario.ui.fragments.PickingFragment"
+        android:label="Picking" />
+
+    <!-- TAB 3: Putaway (existente — sin cambios) -->
+    <fragment
+        android:id="@+id/putawayFragment"
+        android:name="com.smartwms.operario.ui.fragments.PutawayFragment"
+        android:label="Putaway" />
+
+    <!-- TAB 4: Historial (nuevo) -->
+    <fragment
+        android:id="@+id/historialFragment"
+        android:name="com.smartwms.operario.ui.fragments.HistorialFragment"
+        android:label="Historial" />
+
+    <!-- TAB 5: Copiloto IA / Chat (existente — renombrado) -->
+    <fragment
+        android:id="@+id/chatFragment"
+        android:name="com.smartwms.operario.ui.fragments.ChatFragment"
+        android:label="Copiloto IA" />
+
+    <!-- Detalle de Historial -->
+    <fragment
+        android:id="@+id/orderDetailFragment"
+        android:name="com.smartwms.operario.ui.fragments.OrderDetailFragment"
+        android:label="Detalle del Pedido">
+        <argument
+            android:name="orderId"
+            app:argType="integer" />
+    </fragment>
+
+    <!-- Packing / Cierre: accesible internamente desde Picking y desde acciones rápidas -->
+    <fragment
+        android:id="@+id/packingFragment"
+        android:name="com.smartwms.operario.ui.fragments.PackingFragment"
+        android:label="Cierre de Pedido" />
+
+</navigation>

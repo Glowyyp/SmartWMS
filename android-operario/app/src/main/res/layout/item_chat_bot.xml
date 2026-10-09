@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- item_chat_bot.xml — Burbuja del bot (izquierda) -->
+<LinearLayout
+    xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:orientation="horizontal"
+    android:layout_marginBottom="8dp"
+    android:gravity="start">
+
+    <TextView
+        android:id="@+id/tv_message"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:maxWidth="280dp"
+        android:padding="12dp"
+        android:textSize="14sp"
+        android:textColor="#e2e8f0"
+        android:background="@drawable/bg_bubble_bot"
+        android:layout_marginEnd="56dp"/>
+</LinearLayout>

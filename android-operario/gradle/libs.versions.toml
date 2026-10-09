@@ -1,0 +1,40 @@
+[versions]
+agp = "8.3.0"
+kotlin = "1.9.22"
+coreKtx = "1.13.1"
+appcompat = "1.7.0"
+material = "1.12.0"
+constraintlayout = "2.1.4"
+navigation = "2.7.7"
+lifecycle = "2.8.3"
+retrofit = "2.11.0"
+okhttp = "4.12.0"
+coroutines = "1.8.1"
+datastore = "1.1.1"
+junit = "4.13.2"
+junitAndroid = "1.2.1"
+espresso = "3.6.1"
+
+[libraries]
+androidx-core-ktx             = { group = "androidx.core",              name = "core-ktx",                        version.ref = "coreKtx" }
+androidx-appcompat            = { group = "androidx.appcompat",         name = "appcompat",                       version.ref = "appcompat" }
+material                      = { group = "com.google.android.material", name = "material",                        version.ref = "material" }
+androidx-constraintlayout     = { group = "androidx.constraintlayout",  name = "constraintlayout",                version.ref = "constraintlayout" }
+androidx-navigation-fragment-ktx = { group = "androidx.navigation",     name = "navigation-fragment-ktx",         version.ref = "navigation" }
+androidx-navigation-ui-ktx    = { group = "androidx.navigation",        name = "navigation-ui-ktx",               version.ref = "navigation" }
+androidx-lifecycle-viewmodel-ktx = { group = "androidx.lifecycle",      name = "lifecycle-viewmodel-ktx",         version.ref = "lifecycle" }
+androidx-lifecycle-livedata-ktx  = { group = "androidx.lifecycle",      name = "lifecycle-livedata-ktx",          version.ref = "lifecycle" }
+androidx-lifecycle-runtime-ktx   = { group = "androidx.lifecycle",      name = "lifecycle-runtime-ktx",           version.ref = "lifecycle" }
+retrofit                      = { group = "com.squareup.retrofit2",     name = "retrofit",                        version.ref = "retrofit" }
+converter-gson                = { group = "com.squareup.retrofit2",     name = "converter-gson",                  version.ref = "retrofit" }
+okhttp                        = { group = "com.squareup.okhttp3",       name = "okhttp",                          version.ref = "okhttp" }
+logging-interceptor           = { group = "com.squareup.okhttp3",       name = "logging-interceptor",             version.ref = "okhttp" }
+kotlinx-coroutines-android    = { group = "org.jetbrains.kotlinx",      name = "kotlinx-coroutines-android",      version.ref = "coroutines" }
+androidx-datastore-preferences = { group = "androidx.datastore",        name = "datastore-preferences",           version.ref = "datastore" }
+junit                         = { group = "junit",                       name = "junit",                           version.ref = "junit" }
+androidx-junit                = { group = "androidx.test.ext",          name = "junit",                           version.ref = "junitAndroid" }
+androidx-espresso-core        = { group = "androidx.test.espresso",     name = "espresso-core",                   version.ref = "espresso" }
+
+[plugins]
+android-application = { id = "com.android.application", version.ref = "agp" }
+kotlin-android      = { id = "org.jetbrains.kotlin.android", version.ref = "kotlin" }

@@ -1,0 +1,253 @@
+<!-- operario.component.html — Mobile-First Design para SmartWMS Operario -->
+<div class="operario-mobile">
+
+  <!-- TOP HEADER -->
+  <header class="mob-header">
+    <div class="mob-brand">
+      <mat-icon>warehouse</mat-icon>
+      <div>
+        <span class="mob-title">SmartWMS</span>
+        <span class="mob-role">Operario</span>
+      </div>
+    </div>
+    <button class="mob-logout" mat-icon-button (click)="logout()" matTooltip="Cerrar sesion">
+      <mat-icon>logout</mat-icon>
+    </button>
+  </header>
+
+  <!-- CONTENIDO PRINCIPAL -->
+  <main class="mob-main">
+
+    <!-- ── DESPACHO DE PEDIDOS ──────────────────────────────────────────────── -->
+    @if (activeTask() === 'dispatch') {
+      <div class="mob-panel" id="dispatch-panel">
+
+        <!-- Lista de pedidos pendientes -->
+        @if (!selectedOrder()) {
+          <div class="mob-panel-header">
+            <h1 class="mob-panel-title">
+              <mat-icon>local_shipping</mat-icon> Pedidos Pendientes
+            </h1>
+            <p class="mob-panel-sub">Selecciona un pedido para despacharlo</p>
+          </div>
+
+          @if (loadingOrders()) {
+            <mat-progress-bar mode="indeterminate" class="mob-progress-bar"></mat-progress-bar>
+          }
+          @if (ordersError()) {
+            <div class="mob-error-banner"><mat-icon>error_outline</mat-icon> {{ ordersError() }}</div>
+          }
+
+          @if (pendingOrders().length === 0 && !loadingOrders()) {
+            <div class="mob-empty-orders">
+              <mat-icon>assignment_turned_in</mat-icon>
+              <h3>Sin pedidos pendientes</h3>
+              <p>El supervisor aún no ha creado pedidos asignados a ti.</p>
+            </div>
+          }
+
+          <div class="mob-orders-list">
+            @for (order of pendingOrders(); track order.id) {
+              <div class="mob-order-card" (click)="selectOrder(order)" [id]="'order-card-' + order.id">
+                <div class="mob-order-top">
+                  <code class="mob-order-num">{{ order.order_number }}</code>
+                  <span class="mob-order-badge pending">Pendiente</span>
+                </div>
+                <div class="mob-order-meta">
+                  <span><mat-icon>inventory_2</mat-icon> {{ order.items.length }} SKU(s)</span>
+                  <span><mat-icon>calendar_today</mat-icon> {{ order.created_at | date:'dd/MM HH:mm' }}</span>
+                </div>
+                @if (order.assigned_operario_email) {
+                  <div class="mob-order-assignee">
+                    <mat-icon>person</mat-icon>
+                    <span>Para: {{ order.assigned_operario_email }}</span>
+                  </div>
+                }
+                <div class="mob-order-items-preview">
+                  @for (item of order.items.slice(0,3); track item.sku) {
+                    <span class="mob-item-tag">{{ item.sku }} ×{{ item.quantity }}</span>
+                  }
+                  @if (order.items.length > 3) {
+                    <span class="mob-item-tag more">+{{ order.items.length - 3 }} más</span>
+                  }
+                </div>
+                <mat-icon class="mob-order-arrow">chevron_right</mat-icon>
+              </div>
+            }
+          </div>
+        }
+
+        <!-- Detalle del pedido seleccionado -->
+        @if (selectedOrder()) {
+          <div class="mob-panel-header">
+            <button mat-icon-button (click)="backToList()" id="back-to-list-btn">
+              <mat-icon>arrow_back</mat-icon>
+            </button>
+            <div>
+              <h1 class="mob-panel-title">{{ selectedOrder()!.order_number }}</h1>
+              <p class="mob-panel-sub">
+                Creado por: {{ selectedOrder()!.created_by_email ?? '—' }}
+              </p>
+            </div>
+          </div>
+
+          <!-- Estado despachado -->
+          @if (selectedOrder()!.status === 'dispatched') {
+            <div class="mob-success-panel">
+              <mat-icon class="mob-success-icon">local_shipping</mat-icon>
+              <h2>¡Pedido despachado!</h2>
+              <p>El stock físico fue actualizado correctamente.</p>
+              <p class="mob-dispatch-info">
+                Despachado por: <strong>{{ selectedOrder()!.dispatched_by_email }}</strong><br/>
+                {{ selectedOrder()!.dispatched_at | date:'dd/MM/yyyy HH:mm' }}
+              </p>
+              <button mat-flat-button color="primary" class="mob-full-btn" (click)="backToList()">
+                Ver otros pedidos
+              </button>
+            </div>
+
+          } @else {
+            <!-- Detalle del pedido pendiente -->
+            <div class="mob-dispatch-detail">
+              <h2 class="mob-detail-title">Items a despachar</h2>
+              <div class="mob-dispatch-items">
+                @for (item of selectedOrder()!.items; track item.sku; let i = $index) {
+                  <div class="mob-dispatch-item">
+                    <div class="mob-step-num">{{ i + 1 }}</div>
+                    <div class="mob-pick-info">
+                      <div class="mob-pick-top">
+                        <span class="mob-sku">{{ item.sku }}</span>
+                        <span class="mob-qty"><mat-icon>numbers</mat-icon>{{ item.quantity }} uds</span>
+                        <!-- ❓ Botón de localización del SKU -->
+                        <button
+                          class="mob-location-btn"
+                          [id]="'loc-btn-' + item.sku"
+                          (click)="showLocationModal(item.sku); $event.stopPropagation()"
+                          matTooltip="Ver ubicación en almacén">
+                          ❓
+                        </button>
+                      </div>
+                      <p class="mob-pick-name">{{ item.product_name }}</p>
+                    </div>
+                  </div>
+                }
+              </div>
+
+              <div class="mob-dispatch-actions">
+                <div class="mob-dispatch-warning">
+                  <mat-icon>info</mat-icon>
+                  <p>Al confirmar, el stock físico se descontará automáticamente y el pedido quedará como despachado.</p>
+                </div>
+                <button id="confirm-dispatch-btn" mat-flat-button color="primary" class="mob-full-btn mob-submit-btn"
+                  [disabled]="dispatching()" (click)="confirmDispatch()">
+                  <mat-icon>{{ dispatching() ? 'hourglass_empty' : 'local_shipping' }}</mat-icon>
+                  {{ dispatching() ? 'Despachando...' : 'Confirmar Despacho' }}
+                </button>
+              </div>
+            </div>
+          }
+        }
+      </div>
+    }
+
+    <!-- PUTAWAY -->
+    @if (activeTask() === 'putaway') {
+      <div class="mob-panel" id="putaway-panel">
+        <div class="mob-panel-header">
+          <h1 class="mob-panel-title"><mat-icon>shelves</mat-icon> Putaway</h1>
+          <p class="mob-panel-sub">Almacenamiento — US-LOG-02</p>
+        </div>
+        @if (putawaySuccess()) {
+          <div class="mob-complete-banner">
+            <mat-icon>check_circle</mat-icon>
+            <strong>Almacenado correctamente</strong>
+          </div>
+        }
+        @if (putawayError()) {
+          <div class="mob-error-banner">
+            <mat-icon>error_outline</mat-icon> {{ putawayError() }}
+          </div>
+        }
+        <div class="mob-form-card">
+          <div class="mob-form-group">
+            <label class="mob-form-label">SKU del Producto *</label>
+            <input id="putaway-sku" class="mob-form-input" type="text" placeholder="Ej: SKU-00567"
+              [value]="putawayForm().sku" (input)="updatePutaway('sku', $any($event.target).value)" />
+          </div>
+          <div class="mob-form-group">
+            <label class="mob-form-label">Cantidad *</label>
+            <input id="putaway-qty" class="mob-form-input" type="number" inputmode="numeric" min="1" placeholder="Ej: 10"
+              [value]="putawayForm().quantity ?? ''" (input)="updatePutaway('quantity', +$any($event.target).value)" />
+          </div>
+          <div class="mob-form-group">
+            <label class="mob-form-label">Ubicacion de destino *</label>
+            <select id="putaway-location" class="mob-form-select"
+              [value]="putawayForm().location" (change)="updatePutaway('location', $any($event.target).value)">
+              <option value="">Seleccionar ubicacion...</option>
+              @for (loc of validLocations; track loc) {
+                <option [value]="loc">{{ loc }}</option>
+              }
+            </select>
+          </div>
+          <button id="submit-putaway-btn" mat-flat-button color="primary" class="mob-full-btn mob-submit-btn"
+            (click)="submitPutaway()" [disabled]="putawaySuccess()">
+            <mat-icon>done_all</mat-icon> Confirmar Almacenamiento
+          </button>
+        </div>
+      </div>
+    }
+
+  </main>
+
+  <!-- BOTTOM NAVIGATION -->
+  <nav class="mob-bottom-nav">
+    <button class="mob-nav-btn" [class.active]="activeTask() === 'dispatch'" (click)="activeTask.set('dispatch')" id="nav-dispatch">
+      <mat-icon>local_shipping</mat-icon>
+      <span>Despacho</span>
+      @if (pendingOrders().length > 0) {
+        <span class="mob-nav-badge">{{ pendingOrders().length }}</span>
+      }
+    </button>
+    <button class="mob-nav-btn" [class.active]="activeTask() === 'putaway'" (click)="activeTask.set('putaway')" id="nav-putaway">
+      <mat-icon>shelves</mat-icon>
+      <span>Putaway</span>
+    </button>
+  </nav>
+
+  <!-- Chatbot flotante -->
+  <app-chatbot></app-chatbot>
+</div>
+
+<!-- ── MODAL DE LOCALIZACIÓN DEL SKU ──────────────────────────────────────── -->
+@if (locationModal()) {
+  <div class="mob-modal-overlay" (click)="closeLocationModal()" id="location-modal-overlay">
+    <div class="mob-modal" (click)="$event.stopPropagation()" id="location-modal">
+      <div class="mob-modal-header">
+        <mat-icon class="mob-modal-icon">location_on</mat-icon>
+        <h2 class="mob-modal-title">Ubicación del SKU</h2>
+      </div>
+      <div class="mob-modal-sku">
+        <code>{{ locationModal()!.sku }}</code>
+      </div>
+      @if (locationModal()!.location) {
+        <div class="mob-modal-location">
+          <span class="mob-location-emoji">📍</span>
+          <div>
+            <p class="mob-location-label">Zona del almacén</p>
+            <p class="mob-location-value">{{ locationModal()!.location }}</p>
+          </div>
+        </div>
+      } @else {
+        <div class="mob-modal-no-location">
+          <mat-icon>help_outline</mat-icon>
+          <p>Este SKU todavía no tiene una ubicación registrada.</p>
+          <p class="mob-no-loc-hint">El Supervisor puede asignarla desde la pestaña Inventario.</p>
+        </div>
+      }
+      <button mat-flat-button color="primary" class="mob-full-btn mob-modal-close-btn"
+        (click)="closeLocationModal()" id="close-location-modal-btn">
+        Cerrar
+      </button>
+    </div>
+  </div>
+}

@@ -1,0 +1,162 @@
+// inventory.component.scss
+
+.app-toolbar {
+  background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%) !important;
+  color: white !important;
+  position: sticky;
+  top: 0;
+  z-index: 100;
+  box-shadow: 0 2px 20px rgba(0, 0, 0, 0.3);
+
+  .toolbar-logo { color: #6c63ff; margin: 0 0.5rem; }
+  .toolbar-title { font-weight: 700; font-size: 1.1rem; }
+  .spacer { flex: 1 1 auto; }
+
+  .low-stock-badge {
+    display: flex;
+    align-items: center;
+    gap: 0.3rem;
+    background: rgba(239, 68, 68, 0.15);
+    color: #ef4444;
+    border: 1px solid rgba(239, 68, 68, 0.3);
+    border-radius: 20px;
+    padding: 0.3rem 0.75rem;
+    font-size: 0.8rem;
+    font-weight: 600;
+    margin-right: 0.75rem;
+    animation: pulse 2s infinite;
+
+    mat-icon { font-size: 16px; width: 16px; height: 16px; }
+  }
+}
+
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50%       { opacity: 0.6; }
+}
+
+.inventory-container {
+  padding: 2rem;
+  max-width: 1400px;
+  margin: 0 auto;
+  background: #0f0f1a;
+  min-height: calc(100vh - 64px);
+}
+
+// ─── Búsqueda ───────────────────────────────────────────────────────────────
+
+.search-card {
+  border-radius: 16px !important;
+  background: #1a1a2e !important;
+  border: 1px solid rgba(255, 255, 255, 0.05);
+  margin-bottom: 1.5rem;
+  padding: 1.25rem 1.5rem !important;
+  display: flex;
+  align-items: center;
+  gap: 2rem;
+
+  .search-field {
+    flex: 1;
+    max-width: 400px;
+
+    ::ng-deep {
+      .mdc-notched-outline__leading,
+      .mdc-notched-outline__notch,
+      .mdc-notched-outline__trailing { border-color: rgba(255,255,255,0.15) !important; }
+      input, .mat-mdc-floating-label { color: white !important; }
+      .mat-mdc-floating-label { color: rgba(255,255,255,0.5) !important; }
+      .mat-icon { color: rgba(255,255,255,0.4); }
+    }
+  }
+
+  .result-count {
+    color: rgba(255,255,255,0.4);
+    font-size: 0.85rem;
+    white-space: nowrap;
+  }
+}
+
+// ─── Tabla ──────────────────────────────────────────────────────────────────
+
+.table-card {
+  border-radius: 16px !important;
+  background: #1a1a2e !important;
+  border: 1px solid rgba(255, 255, 255, 0.05);
+  overflow: hidden;
+}
+
+.inventory-table {
+  width: 100%;
+  background: transparent !important;
+
+  th.mat-header-cell {
+    color: rgba(255, 255, 255, 0.4) !important;
+    font-size: 0.75rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.08) !important;
+    background: rgba(255, 255, 255, 0.03);
+    padding: 1rem 1.25rem;
+  }
+
+  td.mat-cell {
+    color: rgba(255, 255, 255, 0.8) !important;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.05) !important;
+    padding: 1rem 1.25rem;
+    font-size: 0.875rem;
+  }
+}
+
+.table-row {
+  transition: background 0.15s ease;
+  &:hover td { background: rgba(255, 255, 255, 0.03) !important; }
+}
+
+.sku-chip {
+  font-family: 'Courier New', monospace;
+  color: #a89cff;
+  font-weight: 700;
+  font-size: 0.8rem;
+  background: rgba(108, 99, 255, 0.12);
+  padding: 0.2rem 0.6rem;
+  border-radius: 6px;
+}
+
+.stock-cell {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+  min-width: 100px;
+
+  .stock-number {
+    font-weight: 700;
+    color: white;
+  }
+
+  .stock-bar {
+    border-radius: 4px;
+    height: 4px;
+  }
+}
+
+.price-cell {
+  font-weight: 600;
+  color: #3ecf8e;
+}
+
+.status-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  padding: 0.25rem 0.75rem;
+  border-radius: 20px;
+  font-size: 0.8rem;
+  font-weight: 600;
+
+  mat-icon { font-size: 14px; width: 14px; height: 14px; }
+
+  &--ok       { background: rgba(62,207,142,0.15); color: #3ecf8e; border: 1px solid rgba(62,207,142,0.3); }
+  &--warning  { background: rgba(245,158,11,0.15); color: #f59e0b; border: 1px solid rgba(245,158,11,0.3); }
+  &--critical { background: rgba(239,68,68,0.15);  color: #ef4444;  border: 1px solid rgba(239,68,68,0.3);  }
+}

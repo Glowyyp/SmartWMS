@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- menu/bottom_nav_menu.xml — 5 tabs: Inicio / Picking / Putaway / Historial / Copiloto IA -->
+<menu xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <item
+        android:id="@+id/homeFragment"
+        android:icon="@android:drawable/ic_menu_today"
+        android:title="Inicio" />
+
+    <item
+        android:id="@+id/pickingFragment"
+        android:icon="@android:drawable/ic_menu_search"
+        android:title="Picking" />
+
+    <item
+        android:id="@+id/putawayFragment"
+        android:icon="@android:drawable/ic_menu_sort_by_size"
+        android:title="Putaway" />
+
+    <item
+        android:id="@+id/historialFragment"
+        android:icon="@android:drawable/ic_menu_agenda"
+        android:title="Historial" />
+
+    <item
+        android:id="@+id/chatFragment"
+        android:icon="@android:drawable/ic_menu_help"
+        android:title="Copiloto IA" />
+
+</menu>

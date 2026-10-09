@@ -1,0 +1,109 @@
+<!-- features/inventory/inventory.component.html -->
+<mat-toolbar class="app-toolbar">
+  <button id="back-dashboard-btn" mat-icon-button routerLink="/dashboard">
+    <mat-icon>arrow_back</mat-icon>
+  </button>
+  <mat-icon class="toolbar-logo">inventory_2</mat-icon>
+  <span class="toolbar-title">Inventario de Productos</span>
+  <span class="spacer"></span>
+
+  @if (lowStockCount > 0) {
+    <span class="low-stock-badge">
+      <mat-icon>warning</mat-icon>
+      {{ lowStockCount }} en stock crítico
+    </span>
+  }
+
+  <button id="logout-inv-btn" mat-icon-button (click)="logout()">
+    <mat-icon>logout</mat-icon>
+  </button>
+</mat-toolbar>
+
+<div class="inventory-container">
+
+  <!-- Barra de búsqueda -->
+  <mat-card class="search-card">
+    <mat-form-field appearance="outline" class="search-field">
+      <mat-label>Buscar por SKU o nombre</mat-label>
+      <mat-icon matPrefix>search</mat-icon>
+      <input
+        id="inventory-search"
+        matInput
+        [ngModel]="searchQuery()"
+        (ngModelChange)="searchQuery.set($event)"
+        placeholder="SKU-00567 o Teclado..."
+      />
+    </mat-form-field>
+    <span class="result-count">
+      {{ filteredProducts().length }} de {{ allProducts.length }} productos
+    </span>
+  </mat-card>
+
+  <!-- Tabla de inventario -->
+  <mat-card class="table-card">
+    <table mat-table [dataSource]="filteredProducts()" class="inventory-table">
+
+      <!-- SKU -->
+      <ng-container matColumnDef="sku">
+        <th mat-header-cell *matHeaderCellDef>SKU</th>
+        <td mat-cell *matCellDef="let product">
+          <span class="sku-chip">{{ product.sku }}</span>
+        </td>
+      </ng-container>
+
+      <!-- Nombre -->
+      <ng-container matColumnDef="product_name">
+        <th mat-header-cell *matHeaderCellDef>Producto</th>
+        <td mat-cell *matCellDef="let product">{{ product.product_name }}</td>
+      </ng-container>
+
+      <!-- Stock -->
+      <ng-container matColumnDef="stock_quantity">
+        <th mat-header-cell *matHeaderCellDef>Stock</th>
+        <td mat-cell *matCellDef="let product">
+          <div class="stock-cell">
+            <span class="stock-number">{{ product.stock_quantity }}</span>
+            <mat-progress-bar
+              mode="determinate"
+              [value]="getStockProgress(product)"
+              [color]="getStockStatus(product) === 'ok' ? 'primary' : 'warn'"
+              class="stock-bar"
+            ></mat-progress-bar>
+          </div>
+        </td>
+      </ng-container>
+
+      <!-- Precio -->
+      <ng-container matColumnDef="unit_price">
+        <th mat-header-cell *matHeaderCellDef>Precio Unit.</th>
+        <td mat-cell *matCellDef="let product">
+          <span class="price-cell">$ {{ product.unit_price | number:'1.2-2' }}</span>
+        </td>
+      </ng-container>
+
+      <!-- Reorder Point -->
+      <ng-container matColumnDef="reorder_point">
+        <th mat-header-cell *matHeaderCellDef>Punto Reorden</th>
+        <td mat-cell *matCellDef="let product">{{ product.reorder_point }}</td>
+      </ng-container>
+
+      <!-- Estado -->
+      <ng-container matColumnDef="status">
+        <th mat-header-cell *matHeaderCellDef>Estado</th>
+        <td mat-cell *matCellDef="let product">
+          <span class="status-badge status-badge--{{ getStockStatus(product) }}">
+            @switch (getStockStatus(product)) {
+              @case ('critical') { <mat-icon>cancel</mat-icon> Crítico }
+              @case ('warning')  { <mat-icon>warning</mat-icon> Bajo }
+              @default           { <mat-icon>check_circle</mat-icon> Normal }
+            }
+          </span>
+        </td>
+      </ng-container>
+
+      <tr mat-header-row *matHeaderRowDef="displayedColumns"></tr>
+      <tr mat-row *matRowDef="let row; columns: displayedColumns;" class="table-row"></tr>
+
+    </table>
+  </mat-card>
+</div>

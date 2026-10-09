@@ -1,0 +1,82 @@
+<!-- features/dashboard/dashboard.component.html -->
+<!-- Toolbar Superior -->
+<mat-toolbar class="app-toolbar">
+  <mat-icon class="toolbar-logo">inventory_2</mat-icon>
+  <span class="toolbar-title">SmartWMS</span>
+  <span class="spacer"></span>
+
+  <mat-chip class="role-chip">
+    <mat-icon matChipAvatar>person</mat-icon>
+    {{ userRole() | titlecase }}
+  </mat-chip>
+
+  <button id="logout-btn" mat-icon-button (click)="logout()" matTooltip="Cerrar sesión">
+    <mat-icon>logout</mat-icon>
+  </button>
+</mat-toolbar>
+
+<!-- Contenido Principal -->
+<div class="dashboard-container">
+  <!-- Métricas KPI -->
+  <section class="metrics-grid">
+    @for (metric of metrics; track metric.id) {
+      <mat-card class="metric-card metric-card--{{ metric.color }}" [id]="metric.id">
+        <mat-card-content class="metric-content">
+          <div class="metric-icon-wrapper">
+            <mat-icon class="metric-icon">{{ metric.icon }}</mat-icon>
+          </div>
+          <div class="metric-data">
+            <p class="metric-title">{{ metric.title }}</p>
+            <h2 class="metric-value">{{ metric.value }}</h2>
+            <p class="metric-subtitle">{{ metric.subtitle }}</p>
+          </div>
+          <div class="metric-trend metric-trend--{{ metric.trend }}">
+            <mat-icon>
+              {{ metric.trend === 'up' ? 'trending_up' : metric.trend === 'down' ? 'trending_down' : 'trending_flat' }}
+            </mat-icon>
+            <span>{{ metric.trendValue }}</span>
+          </div>
+        </mat-card-content>
+      </mat-card>
+    }
+  </section>
+
+  <!-- Tabla de órdenes recientes -->
+  <mat-card class="orders-card">
+    <mat-card-header>
+      <mat-card-title>
+        <mat-icon>receipt_long</mat-icon>
+        Órdenes Recientes
+      </mat-card-title>
+      <span class="spacer"></span>
+      <a id="view-inventory-btn" mat-button routerLink="/inventory" color="primary">
+        Ver Inventario →
+      </a>
+    </mat-card-header>
+
+    <mat-card-content>
+      <div class="orders-table">
+        <div class="table-header">
+          <span>ID Orden</span>
+          <span>Cliente</span>
+          <span>Total</span>
+          <span>Estado</span>
+          <span>Tiempo</span>
+        </div>
+
+        @for (order of recentOrders; track order.id) {
+          <div class="table-row">
+            <span class="order-id">{{ order.id }}</span>
+            <span>{{ order.customer }}</span>
+            <span class="order-total">{{ order.total }}</span>
+            <span class="order-status order-status--{{ order.status }}">
+              <mat-icon>{{ getStatusIcon(order.status) }}</mat-icon>
+              {{ order.status | titlecase }}
+            </span>
+            <span class="order-time">{{ order.time }}</span>
+          </div>
+        }
+      </div>
+    </mat-card-content>
+  </mat-card>
+</div>

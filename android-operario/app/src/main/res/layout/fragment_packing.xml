@@ -1,0 +1,85 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- fragment_packing.xml -->
+<ScrollView
+    xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="@color/bg_dark">
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        android:padding="16dp">
+
+        <!-- Título -->
+        <TextView
+            android:id="@+id/tv_packing_title"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="Cerrar pedido"
+            android:textSize="22sp"
+            android:textStyle="bold"
+            android:textColor="@color/text_primary"
+            android:layout_marginBottom="8dp"/>
+
+        <!-- Estado general del picking -->
+        <TextView
+            android:id="@+id/tv_packing_status"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:textSize="14sp"
+            android:lineSpacingExtra="4dp"
+            android:layout_marginBottom="20dp"/>
+
+        <!-- Separador -->
+        <View
+            android:layout_width="match_parent"
+            android:layout_height="1dp"
+            android:background="#2d2d3a"
+            android:layout_marginBottom="12dp"/>
+
+        <!-- Título lista de items -->
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="Items de la Orden:"
+            android:textSize="13sp"
+            android:textColor="@color/text_muted"
+            android:textStyle="bold"
+            android:layout_marginBottom="8dp"/>
+
+        <!-- Lista dinámica de items (inflada por el Fragment) -->
+        <LinearLayout
+            android:id="@+id/ll_items_summary"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical"
+            android:layout_marginBottom="24dp"/>
+
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="Para finalizar el pedido, escanea el código QR de la mesa de empaque asignada."
+            android:textSize="13sp"
+            android:textColor="@color/text_secondary"
+            android:layout_marginBottom="12dp"
+            android:textAlignment="center"/>
+
+        <!-- Botón escanear mesa -->
+        <com.google.android.material.button.MaterialButton
+            android:id="@+id/btn_close_packing"
+            android:layout_width="match_parent"
+            android:layout_height="56dp"
+            android:text="📷 Escanear QR de Mesa"
+            android:textSize="15sp"
+            android:enabled="false"
+            android:backgroundTint="@color/surface_dark"
+            android:textColor="@color/purple_light"
+            app:strokeColor="@color/purple_primary"
+            app:strokeWidth="1dp"
+            style="@style/Widget.MaterialComponents.Button.OutlinedButton" />
+
+    </LinearLayout>
+</ScrollView>

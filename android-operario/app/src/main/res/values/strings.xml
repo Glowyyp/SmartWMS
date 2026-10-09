@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Nombre de la app -->
+    <string name="app_name">SmartWMS Operario</string>
+
+    <!-- Navegacion -->
+    <string name="nav_picking">Picking</string>
+    <string name="nav_packing">Packing</string>
+    <string name="nav_putaway">Putaway</string>
+    <string name="nav_chat">Chat IA</string>
+
+    <!-- Login -->
+    <string name="hint_email">Email</string>
+    <string name="hint_password">Contrasena</string>
+    <string name="btn_login">Iniciar Sesion</string>
+
+    <!-- Acciones -->
+    <string name="action_logout">Cerrar sesion</string>
+</resources>

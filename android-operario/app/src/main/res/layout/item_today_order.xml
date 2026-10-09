@@ -1,0 +1,91 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- item_today_order.xml — Ítem del historial de pedidos de hoy en el Home -->
+<LinearLayout
+    xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:orientation="horizontal"
+    android:gravity="center_vertical"
+    android:padding="14dp"
+    android:background="@drawable/bg_card"
+    android:layout_marginBottom="8dp">
+
+    <!-- Indicador estado -->
+    <View
+        android:id="@+id/view_status_bar"
+        android:layout_width="4dp"
+        android:layout_height="match_parent"
+        android:background="@color/green_accent"
+        android:layout_marginEnd="12dp"/>
+
+    <!-- Info del pedido -->
+    <LinearLayout
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:layout_weight="1"
+        android:orientation="vertical">
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:gravity="center_vertical">
+
+            <TextView
+                android:id="@+id/tv_history_order_id"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:text="WO-0001"
+                android:textSize="14sp"
+                android:textStyle="bold"
+                android:textColor="#e2e8f0"
+                android:fontFamily="monospace"/>
+
+            <TextView
+                android:id="@+id/tv_history_status"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Completado"
+                android:textSize="10sp"
+                android:textColor="#4ade80"
+                android:textStyle="bold"/>
+        </LinearLayout>
+
+        <TextView
+            android:id="@+id/tv_history_products"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="8 productos"
+            android:textSize="12sp"
+            android:textColor="#94a3b8"
+            android:layout_marginTop="2dp"/>
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:layout_marginTop="4dp">
+
+            <TextView
+                android:id="@+id/tv_history_time_range"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:text="09:15 → 09:48"
+                android:textSize="11sp"
+                android:textColor="#64748b"/>
+
+            <TextView
+                android:id="@+id/tv_history_duration"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="33 min"
+                android:textSize="11sp"
+                android:textColor="#a5b4fc"
+                android:textStyle="bold"/>
+        </LinearLayout>
+
+    </LinearLayout>
+
+</LinearLayout>

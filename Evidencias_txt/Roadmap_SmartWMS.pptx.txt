@@ -1,15 +1,0 @@
-Hoja de ruta del producto (Agile Roadmap) [SmartWMS/ Proyecto SmartWMS]
-Período: [04/09/2026] al [11/12/2026]
-Organización: [Empresa / Organización]
-Cliente: [Principal cliente interno del proyecto]
-Dueño del producto (Owner): [Fabian Saldaño]
-Scrum Master: [Luis Castro G.]
-
-1
-
-Hoja de Ruta del Producto (Agile Roadmap) - SmartWMS
-Período: 04/09/2026 al 11/12/2026 (16 Semanas)
-Organización: DUOC UC (Proyecto de Título)
-Cliente: Sponsor / Gerencia General
-Dueño del producto (Owner): Jefe de Bodega
-Scrum Master: Jefe de Proyecto
