@@ -1,0 +1,74 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <title>Diagrama de Despliegue - GCP</title>
+  <script src="https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js"></script>
+  <style>
+    body { background-color: #f4f6f8; display: flex; justify-content: center; padding: 20px; font-family: sans-serif; }
+    .mermaid { background-color: #ffffff; padding: 20px; border-radius: 8px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); width: 100%; overflow-x: auto;}
+  </style>
+</head>
+<body>
+  <div class="mermaid">
+flowchart LR
+    %% ==========================================
+    %% ESTILOS DE NODOS
+    %% ==========================================
+    classDef gcpNode fill:#ffffff,stroke:#4285f4,stroke-width:2px,rx:5px,ry:5px,color:#000
+    classDef gcpDB fill:#e8f0fe,stroke:#1a73e8,stroke-width:2px,rx:5px,ry:5px,color:#000
+    classDef device fill:#f1f3f4,stroke:#5f6368,stroke-width:2px,rx:5px,ry:5px,color:#000
+
+    %% ==========================================
+    %% CAPAS HORIZONTALES
+    %% ==========================================
+    subgraph Terreno ["📍 Nodos en Terreno"]
+        direction TB
+        MobileApp["📱 Dispositivo Móvil
+(App Operario)"]:::device
+        PCWeb["💻 PC Terminal
+(Dashboard Web)"]:::device
+        ESP32["📡 Hardware IoT
+(Sensores ESP32)"]:::device
+    end
+
+    subgraph Entrada ["🌐 Borde de Red GCP"]
+        direction TB
+        LoadBalancer["🛡️ Cloud Load Balancing
+(SSL / WAF)"]:::gcpNode
+        PubSub["📨 Cloud Pub/Sub
+(Ingesta IoT)"]:::gcpNode
+    end
+
+    subgraph Compute ["⚙️ Capa de Cómputo (Serverless)"]
+        direction TB
+        CloudRun["🚢 Cloud Run
+(Contenedores FastAPI)"]:::gcpNode
+    end
+
+    subgraph Storage ["🗄️ Capa de Datos e IA"]
+        direction TB
+        CloudSQL[("🗄️ Cloud SQL
+(PostgreSQL + pgvector)")]:::gcpDB
+        VertexAI["🤖 Vertex AI / LLM API
+(Inferencia)"]:::device
+    end
+
+    %% ==========================================
+    %% CONEXIONES
+    %% ==========================================
+    MobileApp -- "HTTPS / WSS" --> LoadBalancer
+    PCWeb -- "HTTPS / WSS" --> LoadBalancer
+    ESP32 -- "MQTT / HTTP" --> PubSub
+
+    LoadBalancer -- "Ruteo" --> CloudRun
+    PubSub -- "Suscripción" --> CloudRun
+
+    CloudRun -- "TCP/IP Privado" --> CloudSQL
+    CloudRun -- "API REST" --> VertexAI
+  </div>
+  <script>
+    mermaid.initialize({ startOnLoad: true, theme: 'default' });
+  </script>
+</body>
+</html>

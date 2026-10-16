@@ -1,0 +1,125 @@
+<?xml version="1.0" encoding="utf-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI" xmlns:dc="http://www.omg.org/spec/DD/20100524/DC" xmlns:di="http://www.omg.org/spec/DD/20100524/DI" id="Definitions_1" targetNamespace="http://bpmn.io/schema/bpmn" exporter="Bizagi Modeler" exporterVersion="4.0.0.0">
+  <bpmn:collaboration id="Collaboration_1">
+    <bpmn:participant id="Participant_Ecommerce" name="Plataforma E-Commerce (Externa)" processRef="Process_Ecommerce" />
+    <bpmn:participant id="Participant_SmartWMS" name="Ecosistema SmartWMS" processRef="Process_SmartWMS" />
+    <bpmn:messageFlow id="Flow_Webhook" name="Webhook POST /orden" sourceRef="Task_EmitirWebhook" targetRef="StartEvent_RecibirWebhook" />
+    <bpmn:messageFlow id="Flow_ResponseOK" name="HTTP 200 OK" sourceRef="Task_Retornar200" targetRef="EndEvent_PedidoOK" />
+    <bpmn:messageFlow id="Flow_ResponseConflict" name="HTTP 409 Conflict" sourceRef="Task_Retornar409" targetRef="EndEvent_ReversarVenta" />
+    <bpmn:messageFlow id="Flow_ResponseUnauth" name="HTTP 401 Unauthorized" sourceRef="Task_Retornar401" targetRef="EndEvent_ErrorFirma" />
+  </bpmn:collaboration>
+  
+  <bpmn:process id="Process_Ecommerce" isExecutable="false">
+    <bpmn:startEvent id="StartEvent_PagoConfirmado" name="Inicio: Pago Confirmado">
+      <bpmn:outgoing>Flow_1</bpmn:outgoing>
+    </bpmn:startEvent>
+    <bpmn:task id="Task_EmitirWebhook" name="Emitir Webhook POST /orden">
+      <bpmn:incoming>Flow_1</bpmn:incoming>
+    </bpmn:task>
+    <bpmn:sequenceFlow id="Flow_1" sourceRef="StartEvent_PagoConfirmado" targetRef="Task_EmitirWebhook" />
+    <bpmn:endEvent id="EndEvent_PedidoOK" name="Fin Exitoso (Pedido OK)" />
+    <bpmn:endEvent id="EndEvent_ReversarVenta" name="Venta Reversada (Sin Stock)" />
+    <bpmn:endEvent id="EndEvent_ErrorFirma" name="Error de Autenticacion" />
+  </bpmn:process>
+
+  <bpmn:process id="Process_SmartWMS" isExecutable="false">
+    <bpmn:laneSet id="LaneSet_SmartWMS">
+      <bpmn:lane id="Lane_API" name="API Backend (FastAPI / Cloud Run)">
+        <bpmn:flowNodeRef>StartEvent_RecibirWebhook</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Gateway_ValidarHMAC</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_Retornar401</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_IniciarTx</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_Retornar200</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_Retornar409</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_EmitirWSS</bpmn:flowNodeRef>
+      </bpmn:lane>
+      <bpmn:lane id="Lane_DB" name="Base de Datos (Cloud SQL)">
+        <bpmn:flowNodeRef>Task_Bloqueo</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Gateway_Stock</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_Rollback</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_Commit</bpmn:flowNodeRef>
+      </bpmn:lane>
+      <bpmn:lane id="Lane_Front" name="Frontend (Angular / Movil)">
+        <bpmn:flowNodeRef>Task_ActualizarUI</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>EndEvent_ProcesoUI</bpmn:flowNodeRef>
+      </bpmn:lane>
+    </bpmn:laneSet>
+
+    <!-- Lane API -->
+    <bpmn:startEvent id="StartEvent_RecibirWebhook" name="Recibir Payload Webhook">
+      <bpmn:outgoing>Flow_2</bpmn:outgoing>
+      <bpmn:messageEventDefinition id="MessageEventDefinition_1" />
+    </bpmn:startEvent>
+    <bpmn:exclusiveGateway id="Gateway_ValidarHMAC" name="Firma HMAC Valida?">
+      <bpmn:incoming>Flow_2</bpmn:incoming>
+      <bpmn:outgoing>Flow_HMAC_No</bpmn:outgoing>
+      <bpmn:outgoing>Flow_HMAC_Si</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+    <bpmn:task id="Task_Retornar401" name="Retornar HTTP 401 Unauthorized">
+      <bpmn:incoming>Flow_HMAC_No</bpmn:incoming>
+    </bpmn:task>
+    <bpmn:task id="Task_IniciarTx" name="Iniciar Transaccion">
+      <bpmn:incoming>Flow_HMAC_Si</bpmn:incoming>
+      <bpmn:outgoing>Flow_To_DB</bpmn:outgoing>
+    </bpmn:task>
+    
+    <!-- Lane DB -->
+    <bpmn:task id="Task_Bloqueo" name="Bloqueo Transaccional (Row-level Lock)">
+      <bpmn:incoming>Flow_To_DB</bpmn:incoming>
+      <bpmn:outgoing>Flow_4</bpmn:outgoing>
+    </bpmn:task>
+    <bpmn:exclusiveGateway id="Gateway_Stock" name="Hay Stock Suficiente?">
+      <bpmn:incoming>Flow_4</bpmn:incoming>
+      <bpmn:outgoing>Flow_Stock_No</bpmn:outgoing>
+      <bpmn:outgoing>Flow_Stock_Si</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+    <bpmn:task id="Task_Rollback" name="Ejecutar Rollback">
+      <bpmn:incoming>Flow_Stock_No</bpmn:incoming>
+      <bpmn:outgoing>Flow_To_409</bpmn:outgoing>
+    </bpmn:task>
+    <bpmn:task id="Task_Commit" name="Ejecutar Commit (Descuento Logico)">
+      <bpmn:incoming>Flow_Stock_Si</bpmn:incoming>
+      <bpmn:outgoing>Flow_To_200</bpmn:outgoing>
+      <bpmn:outgoing>Flow_To_WSS</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Regreso Lane API -->
+    <bpmn:task id="Task_Retornar409" name="Retornar HTTP 409 Conflict">
+      <bpmn:incoming>Flow_To_409</bpmn:incoming>
+    </bpmn:task>
+    <bpmn:task id="Task_Retornar200" name="Retornar HTTP 200 OK">
+      <bpmn:incoming>Flow_To_200</bpmn:incoming>
+    </bpmn:task>
+    <bpmn:task id="Task_EmitirWSS" name="Emitir Evento WebSocket (WSS)">
+      <bpmn:incoming>Flow_To_WSS</bpmn:incoming>
+      <bpmn:outgoing>Flow_To_Front</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Lane Front -->
+    <bpmn:task id="Task_ActualizarUI" name="Actualizar Dashboard en Vivo">
+      <bpmn:incoming>Flow_To_Front</bpmn:incoming>
+      <bpmn:outgoing>Flow_End_UI</bpmn:outgoing>
+    </bpmn:task>
+    <bpmn:endEvent id="EndEvent_ProcesoUI" name="Fin del Proceso">
+      <bpmn:incoming>Flow_End_UI</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <!-- Sequence Flows -->
+    <bpmn:sequenceFlow id="Flow_2" sourceRef="StartEvent_RecibirWebhook" targetRef="Gateway_ValidarHMAC" />
+    <bpmn:sequenceFlow id="Flow_HMAC_No" name="No" sourceRef="Gateway_ValidarHMAC" targetRef="Task_Retornar401" />
+    <bpmn:sequenceFlow id="Flow_HMAC_Si" name="Si" sourceRef="Gateway_ValidarHMAC" targetRef="Task_IniciarTx" />
+    <bpmn:sequenceFlow id="Flow_To_DB" sourceRef="Task_IniciarTx" targetRef="Task_Bloqueo" />
+    <bpmn:sequenceFlow id="Flow_4" sourceRef="Task_Bloqueo" targetRef="Gateway_Stock" />
+    <bpmn:sequenceFlow id="Flow_Stock_No" name="No" sourceRef="Gateway_Stock" targetRef="Task_Rollback" />
+    <bpmn:sequenceFlow id="Flow_Stock_Si" name="Si" sourceRef="Gateway_Stock" targetRef="Task_Commit" />
+    <bpmn:sequenceFlow id="Flow_To_409" sourceRef="Task_Rollback" targetRef="Task_Retornar409" />
+    <bpmn:sequenceFlow id="Flow_To_200" sourceRef="Task_Commit" targetRef="Task_Retornar200" />
+    <bpmn:sequenceFlow id="Flow_To_WSS" sourceRef="Task_Commit" targetRef="Task_EmitirWSS" />
+    <bpmn:sequenceFlow id="Flow_To_Front" sourceRef="Task_EmitirWSS" targetRef="Task_ActualizarUI" />
+    <bpmn:sequenceFlow id="Flow_End_UI" sourceRef="Task_ActualizarUI" targetRef="EndEvent_ProcesoUI" />
+  </bpmn:process>
+  <bpmndi:BPMNDiagram id="BPMNDiagram_1">
+    <bpmndi:BPMNPlane id="BPMNPlane_1" bpmnElement="Collaboration_1">
+    </bpmndi:BPMNPlane>
+  </bpmndi:BPMNDiagram>
+</bpmn:definitions>

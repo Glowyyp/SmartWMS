@@ -1,0 +1,101 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <title>Proceso de Negocio TO-BE - SmartWMS</title>
+  <script src="https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js"></script>
+  <style>
+    body { background-color: #f4f6f8; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; display: flex; justify-content: center; padding: 20px; margin: 0; }
+    .card { background-color: #ffffff; border-radius: 12px; box-shadow: 0 8px 25px rgba(0,0,0,0.05); padding: 40px; max-width: 1100px; width: 100%; }
+    h1 { color: #1e78b4; text-align: center; font-size: 26px; margin-bottom: 5px; }
+    h2 { color: #64748b; text-align: center; font-size: 16px; font-weight: 500; margin-top: 0; margin-bottom: 30px; }
+    .divider { height: 2px; background-color: #e2e8f0; margin-bottom: 40px; }
+    .mermaid { display: flex; justify-content: center; }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <h1>Diagrama de Procesos de Negocio (TO-BE)</h1>
+    <h2>Operación Bodega Inteligente SmartWMS</h2>
+    <div class="divider"></div>
+    <div class="mermaid">
+      flowchart TD
+        %% Definición de Carriles (Pools/Lanes)
+        subgraph Ecom ["🛒 Plataforma E-commerce"]
+            direction LR
+            A((Inicio:<br>Ingresa Orden))
+        end
+
+        subgraph Sys ["💻 Sistema SmartWMS"]
+            direction LR
+            B[Reservar Stock y<br>Asignar Tarea]
+            IA[Copiloto IA:<br>Generar Respuesta]
+            F[Descontar<br>Inventario Real]
+            G[Notificar Cierre<br>de Orden]
+            I[Aislar Ubicación<br>en Cuarentena]
+        end
+
+        subgraph Jefe ["🎯 Jefe de Bodega"]
+            direction LR
+            J[Visualizar Alerta<br>en Dashboard Web]
+            K[Inspeccionar Rack y<br>Gestionar Merma]
+            FinMerma(((Fin:<br>Merma Resuelta)))
+        end
+
+        subgraph Op ["👷 Operario de Bodega"]
+            direction LR
+            C[Visualizar Ruta<br>en App Móvil]
+            D{¿Tiene<br>Dudas?}
+            E[Escanear Zero-Touch<br>y Empacar]
+            H(((Fin:<br>Pedido Listo)))
+        end
+
+        subgraph IoT ["📡 Sensores IoT (Racks)"]
+            direction LR
+            L((Inicio:<br>Fuerza G > 2.5))
+            M[Emitir Alerta<br>de Impacto]
+        end
+
+        %% Conexiones Flujo 1 (Órdenes)
+        A --> B
+        B --> C
+        C --> D
+        D -- Sí --> IA
+        D -- No --> E
+        IA --> E
+        E --> F
+        F --> G
+        G --> H
+
+        %% Conexiones Flujo 2 (IoT)
+        L --> M
+        M --> I
+        I --> J
+        J --> K
+        K --> FinMerma
+
+        %% Estilos BPMN (Colores)
+        classDef event fill:#dcfce7,stroke:#22c55e,stroke-width:2px,color:#000
+        classDef endEvent fill:#fee2e2,stroke:#ef4444,stroke-width:3px,color:#000
+        classDef task fill:#f1f5f9,stroke:#64748b,stroke-width:1.5px,color:#000
+        classDef decision fill:#fef9c3,stroke:#eab308,stroke-width:1.5px,color:#000
+        classDef sysTask fill:#e0f2fe,stroke:#0ea5e9,stroke-width:1.5px,color:#000
+
+        class A,L event
+        class H,FinMerma endEvent
+        class C,E,J,K,M task
+        class B,F,G,I,IA sysTask
+        class D decision
+        
+        style Ecom fill:#ffffff,stroke:#cbd5e1,stroke-width:2px
+        style Sys fill:#f8fafc,stroke:#94a3b8,stroke-width:2px
+        style Jefe fill:#ffffff,stroke:#cbd5e1,stroke-width:2px
+        style Op fill:#f8fafc,stroke:#94a3b8,stroke-width:2px
+        style IoT fill:#ffffff,stroke:#cbd5e1,stroke-width:2px
+    </div>
+  </div>
+  <script>
+    mermaid.initialize({ startOnLoad: true, theme: 'base' });
+  </script>
+</body>
+</html>

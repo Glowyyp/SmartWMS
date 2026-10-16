@@ -1,0 +1,108 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <title>Diagrama de Casos de Uso UML SmartWMS</title>
+  <script src="https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js"></script>
+  <style>
+    body {
+      background-color: #f4f6f8;
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      min-height: 100vh;
+      margin: 0;
+      padding: 20px;
+    }
+    .card {
+      background-color: #ffffff;
+      border-radius: 18px;
+      box-shadow: 0 8px 28px rgba(0, 0, 0, 0.08);
+      padding: 40px 50px;
+      max-width: 900px;
+      width: 100%;
+    }
+    h1 {
+      color: #1e78b4;
+      text-align: center;
+      font-size: 30px;
+      font-weight: 700;
+      margin: 0 0 18px 0;
+    }
+    .divider {
+      height: 3px;
+      background-color: #d8effc;
+      margin-bottom: 30px;
+      width: 100%;
+    }
+    .mermaid-wrapper {
+      position: relative;
+      display: flex;
+      justify-content: center;
+      margin-top: 30px;
+    }
+    .system-title {
+      position: absolute;
+      top: -30px;
+      left: 65%;
+      transform: translateX(-50%);
+      font-weight: 600;
+      font-size: 16px;
+      color: #000;
+    }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <h1>Diagrama de Casos de Uso UML SmartWMS</h1>
+    <div class="divider"></div>
+    <div class="mermaid-wrapper">
+      <div class="system-title">Sistema SmartWMS</div>
+      <div class="mermaid">
+        flowchart LR
+          OP["👷 Operario de Bodega"]
+          JB["🎯 Jefe de Bodega"]
+          EC["🛒 Plataforma E-commerce"]
+          IOT["📡 Sensor IoT (ESP32)"]
+
+          subgraph SYS_BOX [" "]
+            direction TB
+            UC1(["Escanear Rutas (Picking)"])
+            UC2(["Cerrar Pedido (Packing)"])
+            UC3(["Consultar Copiloto IA"])
+            UC4(["Configurar Layout de Racks"])
+            UC5(["Monitorear Dashboards BI"])
+            UC6(["Ingresar Orden de Compra"])
+            UC7(["Reportar Alarma de<br/>Impacto/Clima"])
+          end
+
+          OP --> UC1
+          OP --> UC2
+          OP --> UC3
+
+          JB --> UC3
+          JB --> UC4
+          JB --> UC5
+
+          EC --> UC6
+          IOT --> UC7
+
+          style SYS_BOX fill:#ffffff,stroke:#666666,stroke-width:1.2px
+          classDef actor fill:#dce6f2,stroke:#5b738b,stroke-width:1.5px,color:#000000
+          classDef usecase fill:#efefef,stroke:#888888,stroke-width:1.2px,color:#000000
+
+          class OP,JB,EC,IOT actor
+          class UC1,UC2,UC3,UC4,UC5,UC6,UC7 usecase
+      </div>
+    </div>
+  </div>
+  <script>
+    mermaid.initialize({
+      startOnLoad: true,
+      theme: 'base',
+      flowchart: { curve: 'basis', nodeSpacing: 35, rankSpacing: 65 }
+    });
+  </script>
+</body>
+</html>
