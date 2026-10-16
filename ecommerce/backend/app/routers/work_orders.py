@@ -792,6 +792,7 @@ def dispatch_work_order(
         return _enrich_work_order(wo, db)
 
     except HTTPException:
+        db.rollback()
         raise
     except Exception as exc:
         db.rollback()

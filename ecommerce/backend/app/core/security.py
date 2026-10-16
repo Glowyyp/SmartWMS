@@ -14,7 +14,7 @@ from jose import JWTError, jwt
 from passlib.context import CryptContext
 
 # ─── Configuración ────────────────────────────────────────────────────────────
-JWT_SECRET      = os.getenv("JWT_SECRET", "CAMBIA_ESTE_SECRETO_EN_PRODUCCION")
+JWT_SECRET      = os.getenv("JWT_SECRET", "cambia_este_secreto_jwt_en_produccion")
 JWT_ALGORITHM   = "HS256"
 JWT_EXPIRE_MIN  = int(os.getenv("JWT_EXPIRE_MINUTES", "60"))
 
@@ -25,13 +25,15 @@ _pwd_ctx = CryptContext(schemes=["bcrypt"], deprecated="auto")
 # ─── Contraseñas ──────────────────────────────────────────────────────────────
 
 def hash_password(plain: str) -> str:
-    """Devuelve el hash bcrypt de la contraseña en texto plano."""
-    return _pwd_ctx.hash(plain)
+    """Devuelve el hash bcrypt de la contraseña en texto plano (corte seguro a 72 bytes)."""
+    safe = plain.encode("utf-8")[:72].decode("utf-8", "ignore")
+    return _pwd_ctx.hash(safe)
 
 
 def verify_password(plain: str, hashed: str) -> bool:
-    """Compara una contraseña en texto plano contra su hash bcrypt."""
-    return _pwd_ctx.verify(plain, hashed)
+    """Compara una contraseña en texto plano contra su hash bcrypt (corte seguro a 72 bytes)."""
+    safe = plain.encode("utf-8")[:72].decode("utf-8", "ignore")
+    return _pwd_ctx.verify(safe, hashed)
 
 
 # ─── JWT ──────────────────────────────────────────────────────────────────────

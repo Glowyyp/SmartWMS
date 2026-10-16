@@ -7,12 +7,15 @@ para garantizar consistencia bajo concurrencia (múltiples webhooks simultáneos
 
 from datetime import datetime
 from typing import Optional
-from sqlalchemy import Column, Integer, String, Numeric, DateTime, func, Text, Boolean
+from sqlalchemy import Column, Integer, String, Numeric, DateTime, func, Text, Boolean, CheckConstraint
 from app.database import Base
 
 
 class ProductInventory(Base):
     __tablename__ = "product_inventory"
+    __table_args__ = (
+        CheckConstraint("stock_quantity >= 0", name="chk_stock_quantity_non_negative"),
+    )
 
     id = Column(Integer, primary_key=True, index=True)
 

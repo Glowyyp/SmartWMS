@@ -86,8 +86,22 @@ export class AuthService {
     return this.hasValidToken();
   }
 
-  /** Verifica que exista un token (no hace validación JWT completa — para eso usar un interceptor) */
+  /** Verifica que exista un token y que su firma no haya expirado según exp */
   private hasValidToken(): boolean {
-    return !!localStorage.getItem(this.TOKEN_KEY);
+    const token = localStorage.getItem(this.TOKEN_KEY);
+    if (!token) return false;
+    try {
+      const parts = token.split('.');
+      if (parts.length !== 3) return false;
+      const payload = JSON.parse(atob(parts[1]));
+      if (payload.exp && payload.exp * 1000 < Date.now()) {
+        localStorage.removeItem(this.TOKEN_KEY);
+        localStorage.removeItem(this.ROLE_KEY);
+        return false;
+      }
+      return true;
+    } catch {
+      return false;
+    }
   }
 }

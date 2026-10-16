@@ -46,7 +46,10 @@ if DATABASE_URL.startswith("sqlite:///") and not DATABASE_URL.startswith("sqlite
 # Parámetros específicos de SQLite (necesarios solo en ese driver)
 connect_args: dict = {}
 if DATABASE_URL.startswith("sqlite"):
-    connect_args = {"check_same_thread": False}
+    connect_args = {
+        "check_same_thread": False,
+        "timeout": 30,  # Esperar hasta 30s si la base de datos está ocupada
+    }
 
 engine = create_engine(
     DATABASE_URL,
@@ -57,6 +60,24 @@ engine = create_engine(
     max_overflow=20,         # Conexiones extra bajo carga alta
     echo=os.getenv("DEBUG", "false").lower() == "true",  # Log SQL en debug
 )
+
+# ─── GARANTÍA ACID PARA SQLITE: FOREIGN KEYS Y WAL MODE ───────────────────────
+@event.listens_for(engine, "connect")
+def set_sqlite_pragma(dbapi_connection, connection_record):
+    """
+    Garantiza el cumplimiento ACID en SQLite:
+    1. foreign_keys=ON: SQLite por defecto no valida FKs; esto exige integridad referencial.
+    2. journal_mode=WAL: Permite múltiples lectores concurrentes sin bloquear escrituras.
+    3. synchronous=NORMAL: Durabilidad segura en disco sin degradar rendimiento.
+    4. busy_timeout=30000: Evita errores de 'database is locked' bajo concurrencia.
+    """
+    if DATABASE_URL.startswith("sqlite"):
+        cursor = dbapi_connection.cursor()
+        cursor.execute("PRAGMA foreign_keys=ON")
+        cursor.execute("PRAGMA journal_mode=WAL")
+        cursor.execute("PRAGMA synchronous=NORMAL")
+        cursor.execute("PRAGMA busy_timeout=30000")
+        cursor.close()
 
 SessionLocal = sessionmaker(
     autocommit=False,
