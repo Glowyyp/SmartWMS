@@ -26,6 +26,9 @@
           <span class="nav-badge danger">{{ lowStockCount() }}</span>
         }
       </button>
+      <button class="nav-item" [class.active]="activeTab() === 7" (click)="activeTab.set(7)">
+        <mat-icon>local_shipping</mat-icon><span>Recepciones</span>
+      </button>
       <button class="nav-item" [class.active]="activeTab() === 2" (click)="activeTab.set(2)">
         <mat-icon>group</mat-icon><span>Usuarios</span>
       </button>
@@ -138,7 +141,10 @@
           <div class="header-actions">
             <select class="status-select" [(ngModel)]="woStatusFilter" (ngModelChange)="onWoStatusFilter()">
               <option value="">Todos los estados</option>
+              <option value="por_asignar">Por asignar</option>
               <option value="pending">Pendientes</option>
+              <option value="in_preparation">En preparación</option>
+              <option value="in_progress">En proceso</option>
               <option value="dispatched">Despachados</option>
               <option value="cancelled">Cancelados</option>
             </select>
@@ -150,6 +156,117 @@
             </button>
           </div>
         </div>
+
+        <!-- ── Formulario de edición de pedido ────────────────────────────── -->
+        @if (editingOrder(); as editWo) {
+          <div class="add-product-form edit-order-form" id="edit-order-form">
+            <div class="form-header-bar">
+              <h2 class="form-title">
+                <mat-icon>edit_note</mat-icon>
+                <span>Editar Pedido: <code class="mono">{{ editWo.order_number }}</code></span>
+              </h2>
+              <span class="status-chip" [ngClass]="getWoStatusClass(editSelectedStatus())">
+                {{ getWoStatusLabel(editSelectedStatus()) }}
+              </span>
+            </div>
+
+            @if (editOrderError()) {
+              <div class="error-banner">
+                <mat-icon>error_outline</mat-icon> {{ editOrderError() }}
+              </div>
+            }
+
+            <!-- Selector de Operario y Estado -->
+            <div class="form-grid edit-meta-grid">
+              <div class="form-field">
+                <label class="form-label">Operario Asignado</label>
+                <select class="form-input" id="edit-operario-select"
+                  [ngModel]="editSelectedOperario()" (ngModelChange)="onEditOperarioChange($event)">
+                  <option value="">Sin asignar (Por asignar)</option>
+                  @for (op of operarios(); track op.id) {
+                    <option [value]="op.email">{{ op.full_name ?? op.email }} — {{ op.email }}</option>
+                  }
+                </select>
+              </div>
+
+              <div class="form-field">
+                <label class="form-label">Estado del Pedido</label>
+                <select class="form-input" id="edit-status-select"
+                  [(ngModel)]="editSelectedStatus">
+                  <option value="por_asignar">Por asignar</option>
+                  <option value="pending">Pendiente</option>
+                  <option value="in_preparation">En preparación</option>
+                  <option value="in_progress">En proceso</option>
+                  <option value="dispatched">Despachado</option>
+                  <option value="cancelled">Cancelado</option>
+                </select>
+              </div>
+            </div>
+
+            <!-- Buscador de SKU para agregar productos al pedido -->
+            <div class="form-field" style="position:relative">
+              <label class="form-label">Agregar Producto por SKU o nombre</label>
+              <input class="form-input" id="edit-sku-search-input" type="text" placeholder="Buscar producto para agregar..."
+                [ngModel]="editSkuSearch()" (ngModelChange)="editSkuSearch.set($event)" autocomplete="off"/>
+
+              @if (editSkuSearchResults().length > 0) {
+                <div class="sku-dropdown">
+                  @for (p of editSkuSearchResults(); track p.sku) {
+                    <div class="sku-option" (click)="addEditLineFromProduct(p)" [id]="'edit-sku-opt-' + p.sku">
+                      <div class="sku-opt-main">
+                        <code class="mono">{{ p.sku }}</code>
+                        <span class="sku-opt-name">{{ p.product_name }}</span>
+                      </div>
+                      <span class="sku-opt-stock">
+                        {{ p.available_qty }} disponibles · {{ p.unit_price | currency:'USD' }}
+                      </span>
+                    </div>
+                  }
+                </div>
+              }
+            </div>
+
+            <!-- Líneas del pedido actual -->
+            @if (editOrderLines().length > 0) {
+              <div class="order-lines">
+                <div class="order-lines-header edit-lines-header">
+                  <span>SKU</span><span>Producto</span><span>Precio</span><span>Disponible</span><span>Cantidad</span><span>Subtotal</span><span></span>
+                </div>
+                @for (line of editOrderLines(); track line.sku) {
+                  <div class="order-line-row edit-line-row">
+                    <code class="mono">{{ line.sku }}</code>
+                    <span class="line-name">{{ line.product_name }}</span>
+                    <span class="line-price">{{ line.unit_price | currency:'USD' }}</span>
+                    <span class="line-available">{{ line.available_qty }}</span>
+                    <input class="qty-input" type="number" [id]="'edit-qty-' + line.sku"
+                      [value]="line.quantity" min="1" [max]="line.available_qty"
+                      (change)="updateEditLineQty(line.sku, +$any($event.target).value)" />
+                    <span class="line-subtotal amount">{{ (line.quantity * (line.unit_price || 0)) | currency:'USD' }}</span>
+                    <button mat-icon-button color="warn" (click)="removeEditLine(line.sku)" [id]="'edit-rm-' + line.sku" matTooltip="Eliminar ítem">
+                      <mat-icon>close</mat-icon>
+                    </button>
+                  </div>
+                }
+                <div class="order-lines-summary">
+                  <span>Total Items: <strong>{{ getEditTotalItems() }} uds</strong></span>
+                  <span>Total Pedido: <strong class="amount">{{ getEditTotalAmount() | currency:'USD' }}</strong></span>
+                </div>
+              </div>
+            } @else {
+              <p class="empty-lines-hint">El pedido no tiene productos. Agrega productos con el buscador de arriba.</p>
+            }
+
+            <div class="form-actions">
+              <button id="save-edit-order-btn" mat-flat-button color="primary"
+                [disabled]="savingEditOrder() || editOrderLines().length === 0"
+                (click)="saveEditOrder()">
+                <mat-icon>save</mat-icon>
+                {{ savingEditOrder() ? 'Guardando...' : 'Guardar Cambios' }}
+              </button>
+              <button mat-stroked-button (click)="cancelEditOrder()">Cancelar</button>
+            </div>
+          </div>
+        }
 
         <!-- ── Formulario de nuevo pedido ─────────────────────────────────── -->
         @if (showNewOrderForm()) {
@@ -171,7 +288,9 @@
                         <code class="mono">{{ p.sku }}</code>
                         <span class="sku-opt-name">{{ p.product_name }}</span>
                       </div>
-                      <span class="sku-opt-stock">{{ p.available_qty }} disponibles</span>
+                      <span class="sku-opt-stock">
+                        {{ p.available_qty }} disponibles
+                      </span>
                     </div>
                   }
                 </div>
@@ -212,7 +331,7 @@
               } @else {
                 <select class="form-input" id="operario-select"
                   [ngModel]="selectedOperario()" (ngModelChange)="selectedOperario.set($event)">
-                  <option value="">Sin asignar (visible para todos)</option>
+                  <option value="">Sin asignar (Por asignar)</option>
                   @for (op of operarios(); track op.id) {
                     <option [value]="op.email">{{ op.full_name ?? op.email }} — {{ op.email }}</option>
                   }
@@ -243,13 +362,22 @@
             <ng-container matColumnDef="assigned_operario_email">
               <th mat-header-cell *matHeaderCellDef>Operario Asignado</th>
               <td mat-cell *matCellDef="let wo">
-                @if (wo.assigned_operario_email) {
-                  <span class="operario-chip">
-                    <mat-icon>person</mat-icon>
-                    {{ wo.assigned_operario_email }}
-                  </span>
+                @if (wo.status === 'por_asignar' || wo.status === 'pending' || wo.status === 'assigned' || wo.status === 'waiting_stock' || wo.status === 'in_preparation' || wo.status === 'in_progress') {
+                  <select class="status-select" [ngModel]="wo.assigned_operario_email || ''" (change)="assignWo(wo, $event)">
+                    <option value="">Sin asignar</option>
+                    @for (op of operarios(); track op.id) {
+                      <option [value]="op.email">{{ op.full_name ?? op.email }}</option>
+                    }
+                  </select>
                 } @else {
-                  <span class="text-muted">Sin asignar</span>
+                  @if (wo.assigned_operario_email) {
+                    <span class="operario-chip">
+                      <mat-icon>person</mat-icon>
+                      {{ wo.assigned_operario_email }}
+                    </span>
+                  } @else {
+                    <span class="text-muted">Sin asignar</span>
+                  }
                 }
               </td>
             </ng-container>
@@ -276,10 +404,13 @@
               <td mat-cell *matCellDef="let wo">{{ wo.created_at | date:'dd/MM HH:mm' }}</td>
             </ng-container>
             <ng-container matColumnDef="items_count">
-              <th mat-header-cell *matHeaderCellDef>Items</th>
+              <th mat-header-cell *matHeaderCellDef>Items / Total</th>
               <td mat-cell *matCellDef="let wo">
-                <span class="items-detail" [matTooltip]="wo.items | json">
-                  {{ wo.items.length }} SKU(s)
+                <span class="items-detail" [matTooltip]="getItemsTooltip(wo)">
+                  {{ wo.items.length }} SKU(s) · {{ getTotalItems(wo) }} uds
+                  @if (getTotalAmount(wo) > 0) {
+                    <div class="items-total-amount">{{ getTotalAmount(wo) | currency:'USD':'symbol':'1.2-2' }}</div>
+                  }
                 </span>
               </td>
             </ng-container>
@@ -292,14 +423,20 @@
               <td mat-cell *matCellDef="let wo">{{ wo.dispatched_at ? (wo.dispatched_at | date:'dd/MM HH:mm') : '—' }}</td>
             </ng-container>
             <ng-container matColumnDef="actions">
-              <th mat-header-cell *matHeaderCellDef></th>
+              <th mat-header-cell *matHeaderCellDef>Acciones</th>
               <td mat-cell *matCellDef="let wo">
-                @if (wo.status === 'pending') {
-                  <button mat-icon-button color="warn" matTooltip="Cancelar pedido"
-                    (click)="cancelWorkOrder(wo)" [id]="'cancel-wo-' + wo.id">
-                    <mat-icon>cancel</mat-icon>
+                <div class="actions-cell">
+                  <button mat-icon-button color="primary" matTooltip="Editar pedido"
+                    (click)="openEditOrderForm(wo)" [id]="'edit-wo-' + wo.id">
+                    <mat-icon>edit</mat-icon>
                   </button>
-                }
+                  @if (wo.status === 'pending' || wo.status === 'por_asignar' || wo.status === 'waiting_stock') {
+                    <button mat-icon-button color="warn" matTooltip="Cancelar pedido"
+                      (click)="cancelWorkOrder(wo)" [id]="'cancel-wo-' + wo.id">
+                      <mat-icon>cancel</mat-icon>
+                    </button>
+                  }
+                </div>
               </td>
             </ng-container>
             <tr mat-header-row *matHeaderRowDef="woColumns; sticky: true"></tr>
@@ -329,6 +466,9 @@
           <div class="header-actions">
             <input id="inventory-search" class="search-input" type="text" placeholder="Buscar SKU o producto..."
               [ngModel]="inventorySearch()" (ngModelChange)="inventorySearch.set($event)" />
+            <button mat-stroked-button (click)="loadInventory()">
+              <mat-icon>refresh</mat-icon> Actualizar
+            </button>
             <button mat-flat-button color="primary" (click)="showAddForm.set(!showAddForm())" id="toggle-add-form-btn">
               <mat-icon>{{ showAddForm() ? 'close' : 'add' }}</mat-icon>
               {{ showAddForm() ? 'Cancelar' : 'Agregar Producto' }}
@@ -338,58 +478,85 @@
 
         @if (showAddForm()) {
           <div class="add-product-form" id="add-product-form">
-            <h2 class="form-title"><mat-icon>inventory_2</mat-icon> Nuevo Producto</h2>
+            <h2 class="form-title"><mat-icon>inventory_2</mat-icon> {{ editingProduct() ? 'Editar Producto' : 'Nuevo Producto' }}</h2>
             <div class="form-grid">
               <div class="form-field">
                 <label class="form-label">SKU *</label>
                 <input class="form-input" id="new-sku" type="text" placeholder="Ej: SKU-00100"
-                  [value]="newProduct().sku"
-                  (input)="updateNewProduct('sku', $any($event.target).value)" />
+                  [value]="editingProduct() ? editingProduct()?.sku : newProduct().sku"
+                  (input)="updateNewProduct('sku', $any($event.target).value)" 
+                  [disabled]="editingProduct() !== null" />
               </div>
               <div class="form-field">
                 <label class="form-label">Nombre del Producto *</label>
                 <input class="form-input" id="new-name" type="text" placeholder="Ej: Teclado Mecánico RGB"
-                  [value]="newProduct().product_name"
+                  [value]="editingProduct() ? editingProduct()?.product_name : newProduct().product_name"
                   (input)="updateNewProduct('product_name', $any($event.target).value)" />
               </div>
               <div class="form-field">
-                <label class="form-label">Stock Inicial</label>
+                <label class="form-label">Stock Físico Inicial</label>
                 <input class="form-input" id="new-stock" type="number" min="0" placeholder="0"
-                  [value]="newProduct().stock_quantity"
+                  [value]="editingProduct() ? editingProduct()?.stock_quantity : newProduct().stock_quantity"
                   (input)="updateNewProduct('stock_quantity', +$any($event.target).value)" />
               </div>
               <div class="form-field">
                 <label class="form-label">Precio Unitario *</label>
                 <input class="form-input" id="new-price" type="number" min="0.01" step="0.01" placeholder="0.00"
-                  [value]="newProduct().unit_price || ''"
+                  [value]="(editingProduct() ? editingProduct()?.unit_price : newProduct().unit_price) || ''"
                   (input)="updateNewProduct('unit_price', +$any($event.target).value)" />
               </div>
               <div class="form-field">
                 <label class="form-label">Punto de Reorden</label>
                 <input class="form-input" id="new-reorder" type="number" min="0" placeholder="10"
-                  [value]="newProduct().reorder_point"
+                  [value]="editingProduct() ? editingProduct()?.reorder_point : newProduct().reorder_point"
                   (input)="updateNewProduct('reorder_point', +$any($event.target).value)" />
               </div>
               <div class="form-field">
-                <label class="form-label">Ubicación en Almacén (Zona)</label>
+                <label class="form-label">Ubicación (Zona)</label>
                 <select class="form-input" id="new-location"
-                  [ngModel]="newProduct().warehouse_location ?? ''"
+                  [ngModel]="(editingProduct() ? editingProduct()?.warehouse_location : newProduct().warehouse_location) ?? ''"
                   (ngModelChange)="updateNewProduct('warehouse_location', $event)">
-                  <option value="">Sin ubicación asignada</option>
+                  <option value="">Sin ubicación</option>
                   <option value="A">Zona A — Insumos</option>
                   <option value="B">Zona B — Electrónica</option>
                   <option value="C">Zona C — Periféricos</option>
                   <option value="D">Zona D — Cuarentena</option>
                 </select>
               </div>
+
+              <!-- Medidas Físicas -->
+              <div class="form-field">
+                <label class="form-label">Peso Unitario (kg)</label>
+                <input class="form-input" id="new-weight" type="number" min="0" step="0.01" placeholder="0.00"
+                  [value]="(editingProduct() ? editingProduct()?.weight : newProduct().weight) ?? ''"
+                  (input)="updateNewProduct('weight', +$any($event.target).value)" />
+              </div>
+              <div class="form-field">
+                <label class="form-label">Largo (cm)</label>
+                <input class="form-input" type="number" min="0" step="0.1" placeholder="0.0"
+                  [value]="(editingProduct() ? editingProduct()?.length : newProduct().length) ?? ''"
+                  (input)="updateNewProduct('length', +$any($event.target).value)" />
+              </div>
+              <div class="form-field">
+                <label class="form-label">Ancho (cm)</label>
+                <input class="form-input" type="number" min="0" step="0.1" placeholder="0.0"
+                  [value]="(editingProduct() ? editingProduct()?.width : newProduct().width) ?? ''"
+                  (input)="updateNewProduct('width', +$any($event.target).value)" />
+              </div>
+              <div class="form-field">
+                <label class="form-label">Alto (cm)</label>
+                <input class="form-input" type="number" min="0" step="0.1" placeholder="0.0"
+                  [value]="(editingProduct() ? editingProduct()?.height : newProduct().height) ?? ''"
+                  (input)="updateNewProduct('height', +$any($event.target).value)" />
+              </div>
             </div>
             <div class="form-actions">
               <button id="save-product-btn" mat-flat-button color="primary"
                 [disabled]="addingProduct()" (click)="createProduct()">
                 <mat-icon>save</mat-icon>
-                {{ addingProduct() ? 'Guardando...' : 'Guardar Producto' }}
+                {{ addingProduct() ? 'Guardando...' : (editingProduct() ? 'Guardar Cambios' : 'Crear Producto') }}
               </button>
-              <button mat-stroked-button (click)="showAddForm.set(false)">Cancelar</button>
+              <button mat-stroked-button (click)="cancelEdit()">Cancelar</button>
             </div>
           </div>
         }
@@ -406,11 +573,11 @@
               <th mat-header-cell *matHeaderCellDef>Producto</th>
               <td mat-cell *matCellDef="let p">{{ p.product_name }}</td>
             </ng-container>
-            <ng-container matColumnDef="stock_physical">
-              <th mat-header-cell *matHeaderCellDef>Stock Físico</th>
+            <ng-container matColumnDef="stock_available">
+              <th mat-header-cell *matHeaderCellDef>Disponible</th>
               <td mat-cell *matCellDef="let p">
                 <span class="stock-value" [class.critical]="getStockStatus(p) === 'critical'" [class.warning]="getStockStatus(p) === 'warning'">
-                  {{ p.stock_quantity }}
+                  {{ p.available_qty }}
                 </span>
               </td>
             </ng-container>
@@ -418,25 +585,21 @@
               <th mat-header-cell *matHeaderCellDef>Reservado</th>
               <td mat-cell *matCellDef="let p">
                 <span class="reserved-badge" [class.has-reserved]="p.reserved_qty > 0">
-                  @if (p.reserved_qty > 0) { -{{ p.reserved_qty }} } @else { — }
+                  @if (p.reserved_qty > 0) { {{ p.reserved_qty }} } @else { — }
                 </span>
               </td>
             </ng-container>
-            <ng-container matColumnDef="stock_available">
-              <th mat-header-cell *matHeaderCellDef>Disponible</th>
+            <ng-container matColumnDef="pending_quantity">
+              <th mat-header-cell *matHeaderCellDef>Por llegar</th>
               <td mat-cell *matCellDef="let p">
-                <span class="available-badge" [class.low]="p.available_qty <= p.reorder_point">
-                  {{ p.available_qty }}
-                </span>
+                @if (p.pending_quantity > 0) {
+                  <span style="color:#f59e0b; font-weight:600; padding: 2px 6px; background-color: #fef3c7; border-radius: 4px;">
+                    +{{ p.pending_quantity }}
+                  </span>
+                } @else {
+                  <span class="text-muted">—</span>
+                }
               </td>
-            </ng-container>
-            <ng-container matColumnDef="unit_price">
-              <th mat-header-cell *matHeaderCellDef>Precio</th>
-              <td mat-cell *matCellDef="let p">${{ p.unit_price | number:'1.2-2' }}</td>
-            </ng-container>
-            <ng-container matColumnDef="reorder_point">
-              <th mat-header-cell *matHeaderCellDef>Reorden</th>
-              <td mat-cell *matCellDef="let p">{{ p.reorder_point }}</td>
             </ng-container>
             <ng-container matColumnDef="status">
               <th mat-header-cell *matHeaderCellDef>Estado</th>
@@ -448,7 +611,11 @@
             </ng-container>
             <ng-container matColumnDef="actions">
               <th mat-header-cell *matHeaderCellDef></th>
-              <td mat-cell *matCellDef="let p">
+              <td mat-cell *matCellDef="let p" style="white-space: nowrap">
+                <button mat-icon-button color="primary" matTooltip="Editar"
+                  (click)="editProduct(p)" [id]="'edit-product-' + p.id">
+                  <mat-icon>edit</mat-icon>
+                </button>
                 <button mat-icon-button color="warn" matTooltip="Eliminar (solo admin)"
                   (click)="deleteProduct(p.id, p.sku)" [id]="'del-product-' + p.id">
                   <mat-icon>delete_outline</mat-icon>
@@ -635,6 +802,130 @@
             <p class="iot-value">{{ iotData().impactAlert ? 'ALERTA' : 'Normal' }}</p>
             <p class="iot-threshold">Zona D — Cuarentena (US-IOT-02)</p>
           </div>
+        </div>
+      </section>
+    }
+
+    <!-- ── TAB 7: RECEPCIONES PENDIENTES ──────────────────────────────────────── -->
+    @if (activeTab() === 7) {
+      <section class="panel-section">
+        <div class="section-header">
+          <div>
+            <h1 class="section-title">Recepciones de Stock</h1>
+            <p class="section-subtitle">Gestión de llegadas de mercancía</p>
+          </div>
+          <div class="header-actions">
+            <button mat-stroked-button (click)="loadReceptions()">
+              <mat-icon>refresh</mat-icon> Actualizar
+            </button>
+            <button mat-flat-button color="primary" (click)="showNewReceptionForm.set(!showNewReceptionForm())">
+              <mat-icon>{{ showNewReceptionForm() ? 'close' : 'add_circle' }}</mat-icon>
+              {{ showNewReceptionForm() ? 'Cancelar' : 'Nueva Recepción' }}
+            </button>
+          </div>
+        </div>
+
+        @if (showNewReceptionForm()) {
+          <div class="add-product-form">
+            <h2 class="form-title"><mat-icon>local_shipping</mat-icon> Registrar Llegada Esperada</h2>
+            <div class="form-grid">
+              <div class="form-field" style="position:relative">
+                <label class="form-label">Buscar producto o ingresar SKU *</label>
+                <input class="form-input" type="text" placeholder="Ej: SKU-00100 o Teclado..."
+                  [ngModel]="newReception().sku" 
+                  (ngModelChange)="newReception.update(r => ({ ...r, sku: $event })); receptionSkuSearch.set($event)" 
+                  autocomplete="off" />
+                  
+                <!-- Resultados de búsqueda -->
+                @if (receptionSkuSearchResults().length > 0) {
+                  <div class="sku-dropdown">
+                    @for (p of receptionSkuSearchResults(); track p.sku) {
+                      <div class="sku-option" (click)="selectReceptionSku(p)">
+                        <div class="sku-opt-main">
+                          <code class="mono">{{ p.sku }}</code>
+                          <span class="sku-opt-name">{{ p.product_name }}</span>
+                        </div>
+                      </div>
+                    }
+                  </div>
+                }
+              </div>
+              <div class="form-field">
+                <label class="form-label">Cantidad Esperada *</label>
+                <input class="form-input" type="number" min="1"
+                  [ngModel]="newReception().expected_quantity" (ngModelChange)="newReception.update(r => ({ ...r, expected_quantity: $event }))" />
+              </div>
+              <div class="form-field">
+                <label class="form-label">Notas (Opcional)</label>
+                <input class="form-input" type="text"
+                  [ngModel]="newReception().notes" (ngModelChange)="newReception.update(r => ({ ...r, notes: $event }))" />
+              </div>
+            </div>
+            <div class="form-actions">
+              <button mat-flat-button color="primary" (click)="createReception()">
+                <mat-icon>save</mat-icon> Guardar Recepción
+              </button>
+            </div>
+          </div>
+        }
+
+        @if (receptionsLoading()) { <mat-progress-bar mode="indeterminate"></mat-progress-bar> }
+        <div class="table-card">
+          <table mat-table [dataSource]="receptions()" class="wms-table">
+            <ng-container matColumnDef="id">
+              <th mat-header-cell *matHeaderCellDef>#</th>
+              <td mat-cell *matCellDef="let r">{{ r.id }}</td>
+            </ng-container>
+            <ng-container matColumnDef="sku">
+              <th mat-header-cell *matHeaderCellDef>SKU</th>
+              <td mat-cell *matCellDef="let r"><code class="mono">{{ r.sku }}</code></td>
+            </ng-container>
+            <ng-container matColumnDef="expected_quantity">
+              <th mat-header-cell *matHeaderCellDef>Esperada</th>
+              <td mat-cell *matCellDef="let r">{{ r.expected_quantity }}</td>
+            </ng-container>
+            <ng-container matColumnDef="received_quantity">
+              <th mat-header-cell *matHeaderCellDef>Recibida</th>
+              <td mat-cell *matCellDef="let r">
+                <span [class.text-warn]="r.received_quantity < r.expected_quantity && r.status !== 'pending'">
+                  {{ r.received_quantity }}
+                </span>
+              </td>
+            </ng-container>
+            <ng-container matColumnDef="status">
+              <th mat-header-cell *matHeaderCellDef>Estado</th>
+              <td mat-cell *matCellDef="let r">
+                <span class="status-chip" [ngClass]="{
+                  'chip-warning': r.status === 'pending',
+                  'chip-success': r.status === 'completed',
+                  'chip-info': r.status === 'partial',
+                  'chip-muted': r.status === 'cancelled'
+                }">{{ r.status }}</span>
+              </td>
+            </ng-container>
+            <ng-container matColumnDef="created_at">
+              <th mat-header-cell *matHeaderCellDef>Fecha Creación</th>
+              <td mat-cell *matCellDef="let r">{{ r.created_at | date:'dd/MM HH:mm' }}</td>
+            </ng-container>
+            <ng-container matColumnDef="actions">
+              <th mat-header-cell *matHeaderCellDef></th>
+              <td mat-cell *matCellDef="let r">
+                @if (r.status === 'pending' || r.status === 'partial') {
+                  <button mat-stroked-button color="primary" (click)="confirmReceptionArrival(r)">
+                    <mat-icon>check</mat-icon> Confirmar
+                  </button>
+                }
+              </td>
+            </ng-container>
+            <tr mat-header-row *matHeaderRowDef="receptionColumns; sticky: true"></tr>
+            <tr mat-row *matRowDef="let row; columns: receptionColumns;" class="table-row"></tr>
+          </table>
+          @if (!receptions().length && !receptionsLoading()) {
+            <div class="empty-state">
+              <mat-icon>local_shipping</mat-icon>
+              <p>No hay recepciones registradas.</p>
+            </div>
+          }
         </div>
       </section>
     }

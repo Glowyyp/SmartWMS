@@ -11,19 +11,39 @@ export interface WorkOrderItemOut {
   sku: string;
   product_name: string;
   quantity: number;
+  unit_price?: number | null;
+  subtotal?: number | null;
+}
+
+export interface WorkOrderPackage {
+  id: number;
+  length: number | null;
+  width: number | null;
+  height: number | null;
+  weight: number | null;
+  created_at: string;
 }
 
 export interface WorkOrder {
   id: number;
   order_number: string;
-  status: 'pending' | 'dispatched' | 'cancelled';
+  status: 'por_asignar' | 'waiting_stock' | 'pending' | 'assigned' | 'in_preparation' | 'in_progress' | 'dispatched' | 'cancelled' | string;
+  created_by_id?: number | null;
   created_by_email: string | null;
+  assigned_operario_id?: number | null;
   assigned_operario_email: string | null;
+  dispatched_by_id?: number | null;
   dispatched_by_email: string | null;
   created_at: string;
   dispatched_at: string | null;
   cancelled_at: string | null;
+  total_weight: number | null;
+  total_volume: number | null;
+  packages_count: number;
+  total_items?: number;
+  total_amount?: number;
   items: WorkOrderItemOut[];
+  packages: WorkOrderPackage[];
 }
 
 export interface Operario {
@@ -39,7 +59,15 @@ export interface WorkOrderItemIn {
 
 export interface WorkOrderCreate {
   items: WorkOrderItemIn[];
+  assigned_operario_id?: number | null;
   assigned_operario_email?: string | null;
+}
+
+export interface WorkOrderUpdate {
+  status?: string | null;
+  assigned_operario_id?: number | null;
+  assigned_operario_email?: string | null;
+  items?: WorkOrderItemIn[];
 }
 
 @Injectable({ providedIn: 'root' })
@@ -66,14 +94,27 @@ export class WorkOrdersService {
     return this.http.post<WorkOrder>(this.baseUrl, payload);
   }
 
+  /** Editar un pedido completo (supervisor) */
+  updateWorkOrder(id: number, payload: WorkOrderUpdate): Observable<WorkOrder> {
+    return this.http.put<WorkOrder>(`${this.baseUrl}/${id}`, payload);
+  }
+
   /** Despachar un pedido (operario) */
-  dispatch(id: number): Observable<WorkOrder> {
-    return this.http.post<WorkOrder>(`${this.baseUrl}/${id}/dispatch`, {});
+  dispatch(id: number, payload?: any): Observable<WorkOrder> {
+    return this.http.post<WorkOrder>(`${this.baseUrl}/${id}/dispatch`, payload || {});
   }
 
   /** Cancelar un pedido (supervisor) */
   cancel(id: number): Observable<WorkOrder> {
     return this.http.post<WorkOrder>(`${this.baseUrl}/${id}/cancel`, {});
+  }
+
+  /** Asignar un pedido a un operario */
+  assignWorkOrder(id: number, assigned_operario_id: number | null, assigned_operario_email: string | null): Observable<WorkOrder> {
+    return this.http.put<WorkOrder>(`${this.baseUrl}/${id}/assign`, {
+      assigned_operario_id,
+      assigned_operario_email
+    });
   }
 
   /** Lista operarios activos disponibles para asignar pedidos */

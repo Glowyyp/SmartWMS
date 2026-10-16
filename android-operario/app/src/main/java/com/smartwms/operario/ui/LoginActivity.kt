@@ -25,12 +25,17 @@ class LoginActivity : AppCompatActivity() {
         setContentView(binding.root)
 
         tokenStore = TokenStore(applicationContext)
+        RetrofitClient.init(applicationContext)
 
         // Si ya hay sesion activa, ir directo a MainActivity
         lifecycleScope.launch {
             if (tokenStore.getToken() != null) {
                 goToMain()
             }
+        }
+
+        binding.btnServerConfig.setOnClickListener {
+            showServerConfigDialog()
         }
 
         binding.btnLogin.setOnClickListener {
@@ -43,6 +48,31 @@ class LoginActivity : AppCompatActivity() {
             }
             doLogin(email, password)
         }
+    }
+
+    private fun showServerConfigDialog() {
+        val currentUrl = RetrofitClient.getServerAddress(this)
+        val input = android.widget.EditText(this).apply {
+            setText(currentUrl)
+            hint = "http://192.168.1.5:8001"
+            setPadding(48, 32, 48, 32)
+        }
+
+        androidx.appcompat.app.AlertDialog.Builder(this)
+            .setTitle("Dirección del Servidor")
+            .setMessage("Ingresa la URL o IP del servidor SmartWMS (Backend puerto 8001):")
+            .setView(input)
+            .setPositiveButton("Guardar") { _, _ ->
+                val newUrl = input.text.toString().trim()
+                if (newUrl.isNotEmpty()) {
+                    val prefs = getSharedPreferences("smartwms_network", MODE_PRIVATE)
+                    prefs.edit().putString("server_url", newUrl).apply()
+                    RetrofitClient.setServerAddress(newUrl)
+                    Toast.makeText(this, "Servidor configurado: $newUrl", Toast.LENGTH_SHORT).show()
+                }
+            }
+            .setNegativeButton("Cancelar", null)
+            .show()
     }
 
     private fun doLogin(email: String, password: String) {

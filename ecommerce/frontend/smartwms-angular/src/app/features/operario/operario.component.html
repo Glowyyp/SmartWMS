@@ -134,6 +134,25 @@
               </div>
 
               <div class="mob-dispatch-actions">
+                <div class="mob-dispatch-warning" style="margin-bottom:1rem;">
+                  <h3 style="margin-bottom: 0.5rem;"><mat-icon style="vertical-align: middle;">inventory</mat-icon> Bultos (Opcional)</h3>
+                  
+                  @for (pkg of packages(); track $index) {
+                    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:0.5rem; background:rgba(255,255,255,0.08); border:1px solid rgba(255,255,255,0.15); padding:0.6rem 0.8rem; border-radius:6px; color:#f8fafc;">
+                      <span style="color:#f8fafc; font-size:13px; font-weight:500;">Bulto {{$index + 1}}: {{pkg.length}}x{{pkg.width}}x{{pkg.height}} | {{pkg.weight}}kg</span>
+                      <mat-icon color="warn" style="cursor:pointer;" (click)="removePackage($index)">delete</mat-icon>
+                    </div>
+                  }
+
+                  <div style="display: flex; gap: 0.5rem; margin-top: 0.5rem;">
+                    <input class="mob-form-input" style="flex:1" type="number" placeholder="Largo" [ngModel]="newPackage().length" (ngModelChange)="newPackage.update(p => ({ ...p, length: $event }))" />
+                    <input class="mob-form-input" style="flex:1" type="number" placeholder="Ancho" [ngModel]="newPackage().width" (ngModelChange)="newPackage.update(p => ({ ...p, width: $event }))" />
+                    <input class="mob-form-input" style="flex:1" type="number" placeholder="Alto" [ngModel]="newPackage().height" (ngModelChange)="newPackage.update(p => ({ ...p, height: $event }))" />
+                    <input class="mob-form-input" style="flex:1" type="number" placeholder="Peso" [ngModel]="newPackage().weight" (ngModelChange)="newPackage.update(p => ({ ...p, weight: $event }))" />
+                    <button mat-icon-button color="primary" (click)="addPackage()"><mat-icon>add_circle</mat-icon></button>
+                  </div>
+                </div>
+
                 <div class="mob-dispatch-warning">
                   <mat-icon>info</mat-icon>
                   <p>Al confirmar, el stock físico se descontará automáticamente y el pedido quedará como despachado.</p>

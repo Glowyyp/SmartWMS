@@ -23,9 +23,9 @@ import { MatSnackBar, MatSnackBarModule } from '@angular/material/snack-bar';
 
 import { AuthService } from '../../core/services/auth.service';
 import { OrdersService, Order } from '../../core/services/orders.service';
-import { InventoryService, ProductInventory } from '../../core/services/inventory.service';
+import { InventoryService, ProductInventory, PendingReception } from '../../core/services/inventory.service';
 import { UsersService, UserRecord } from '../../core/services/users.service';
-import { WorkOrdersService, WorkOrder, WorkOrderItemIn, Operario } from '../../core/services/work-orders.service';
+import { WorkOrdersService, WorkOrder, WorkOrderItemIn, WorkOrderUpdate, Operario } from '../../core/services/work-orders.service';
 import { ChatbotComponent } from '../../shared/chatbot/chatbot.component';
 import { Subscription, interval } from 'rxjs';
 import { switchMap, startWith } from 'rxjs/operators';
@@ -35,6 +35,14 @@ interface NewOrderLine {
   product_name: string;
   available_qty: number;
   quantity: number;
+}
+
+interface EditOrderLine {
+  sku: string;
+  product_name: string;
+  available_qty: number;
+  quantity: number;
+  unit_price: number;
 }
 
 @Component({
@@ -66,11 +74,33 @@ export class SupervisorComponent implements OnInit, OnDestroy {
   products = signal<ProductInventory[]>([]);
   productsLoading = signal(false);
   inventorySearch = signal('');
-  inventoryColumns = ['sku', 'product_name', 'stock_physical', 'stock_reserved', 'stock_available', 'unit_price', 'reorder_point', 'status', 'actions'];
+  inventoryColumns = ['sku', 'product_name', 'stock_available', 'stock_reserved', 'pending_quantity', 'status', 'actions'];
 
   showAddForm = signal(false);
   addingProduct = signal(false);
-  newProduct = signal({ sku: '', product_name: '', stock_quantity: 0, unit_price: 0, reorder_point: 10, warehouse_location: '' as string | null });
+  newProduct = signal<{
+    sku: string;
+    product_name: string;
+    stock_quantity: number;
+    unit_price: number;
+    reorder_point: number;
+    warehouse_location: string | null;
+    length?: number | null;
+    width?: number | null;
+    height?: number | null;
+    weight?: number | null;
+  }>({
+    sku: '',
+    product_name: '',
+    stock_quantity: 0,
+    unit_price: 0,
+    reorder_point: 10,
+    warehouse_location: null,
+    length: null,
+    width: null,
+    height: null,
+    weight: null
+  });
 
   filteredProducts = computed(() => {
     const q = this.inventorySearch().toLowerCase();
@@ -97,8 +127,15 @@ export class SupervisorComponent implements OnInit, OnDestroy {
   woColumns = ['order_number', 'status', 'assigned_operario_email', 'created_by_email', 'created_at', 'items_count', 'dispatched_by_email', 'dispatched_at', 'actions'];
 
   pendingWoCount = computed(() =>
-    this.workOrders().filter(wo => wo.status === 'pending').length
+    this.workOrders().filter(wo => wo.status === 'pending' || wo.status === 'por_asignar').length
   );
+
+  // ── Recepciones Pendientes ────────────────────────────────────────────────
+  receptions = signal<PendingReception[]>([]);
+  receptionsLoading = signal(false);
+  receptionColumns = ['id', 'sku', 'expected_quantity', 'received_quantity', 'status', 'created_at', 'actions'];
+  showNewReceptionForm = signal(false);
+  newReception = signal({ sku: '', expected_quantity: 0, notes: '' });
 
   // ── Formulario de nuevo pedido ─────────────────────────────────────────────
   showNewOrderForm = signal(false);
@@ -114,9 +151,42 @@ export class SupervisorComponent implements OnInit, OnDestroy {
     if (!q) return [];
     return this.products().filter(p =>
       (p.sku.toLowerCase().includes(q) || p.product_name.toLowerCase().includes(q)) &&
-      p.available_qty > 0
+      (p.available_qty > 0)
     ).slice(0, 8);
   });
+
+  // ── Formulario de edición de pedido ────────────────────────────────────────
+  editingOrder = signal<WorkOrder | null>(null);
+  savingEditOrder = signal(false);
+  editOrderError = signal('');
+  editSelectedOperario = signal<string>('');
+  editSelectedStatus = signal<string>('');
+  editOrderLines = signal<EditOrderLine[]>([]);
+  editSkuSearch = signal('');
+
+  editSkuSearchResults = computed(() => {
+    const q = this.editSkuSearch().toLowerCase().trim();
+    if (!q) return [];
+    return this.products().filter(p =>
+      (p.sku.toLowerCase().includes(q) || p.product_name.toLowerCase().includes(q)) &&
+      (p.available_qty > 0 || this.isSkuInEditingOrder(p.sku))
+    ).slice(0, 8);
+  });
+
+  // ── Formulario de Nueva Recepción ──────────────────────────────────────────
+  receptionSkuSearch = signal('');
+  receptionSkuSearchResults = computed(() => {
+    const q = this.receptionSkuSearch().toLowerCase().trim();
+    if (!q) return [];
+    return this.products().filter(p =>
+      p.sku.toLowerCase().includes(q) || p.product_name.toLowerCase().includes(q)
+    ).slice(0, 8);
+  });
+
+  selectReceptionSku(product: ProductInventory): void {
+    this.newReception.update(r => ({ ...r, sku: product.sku }));
+    this.receptionSkuSearch.set('');
+  }
 
   // ── IoT simulado ───────────────────────────────────────────────────────────
   iotData = signal({
@@ -150,6 +220,8 @@ export class SupervisorComponent implements OnInit, OnDestroy {
     this.loadInventory();
     this.loadUsers();
     this.loadWorkOrders();
+    this.loadReceptions();
+    this.loadOperarios();
     this.startIoTSimulation();
 
     // Poll órdenes webhook cada 30 s
@@ -183,6 +255,8 @@ export class SupervisorComponent implements OnInit, OnDestroy {
   onStatusFilter(): void { this.loadOrders(); }
 
   // ── Inventario ─────────────────────────────────────────────────────────────
+  editingProduct = signal<ProductInventory | null>(null);
+
   loadInventory(): void {
     this.productsLoading.set(true);
     this.inventoryService.getProducts().subscribe({
@@ -192,30 +266,63 @@ export class SupervisorComponent implements OnInit, OnDestroy {
   }
 
   updateNewProduct(field: string, value: string | number): void {
-    this.newProduct.update(p => ({ ...p, [field]: value }));
+    if (this.editingProduct()) {
+      this.editingProduct.update(p => p ? { ...p, [field]: value } : null);
+    } else {
+      this.newProduct.update(p => ({ ...p, [field]: value }));
+    }
+  }
+
+  editProduct(p: ProductInventory): void {
+    this.editingProduct.set({ ...p });
+    this.showAddForm.set(true);
+  }
+
+  cancelEdit(): void {
+    this.editingProduct.set(null);
+    this.showAddForm.set(false);
   }
 
   createProduct(): void {
-    const p = this.newProduct();
+    const isEdit = !!this.editingProduct();
+    const p = isEdit ? this.editingProduct()! : this.newProduct();
     if (!p.sku.trim() || !p.product_name.trim() || p.unit_price <= 0) {
       this.snackBar.open('Completa SKU, nombre y precio válido.', '', { duration: 3000 });
       return;
     }
     this.addingProduct.set(true);
-    this.inventoryService.createProduct(p).subscribe({
-      next: created => {
-        this.products.update(list => [{ ...created, reserved_qty: 0, available_qty: created.stock_quantity }, ...list]);
-        this.showAddForm.set(false);
-        this.newProduct.set({ sku: '', product_name: '', stock_quantity: 0, unit_price: 0, reorder_point: 10, warehouse_location: null });
-        this.addingProduct.set(false);
-        this.snackBar.open(`✅ Producto ${created.sku} creado`, '', { duration: 3000 });
-      },
-      error: err => {
-        this.addingProduct.set(false);
-        const msg = err.error?.detail ?? 'Error al crear el producto';
-        this.snackBar.open(msg, 'Cerrar', { duration: 5000 });
-      },
-    });
+    
+    if (isEdit) {
+      const editProd = this.editingProduct()!;
+      this.inventoryService.updateProduct(editProd.id, editProd).subscribe({
+        next: updated => {
+          this.products.update(list => list.map(item => item.id === updated.id ? { ...updated, reserved_qty: item.reserved_qty, available_qty: updated.stock_quantity - item.reserved_qty } : item));
+          this.cancelEdit();
+          this.addingProduct.set(false);
+          this.snackBar.open(`✅ Producto ${updated.sku} actualizado`, '', { duration: 3000 });
+        },
+        error: err => {
+          this.addingProduct.set(false);
+          const msg = err.error?.detail ?? 'Error al actualizar el producto';
+          this.snackBar.open(msg, 'Cerrar', { duration: 5000 });
+        }
+      });
+    } else {
+      this.inventoryService.createProduct(p).subscribe({
+        next: created => {
+          this.products.update(list => [{ ...created, reserved_qty: 0, available_qty: created.stock_quantity }, ...list]);
+          this.showAddForm.set(false);
+          this.newProduct.set({ sku: '', product_name: '', stock_quantity: 0, unit_price: 0, reorder_point: 10, warehouse_location: null, length: null, width: null, height: null, weight: null });
+          this.addingProduct.set(false);
+          this.snackBar.open(`✅ Producto ${created.sku} creado`, '', { duration: 3000 });
+        },
+        error: err => {
+          this.addingProduct.set(false);
+          const msg = err.error?.detail ?? 'Error al crear el producto';
+          this.snackBar.open(msg, 'Cerrar', { duration: 5000 });
+        },
+      });
+    }
   }
 
   deleteProduct(id: number, sku: string): void {
@@ -268,15 +375,20 @@ export class SupervisorComponent implements OnInit, OnDestroy {
   }
 
   addLineFromProduct(product: ProductInventory): void {
+    if (product.available_qty <= 0) {
+      this.snackBar.open(`${product.sku} no tiene stock disponible para agregar al pedido.`, 'Cerrar', { duration: 3000 });
+      return;
+    }
     const existing = this.orderLines().find(l => l.sku === product.sku);
     if (existing) {
       this.snackBar.open(`${product.sku} ya está en el pedido. Ajusta la cantidad.`, '', { duration: 2500 });
       return;
     }
+    const maxQty = product.available_qty;
     this.orderLines.update(lines => [...lines, {
       sku: product.sku,
       product_name: product.product_name,
-      available_qty: product.available_qty,
+      available_qty: maxQty,
       quantity: 1,
     }]);
     this.skuSearch.set('');
@@ -305,16 +417,20 @@ export class SupervisorComponent implements OnInit, OnDestroy {
     }
 
     this.creatingOrder.set(true);
+    const op = this.operarios().find(o => o.email === this.selectedOperario());
     const payload = {
       items: lines.map(l => ({ sku: l.sku, quantity: l.quantity } as WorkOrderItemIn)),
-      assigned_operario_email: this.selectedOperario() || null,
+      assigned_operario_id: op ? op.id : null,
+      assigned_operario_email: op ? op.email : null,
     };
     this.workOrdersService.createWorkOrder(payload).subscribe({
       next: wo => {
         this.workOrders.update(wos => [wo, ...wos]);
         this.showNewOrderForm.set(false);
         this.creatingOrder.set(false);
-        this.snackBar.open(`✅ Pedido ${wo.order_number} creado`, 'OK', { duration: 4000 });
+        this.orderLines.set([]);
+        this.selectedOperario.set('');
+        this.snackBar.open(`✅ Pedido ${wo.order_number} creado (${this.getWoStatusLabel(wo.status)})`, 'OK', { duration: 4000 });
         // Recargar inventario para reflejar las nuevas reservas
         this.loadInventory();
       },
@@ -338,6 +454,226 @@ export class SupervisorComponent implements OnInit, OnDestroy {
     });
   }
 
+  assignWo(wo: WorkOrder, event: any): void {
+    const email = event.target.value;
+    const op = this.operarios().find(o => o.email === email);
+    const op_id = op ? op.id : null;
+    const op_email = op ? op.email : null;
+    
+    this.workOrdersService.assignWorkOrder(wo.id, op_id, op_email).subscribe({
+      next: updated => {
+        this.workOrders.update(wos => wos.map(w => w.id === updated.id ? updated : w));
+        const statusLabel = this.getWoStatusLabel(updated.status);
+        const opMsg = updated.assigned_operario_email ? `asignado a ${updated.assigned_operario_email}` : 'sin asignar';
+        this.snackBar.open(`✅ Pedido ${wo.order_number} ${opMsg} (${statusLabel})`, 'OK', { duration: 3000 });
+      },
+      error: err => {
+        const msg = err.error?.detail ?? 'Error al asignar operario';
+        this.snackBar.open(`❌ ${msg}`, 'Cerrar', { duration: 4000 });
+      }
+    });
+  }
+
+  // ── Métodos de Edición de Pedidos ──────────────────────────────────────────
+  isSkuInEditingOrder(sku: string): boolean {
+    return this.editOrderLines().some(l => l.sku === sku);
+  }
+
+  openEditOrderForm(wo: WorkOrder): void {
+    this.showNewOrderForm.set(false);
+    this.editingOrder.set(wo);
+    this.editOrderError.set('');
+    this.editSelectedOperario.set(wo.assigned_operario_email || '');
+    this.editSelectedStatus.set(wo.status);
+    this.editSkuSearch.set('');
+
+    this.loadOperarios();
+    this.loadInventory();
+
+    const lines: EditOrderLine[] = (wo.items || []).map(item => {
+      const prod = this.products().find(p => p.sku === item.sku);
+      const available = (prod ? prod.available_qty : 0) + item.quantity;
+      const price = item.unit_price ?? (prod ? Number(prod.unit_price) : 0);
+      return {
+        sku: item.sku,
+        product_name: item.product_name || (prod ? prod.product_name : item.sku),
+        available_qty: available,
+        quantity: item.quantity,
+        unit_price: price,
+      };
+    });
+    this.editOrderLines.set(lines);
+  }
+
+  cancelEditOrder(): void {
+    this.editingOrder.set(null);
+    this.editOrderError.set('');
+    this.editOrderLines.set([]);
+  }
+
+  onEditOperarioChange(email: string): void {
+    this.editSelectedOperario.set(email);
+    const currentStatus = this.editSelectedStatus();
+
+    // Regla: si estaba por_asignar y se selecciona operario -> pasa a pending
+    if ((currentStatus === 'por_asignar' || !currentStatus) && email) {
+      this.editSelectedStatus.set('pending');
+    }
+    // Regla: si estaba pending y se remueve operario -> vuelve a por_asignar
+    else if (currentStatus === 'pending' && !email) {
+      this.editSelectedStatus.set('por_asignar');
+    }
+    // Si estaba en otro estado (in_preparation, dispatched, etc.), conservar
+  }
+
+  addEditLineFromProduct(product: ProductInventory): void {
+    const existing = this.editOrderLines().find(l => l.sku === product.sku);
+    if (existing) {
+      if (existing.quantity < existing.available_qty) {
+        this.updateEditLineQty(product.sku, existing.quantity + 1);
+      } else {
+        this.snackBar.open(`No hay más stock disponible para ${product.sku}`, '', { duration: 2500 });
+      }
+    } else {
+      if (product.available_qty <= 0) {
+        this.snackBar.open(`${product.sku} no tiene stock disponible para agregar.`, 'Cerrar', { duration: 2500 });
+        return;
+      }
+      this.editOrderLines.update(lines => [
+        ...lines,
+        {
+          sku: product.sku,
+          product_name: product.product_name,
+          available_qty: product.available_qty,
+          quantity: 1,
+          unit_price: Number(product.unit_price) || 0,
+        }
+      ]);
+    }
+    this.editSkuSearch.set('');
+  }
+
+  updateEditLineQty(sku: string, qty: number): void {
+    this.editOrderLines.update(lines =>
+      lines.map(l => {
+        if (l.sku !== sku) return l;
+        const clamped = Math.max(1, Math.min(qty, l.available_qty));
+        return { ...l, quantity: clamped };
+      })
+    );
+  }
+
+  removeEditLine(sku: string): void {
+    this.editOrderLines.update(lines => lines.filter(l => l.sku !== sku));
+  }
+
+  getEditTotalItems(): number {
+    return this.editOrderLines().reduce((sum, l) => sum + l.quantity, 0);
+  }
+
+  getEditTotalAmount(): number {
+    return this.editOrderLines().reduce((sum, l) => sum + (l.quantity * (l.unit_price || 0)), 0);
+  }
+
+  saveEditOrder(): void {
+    const wo = this.editingOrder();
+    if (!wo) return;
+
+    const lines = this.editOrderLines();
+    if (lines.length === 0) {
+      this.editOrderError.set('El pedido debe tener al menos un producto.');
+      this.snackBar.open('El pedido debe tener al menos un producto.', '', { duration: 3000 });
+      return;
+    }
+    const invalid = lines.find(l => l.quantity < 1);
+    if (invalid) {
+      this.editOrderError.set(`Cantidad inválida para ${invalid.sku}.`);
+      this.snackBar.open(`Cantidad inválida para ${invalid.sku}.`, '', { duration: 3000 });
+      return;
+    }
+
+    const overStock = lines.find(l => l.quantity > l.available_qty);
+    if (overStock) {
+      this.editOrderError.set(`Stock insuficiente para ${overStock.sku}: disponible ${overStock.available_qty}, solicitado ${overStock.quantity}.`);
+      this.snackBar.open(`Stock insuficiente para ${overStock.sku}.`, '', { duration: 4000 });
+      return;
+    }
+
+    this.savingEditOrder.set(true);
+    this.editOrderError.set('');
+
+    const op = this.operarios().find(o => o.email === this.editSelectedOperario());
+    const payload: WorkOrderUpdate = {
+      status: this.editSelectedStatus(),
+      assigned_operario_id: op ? op.id : null,
+      assigned_operario_email: op ? op.email : null,
+      items: lines.map(l => ({ sku: l.sku, quantity: l.quantity })),
+    };
+
+    this.workOrdersService.updateWorkOrder(wo.id, payload).subscribe({
+      next: updated => {
+        this.workOrders.update(wos => wos.map(w => w.id === updated.id ? updated : w));
+        this.editingOrder.set(null);
+        this.savingEditOrder.set(false);
+        this.snackBar.open(`✅ Pedido ${updated.order_number} actualizado con éxito`, 'OK', { duration: 4000 });
+        this.loadInventory();
+      },
+      error: err => {
+        this.savingEditOrder.set(false);
+        const msg = err.error?.detail ?? 'Error al actualizar el pedido';
+        // Se conserva el formulario y los datos para evitar que se pierdan
+        this.editOrderError.set(msg);
+        this.snackBar.open(`❌ ${msg}`, 'Cerrar', { duration: 5000 });
+      },
+    });
+  }
+
+  // ── Recepciones ────────────────────────────────────────────────────────────
+  loadReceptions(): void {
+    this.receptionsLoading.set(true);
+    this.inventoryService.getReceptions().subscribe({
+      next: recs => { this.receptions.set(recs); this.receptionsLoading.set(false); },
+      error: () => this.receptionsLoading.set(false),
+    });
+  }
+
+  createReception(): void {
+    const r = this.newReception();
+    if (!r.sku || r.expected_quantity <= 0) {
+      this.snackBar.open('SKU y cantidad válida requeridos.', '', { duration: 3000 });
+      return;
+    }
+    this.inventoryService.createReception(r).subscribe({
+      next: created => {
+        this.receptions.update(list => [created, ...list]);
+        this.showNewReceptionForm.set(false);
+        this.newReception.set({ sku: '', expected_quantity: 0, notes: '' });
+        this.snackBar.open(`Recepción registrada`, 'OK', { duration: 3000 });
+        this.loadInventory();
+      },
+      error: err => this.snackBar.open(err.error?.detail ?? 'Error al crear', 'Cerrar', { duration: 4000 })
+    });
+  }
+
+  confirmReceptionArrival(rec: PendingReception): void {
+    const qty = prompt(`Cantidad recibida para ${rec.sku} (Esperada: ${rec.expected_quantity - rec.received_quantity}):`);
+    if (qty === null) return;
+    const qtyNum = parseInt(qty, 10);
+    if (isNaN(qtyNum) || qtyNum < 0) {
+      this.snackBar.open('Cantidad inválida', '', { duration: 2000 });
+      return;
+    }
+    this.inventoryService.confirmReception(rec.id, qtyNum).subscribe({
+      next: updated => {
+        this.receptions.update(list => list.map(r => r.id === updated.id ? updated : r));
+        this.snackBar.open('Llegada confirmada', 'OK', { duration: 3000 });
+        this.loadInventory();
+        this.loadWorkOrders();
+      },
+      error: err => this.snackBar.open(err.error?.detail ?? 'Error al confirmar', 'Cerrar', { duration: 4000 })
+    });
+  }
+
   // ── Helpers de UI ──────────────────────────────────────────────────────────
   getOrderStatusClass(status: string): string {
     const map: Record<string, string> = {
@@ -348,17 +684,49 @@ export class SupervisorComponent implements OnInit, OnDestroy {
   }
 
   getWoStatusClass(status: string): string {
+    const s = (status || '').toLowerCase();
     const map: Record<string, string> = {
-      pending: 'chip-warning', dispatched: 'chip-success', cancelled: 'chip-muted',
+      por_asignar: 'chip-info',
+      pending: 'chip-warning',
+      assigned: 'chip-warning',
+      in_preparation: 'chip-primary',
+      in_progress: 'chip-primary',
+      dispatched: 'chip-success',
+      completed: 'chip-success',
+      cancelled: 'chip-muted',
+      waiting_stock: 'chip-danger',
     };
-    return map[status] ?? 'chip-muted';
+    return map[s] ?? 'chip-muted';
   }
 
   getWoStatusLabel(status: string): string {
+    const s = (status || '').toLowerCase();
     const map: Record<string, string> = {
-      pending: 'Pendiente', dispatched: 'Despachado', cancelled: 'Cancelado',
+      por_asignar: 'Por asignar',
+      pending: 'Pendiente',
+      assigned: 'Asignado',
+      in_preparation: 'En preparación',
+      in_progress: 'En proceso',
+      dispatched: 'Despachado',
+      completed: 'Completado',
+      cancelled: 'Cancelado',
+      waiting_stock: 'Esperando stock',
     };
-    return map[status] ?? status;
+    return map[s] ?? status;
+  }
+
+  getTotalItems(wo: WorkOrder): number {
+    if (wo.total_items !== undefined && wo.total_items !== null) return wo.total_items;
+    return (wo.items || []).reduce((sum, it) => sum + it.quantity, 0);
+  }
+
+  getTotalAmount(wo: WorkOrder): number {
+    if (wo.total_amount !== undefined && wo.total_amount !== null) return wo.total_amount;
+    return (wo.items || []).reduce((sum, it) => sum + ((it.subtotal || 0) || (it.quantity * (it.unit_price || 0))), 0);
+  }
+
+  getItemsTooltip(wo: WorkOrder): string {
+    return (wo.items || []).map(it => `${it.sku}: ${it.quantity} uds (${it.product_name})`).join('\n');
   }
 
   getStockStatus(p: ProductInventory): 'critical' | 'warning' | 'ok' {

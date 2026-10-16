@@ -8,6 +8,10 @@
 // ─── Importar fuente Google Fonts ──────────────────────────────────────────
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap');
 
+:root {
+  color-scheme: dark;
+}
+
 // ─── Reset y base ──────────────────────────────────────────────────────────
 *, *::before, *::after {
   box-sizing: border-box;
@@ -19,9 +23,40 @@ html, body {
   height: 100%;
   font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
   background: #0f0f1a;
-  color: white;
+  color: #f8fafc;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+}
+
+// ─── Estilos globales para selects, opciones y tablas ─────────────────────────
+select {
+  background-color: #1a1a2e !important;
+  color: #f8fafc !important;
+  border-color: rgba(99, 102, 241, 0.3) !important;
+  color-scheme: dark;
+}
+
+option {
+  background-color: #1a1a2e !important;
+  color: #f8fafc !important;
+}
+
+.mat-mdc-table {
+  background-color: transparent !important;
+  color: #f8fafc !important;
+}
+
+.mat-mdc-header-cell {
+  background-color: rgba(99, 102, 241, 0.12) !important;
+  color: #cbd5e1 !important;
+}
+
+.mat-mdc-cell {
+  color: #e2e8f0 !important;
+}
+
+.mat-mdc-row:hover {
+  background-color: rgba(99, 102, 241, 0.06) !important;
 }
 
 // ─── Scrollbar personalizada ───────────────────────────────────────────────

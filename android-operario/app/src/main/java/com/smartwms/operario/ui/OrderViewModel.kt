@@ -105,6 +105,17 @@ class OrderViewModel(application: Application) : AndroidViewModel(application) {
         return _inventoryMap.value?.get(sku)?.warehouseLocation
     }
 
+    fun getSkuWeight(sku: String): Double? {
+        return _inventoryMap.value?.get(sku)?.weight
+    }
+
+    fun getSkuVolume(sku: String): Double? {
+        val prod = _inventoryMap.value?.get(sku) ?: return null
+        return prod.estimatedVolume ?: if (prod.length != null && prod.width != null && prod.height != null) {
+            prod.length * prod.width * prod.height
+        } else null
+    }
+
     // ── CARGA DE PEDIDOS PENDIENTES ───────────────────────────────────────────
     /**
      * Carga los pedidos PENDIENTES asignados a ESTE operario.
@@ -250,23 +261,24 @@ class OrderViewModel(application: Application) : AndroidViewModel(application) {
      * La transacción en el backend descuenta el stock físico atómicamente.
      * Al despacharse, el pedido desaparece de la lista de pendientes.
      */
-    fun dispatchSelectedOrder() {
+    fun dispatchSelectedOrder(payload: com.smartwms.operario.data.api.DispatchIn? = null) {
         val order = _selectedOrder.value ?: return
         viewModelScope.launch {
             _isLoading.postValue(true)
             try {
                 val token = tokenStore.bearerToken()
-                val response = api.dispatchWorkOrder(token, order.id)
+                val response = api.dispatchWorkOrder(token, order.id, payload)
                 if (response.isSuccessful) {
                     val dispatched = response.body()!!
                     _dispatchResult.postValue(dispatched)
                     _workOrders.postValue(
                         _workOrders.value?.filter { it.id != dispatched.id } ?: emptyList()
                     )
-                    _selectedOrder.postValue(dispatched)
+                    _selectedOrder.postValue(null)
                     _pickedSkus.postValue(emptyMap())
                     tokenStore.saveActiveOrderId(null)
-                    // Actualizar historial completo tras despacho
+                    // Actualizar pedidos pendientes e historial completo tras despacho
+                    loadPendingOrders()
                     loadAllOrders()
                 } else {
                     val errorBody = response.errorBody()?.string()

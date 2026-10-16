@@ -170,10 +170,24 @@
   width: 100%;
   background: transparent !important;
 
-  th { background: rgba(99,102,241,0.08) !important; color: #94a3b8 !important; font-size: 12px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em; }
-  td { color: #cbd5e1 !important; font-size: 13px; border-bottom-color: rgba(255,255,255,0.04) !important; }
+  ::ng-deep th.mat-mdc-header-cell, th {
+    background: rgba(99,102,241,0.12) !important;
+    color: #cbd5e1 !important;
+    font-size: 12px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+  }
+  ::ng-deep td.mat-mdc-cell, td {
+    color: #e2e8f0 !important;
+    font-size: 13px;
+    border-bottom: 1px solid rgba(255,255,255,0.06) !important;
+    background: transparent !important;
+  }
 
-  .table-row:hover td { background: rgba(99,102,241,0.05) !important; }
+  ::ng-deep tr.mat-mdc-row:hover td, .table-row:hover td {
+    background: rgba(99,102,241,0.06) !important;
+  }
 }
 
 .mono { font-family: 'JetBrains Mono', monospace; color: #a5b4fc; font-size: 12px; }
@@ -200,15 +214,20 @@
 
 // ── FILTERS ────────────────────────────────────────────────────────────────────
 .status-select, .search-input {
-  background: rgba(255,255,255,0.04);
+  background: #1a1a2e;
   border: 1px solid rgba(99,102,241,0.25);
   border-radius: 8px;
   padding: 8px 12px;
-  color: #e2e8f0;
+  color: #f8fafc;
   font-size: 13px;
   outline: none;
+  cursor: pointer;
   &:focus { border-color: #6366f1; }
-  option { background: #1a1a2e; }
+  option {
+    background-color: #1a1a2e;
+    color: #f8fafc;
+    padding: 6px 10px;
+  }
 }
 
 // ── USERS GRID ─────────────────────────────────────────────────────────────────
@@ -505,7 +524,7 @@
   border: 1px solid rgba(99,102,241,0.25);
   border-radius: 8px;
   padding: 10px 14px;
-  color: #e2e8f0;
+  color: #f8fafc;
   font-size: 14px;
   outline: none;
   transition: border-color 0.2s;
@@ -513,7 +532,19 @@
   box-sizing: border-box;
 
   &:focus { border-color: #6366f1; }
-  &::placeholder { color: rgba(255,255,255,0.2); }
+  &::placeholder { color: rgba(255,255,255,0.3); }
+}
+
+select.form-input {
+  background-color: #1a1a2e;
+  color: #f8fafc;
+  cursor: pointer;
+
+  option {
+    background-color: #1a1a2e;
+    color: #f8fafc;
+    padding: 8px 12px;
+  }
 }
 
 .form-actions {
@@ -550,13 +581,13 @@
   top: 100%;
   left: 0;
   right: 0;
-  background: #1e1e2e;
-  border: 1px solid rgba(99,102,241,0.3);
+  background: #1a1a2e;
+  border: 1px solid rgba(99,102,241,0.4);
   border-radius: 10px;
   z-index: 100;
-  max-height: 260px;
+  max-height: 280px;
   overflow-y: auto;
-  box-shadow: 0 8px 32px rgba(0,0,0,0.4);
+  box-shadow: 0 10px 32px rgba(0,0,0,0.6);
   margin-top: 4px;
 }
 
@@ -564,13 +595,14 @@
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding: 10px 14px;
+  padding: 12px 16px;
   cursor: pointer;
+  background: #1a1a2e;
   transition: background 0.15s;
   gap: 12px;
-  border-bottom: 1px solid rgba(255,255,255,0.04);
+  border-bottom: 1px solid rgba(255,255,255,0.06);
 
-  &:hover { background: rgba(99,102,241,0.15); }
+  &:hover { background: rgba(99,102,241,0.25); }
   &:last-child { border-bottom: none; }
 }
 
@@ -581,8 +613,9 @@
 }
 
 .sku-opt-name {
-  color: #cbd5e1;
+  color: #f8fafc;
   font-size: 13px;
+  font-weight: 500;
 }
 
 .sku-opt-stock {
@@ -593,9 +626,9 @@
 }
 
 .order-lines {
-  background: #13131f;
+  background: #131322;
   border-radius: 10px;
-  border: 1px solid rgba(99,102,241,0.15);
+  border: 1px solid rgba(99,102,241,0.25);
   overflow: hidden;
   margin: 16px 0;
 }
@@ -604,10 +637,10 @@
   display: grid;
   grid-template-columns: 130px 1fr 100px 100px 48px;
   padding: 10px 14px;
-  background: rgba(99,102,241,0.1);
+  background: rgba(99,102,241,0.18);
   font-size: 11px;
   font-weight: 700;
-  color: #64748b;
+  color: #a5b4fc;
   text-transform: uppercase;
   letter-spacing: 0.05em;
   gap: 12px;
@@ -619,15 +652,17 @@
   align-items: center;
   padding: 10px 14px;
   gap: 12px;
-  border-top: 1px solid rgba(255,255,255,0.04);
+  background: #161626;
+  border-top: 1px solid rgba(255,255,255,0.06);
   transition: background 0.15s;
 
-  &:hover { background: rgba(99,102,241,0.05); }
+  &:hover { background: rgba(99,102,241,0.12); }
 }
 
 .line-name {
-  color: #e2e8f0;
+  color: #f8fafc;
   font-size: 13px;
+  font-weight: 500;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -636,21 +671,22 @@
 .line-available {
   color: #4ade80;
   font-size: 13px;
-  font-weight: 600;
+  font-weight: 700;
   text-align: center;
 }
 
 .qty-input {
   width: 80px;
   background: #0f0f1a;
-  border: 1px solid rgba(99,102,241,0.3);
+  border: 1px solid rgba(99,102,241,0.4);
   border-radius: 6px;
-  color: #e2e8f0;
+  color: #f8fafc;
+  font-weight: 600;
   padding: 6px 10px;
   font-size: 13px;
   text-align: center;
 
-  &:focus { outline: none; border-color: #6366f1; }
+  &:focus { outline: none; border-color: #818cf8; }
 }
 
 .empty-lines-hint {
@@ -702,4 +738,69 @@
   color: #94a3b8;
   font-size: 13px;
   font-style: italic;
+}
+
+// ── EDIT ORDER FORM STYLES ──────────────────────────────────────────────────
+.edit-order-form {
+  border-color: rgba(168, 85, 247, 0.4);
+  background: rgba(168, 85, 247, 0.05);
+}
+
+.form-header-bar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 20px;
+  .form-title { margin: 0; }
+}
+
+.edit-meta-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+  margin-bottom: 16px;
+}
+
+.edit-lines-header {
+  display: grid;
+  grid-template-columns: 130px 1fr 90px 85px 85px 95px 44px;
+}
+
+.edit-line-row {
+  display: grid;
+  grid-template-columns: 130px 1fr 90px 85px 85px 95px 44px;
+  align-items: center;
+  padding: 10px 14px;
+  gap: 12px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+  font-size: 13px;
+}
+
+.order-lines-summary {
+  display: flex;
+  justify-content: flex-end;
+  gap: 28px;
+  padding: 12px 18px;
+  background: rgba(99, 102, 241, 0.12);
+  font-size: 13px;
+  color: #e2e8f0;
+  border-top: 1px solid rgba(99, 102, 241, 0.2);
+}
+
+.actions-cell {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.items-total-amount {
+  font-size: 11px;
+  font-weight: 600;
+  color: #4ade80;
+  margin-top: 2px;
+}
+
+.chip-primary {
+  background: rgba(168, 85, 247, 0.15);
+  color: #c084fc;
 }

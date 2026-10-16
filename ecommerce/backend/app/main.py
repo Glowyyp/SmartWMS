@@ -78,12 +78,12 @@ app.add_middleware(
     allow_origins=[
         "http://localhost:4200",
         "http://127.0.0.1:4200",
-        # Android emulator (10.0.2.2 apunta al localhost de la PC host)
         "http://10.0.2.2:4200",
-        # Permitir cualquier origen local para desarrollo (Android device en la misma red)
     ],
+    # Permite acceso desde cualquier IP de la red local, VPN (Tailscale) o emulador
+    allow_origin_regex=r"^https?://.*",
     allow_credentials=True,
-    allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE"],
+    allow_methods=["*"],
     allow_headers=["*"],
 )
 
@@ -105,6 +105,44 @@ app.include_router(inventory.router)
 app.include_router(users.router)
 app.include_router(orders.router)
 app.include_router(work_orders.router)
+
+
+# =============================================================================
+# Proxy para el Bot IA (puerto 8000)
+# =============================================================================
+
+import httpx
+from fastapi import Request, Response
+
+@app.post("/api/chat", tags=["Bot IA"])
+async def proxy_chat(request: Request):
+    """
+    Proxy transparente hacia el Bot IA (puerto 8000).
+    Permite que los clientes (Android, Web) que tengan configurado el puerto 8001
+    puedan chatear con el bot sin necesidad de abrir puertos adicionales.
+    """
+    bot_url = os.getenv("BOT_URL", "http://127.0.0.1:8000/api/chat")
+    body = await request.body()
+    forward_headers = {}
+    for h in ["authorization", "content-type"]:
+        if h in request.headers:
+            forward_headers[h] = request.headers[h]
+
+    try:
+        async with httpx.AsyncClient(timeout=30.0) as client:
+            resp = await client.post(bot_url, content=body, headers=forward_headers)
+            return Response(
+                content=resp.content,
+                status_code=resp.status_code,
+                media_type="application/json"
+            )
+    except Exception as e:
+        logger.error(f"Error al conectar con el servicio Bot en {bot_url}: {e}")
+        return Response(
+            content='{"response": "El servicio de Bot IA no está disponible temporalmente.", "reply": {"text": "El servicio de Bot IA no está disponible temporalmente."}}',
+            status_code=503,
+            media_type="application/json"
+        )
 
 
 # =============================================================================

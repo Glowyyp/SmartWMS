@@ -30,14 +30,46 @@ data class Product(
     @SerializedName("is_low_stock")       val isLowStock: Boolean,
     @SerializedName("warehouse_location") val warehouseLocation: String?,  // Zona física (A, B, C, D)
     @SerializedName("reserved_qty")       val reservedQty: Int = 0,
-    @SerializedName("available_qty")      val availableQty: Int = 0
+    @SerializedName("available_qty")      val availableQty: Int = 0,
+    val length: Double? = null,
+    val width: Double? = null,
+    val height: Double? = null,
+    @SerializedName("dimensions_unit")    val dimensionsUnit: String = "cm",
+    val weight: Double? = null,
+    @SerializedName("weight_unit")        val weightUnit: String = "kg",
+    @SerializedName("estimated_volume")   val estimatedVolume: Double? = null,
+    @SerializedName("has_box")            val hasBox: Boolean = true
 )
 
 // ─── Chat ─────────────────────────────────────────────────────────────────────
 
-data class ChatRequest(val message: String)
+data class ChatRequest(
+    @SerializedName("text") val text: String,
+    @SerializedName("message") val message: String = text
+) {
+    constructor(input: String) : this(text = input, message = input)
+}
 
-data class ChatResponse(val response: String)
+data class ChatButton(
+    val label: String,
+    val cmd: String
+)
+
+data class ChatReply(
+    val text: String = "",
+    val buttons: List<ChatButton>? = null
+)
+
+data class ChatResponse(
+    val reply: ChatReply? = null,
+    val response: String? = null
+) {
+    fun getDisplayText(): String {
+        return reply?.text?.takeIf { it.isNotBlank() }
+            ?: response?.takeIf { it.isNotBlank() }
+            ?: "(sin respuesta)"
+    }
+}
 
 // ─── Work Orders (Pedidos de Bodega) ─────────────────────────────────────────
 
@@ -58,7 +90,23 @@ data class WorkOrder(
     @SerializedName("created_at")               val createdAt: String,
     @SerializedName("dispatched_at")            val dispatchedAt: String?,
     @SerializedName("cancelled_at")             val cancelledAt: String?,
+    @SerializedName("total_weight")             val totalWeight: Double?,
+    @SerializedName("total_volume")             val totalVolume: Double?,
+    @SerializedName("packages_count")           val packagesCount: Int?,
     val items: List<WorkOrderItem>
+)
+
+data class DispatchPackageIn(
+    val length: Double? = null,
+    val width: Double? = null,
+    val height: Double? = null,
+    val weight: Double? = null
+)
+
+data class DispatchIn(
+    val packages: List<DispatchPackageIn> = emptyList(),
+    @SerializedName("total_weight") val totalWeight: Double? = null,
+    @SerializedName("total_volume") val totalVolume: Double? = null
 )
 
 // ─── Picking (local, sin endpoint real aun) ───────────────────────────────────

@@ -47,6 +47,10 @@ export class OperarioComponent implements OnInit, OnDestroy {
   selectedOrder = signal<WorkOrder | null>(null);
   dispatching = signal(false);
 
+  // ── Bultos ────────────────────────────────────────────────────────────────
+  packages = signal<any[]>([]);
+  newPackage = signal({ length: null, width: null, height: null, weight: null });
+
   // ── INVENTARIO (para localización de SKUs) ────────────────────────────────
   private inventoryMap = signal<Record<string, ProductInventory>>({});
 
@@ -85,7 +89,7 @@ export class OperarioComponent implements OnInit, OnDestroy {
     // Se usa assigned_to=email para filtrar solo los pedidos de este operario
     this.pollSub = interval(15000).pipe(
       startWith(0),
-      switchMap(() => this.workOrdersService.getWorkOrders('pending', this.currentUserEmail))
+      switchMap(() => this.workOrdersService.getWorkOrders('pending,in_preparation,in_progress', this.currentUserEmail))
     ).subscribe({
       next: orders => {
         this.pendingOrders.set(orders);
@@ -142,12 +146,31 @@ export class OperarioComponent implements OnInit, OnDestroy {
     if (!confirm(`¿Confirmar despacho del pedido ${order.order_number}?\nEsta acción descontará el stock físico y no puede deshacerse.`)) return;
 
     this.dispatching.set(true);
-    this.workOrdersService.dispatch(order.id).subscribe({
+
+    let totalWeight = 0;
+    let totalVolume = 0;
+    const pkgs = this.packages();
+    for (const p of pkgs) {
+      if (p.weight) totalWeight += Number(p.weight);
+      if (p.length && p.width && p.height) {
+        totalVolume += (Number(p.length) * Number(p.width) * Number(p.height));
+      }
+    }
+
+    const payload = pkgs.length > 0 ? {
+      packages: pkgs,
+      total_weight: totalWeight,
+      total_volume: totalVolume
+    } : undefined;
+
+    this.workOrdersService.dispatch(order.id, payload).subscribe({
       next: dispatched => {
         this.dispatching.set(false);
         this.selectedOrder.set(dispatched);  // Mostrar estado despachado
         // Remover de la lista de pendientes
         this.pendingOrders.update(orders => orders.filter(o => o.id !== dispatched.id));
+        this.packages.set([]);
+        this.newPackage.set({ length: null, width: null, height: null, weight: null });
         this.snackBar.open(
           `✅ Pedido ${dispatched.order_number} despachado. Stock actualizado.`,
           'OK',
@@ -160,6 +183,20 @@ export class OperarioComponent implements OnInit, OnDestroy {
         this.snackBar.open(msg, 'Cerrar', { duration: 6000 });
       },
     });
+  }
+
+  addPackage(): void {
+    const p = this.newPackage();
+    if (p.weight || (p.length && p.width && p.height)) {
+      this.packages.update(list => [...list, { ...p }]);
+      this.newPackage.set({ length: null, width: null, height: null, weight: null });
+    } else {
+      this.snackBar.open('Complete las medidas o el peso', '', { duration: 2000 });
+    }
+  }
+
+  removePackage(index: number): void {
+    this.packages.update(list => list.filter((_, i) => i !== index));
   }
 
   // ── PUTAWAY ───────────────────────────────────────────────────────────────

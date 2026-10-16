@@ -15,10 +15,31 @@ export interface ProductInventory {
   reorder_point: number;
   is_low_stock: boolean;
   warehouse_location: string | null;  // Zona física en el almacén (A, B, C, D, etc.)
+  pending_quantity: number;
+  length: number | null;
+  width: number | null;
+  height: number | null;
+  dimensions_unit: string;
+  weight: number | null;
+  weight_unit: string;
+  has_box: boolean;
   created_at: string;
   updated_at: string;
   reserved_qty: number;     // Unidades reservadas en pedidos pendientes
   available_qty: number;    // stock_quantity - reserved_qty
+}
+
+export interface PendingReception {
+  id: number;
+  sku: string;
+  expected_quantity: number;
+  received_quantity: number;
+  expected_date: string | null;
+  status: 'pending' | 'partial' | 'completed' | 'cancelled';
+  notes: string | null;
+  created_at: string;
+  updated_at: string;
+  received_at: string | null;
 }
 
 @Injectable({ providedIn: 'root' })
@@ -46,5 +67,18 @@ export class InventoryService {
 
   deleteProduct(id: number): Observable<void> {
     return this.http.delete<void>(`${this.baseUrl}/${id}`);
+  }
+
+  // --- Recepciones Pendientes ---
+  getReceptions(): Observable<PendingReception[]> {
+    return this.http.get<PendingReception[]>(`${this.baseUrl}/receptions`);
+  }
+
+  createReception(data: any): Observable<PendingReception> {
+    return this.http.post<PendingReception>(`${this.baseUrl}/receptions`, data);
+  }
+
+  confirmReception(id: number, received_quantity: number): Observable<PendingReception> {
+    return this.http.post<PendingReception>(`${this.baseUrl}/receptions/${id}/confirm`, { received_quantity });
   }
 }

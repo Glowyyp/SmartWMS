@@ -44,7 +44,8 @@ interface ApiService {
     @POST("api/v1/work-orders/{id}/dispatch")
     suspend fun dispatchWorkOrder(
         @Header("Authorization") token: String,
-        @Path("id") orderId: Int
+        @Path("id") orderId: Int,
+        @Body payload: DispatchIn? = null
     ): Response<WorkOrder>
 
     // ── Chat (bot en puerto 8000) ─────────────────────────────────────────────

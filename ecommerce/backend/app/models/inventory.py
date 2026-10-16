@@ -7,7 +7,7 @@ para garantizar consistencia bajo concurrencia (múltiples webhooks simultáneos
 
 from datetime import datetime
 from typing import Optional
-from sqlalchemy import Column, Integer, String, Numeric, DateTime, func, Text
+from sqlalchemy import Column, Integer, String, Numeric, DateTime, func, Text, Boolean
 from app.database import Base
 
 
@@ -34,6 +34,23 @@ class ProductInventory(Base):
     # Ubicación física en el almacén (zona/pasillo). Ej: 'A', 'B', 'C-01', etc.
     # NULL = sin ubicación asignada. Se muestra en el botón ❓ del Operario.
     warehouse_location = Column(String(50), nullable=True, default=None)
+
+    # Stock pendiente (unidades que se esperan recibir)
+    pending_quantity = Column(Integer, nullable=False, default=0)
+
+    # Dimensiones y Peso
+    length = Column(Numeric(precision=10, scale=2), nullable=True)
+    width = Column(Numeric(precision=10, scale=2), nullable=True)
+    height = Column(Numeric(precision=10, scale=2), nullable=True)
+    dimensions_unit = Column(String(10), nullable=False, default="cm")
+    
+    # Volumen estimado en cm³ (length * width * height)
+    estimated_volume = Column(Numeric(precision=12, scale=2), nullable=True)
+    
+    weight = Column(Numeric(precision=10, scale=3), nullable=True)
+    weight_unit = Column(String(10), nullable=False, default="kg")
+    
+    has_box = Column(Boolean, nullable=False, default=True)
 
     # Timestamps de auditoría
     created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)

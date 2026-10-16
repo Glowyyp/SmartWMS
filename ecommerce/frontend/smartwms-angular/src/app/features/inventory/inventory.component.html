@@ -34,8 +34,11 @@
         placeholder="SKU-00567 o Teclado..."
       />
     </mat-form-field>
-    <span class="result-count">
-      {{ filteredProducts().length }} de {{ allProducts.length }} productos
+    <span class="result-count" style="display:flex; align-items:center; gap:1rem;">
+      {{ filteredProducts().length }} de {{ allProducts().length }} productos
+      <button mat-stroked-button (click)="loadProducts()" style="display:flex; align-items:center;">
+        <mat-icon style="margin-right: 4px;">refresh</mat-icon> Actualizar
+      </button>
     </span>
   </mat-card>
 
@@ -57,12 +60,12 @@
         <td mat-cell *matCellDef="let product">{{ product.product_name }}</td>
       </ng-container>
 
-      <!-- Stock -->
-      <ng-container matColumnDef="stock_quantity">
-        <th mat-header-cell *matHeaderCellDef>Stock</th>
+      <!-- Stock Disponible -->
+      <ng-container matColumnDef="available_qty">
+        <th mat-header-cell *matHeaderCellDef>Disponible</th>
         <td mat-cell *matCellDef="let product">
           <div class="stock-cell">
-            <span class="stock-number">{{ product.stock_quantity }}</span>
+            <span class="stock-number">{{ product.available_qty }}</span>
             <mat-progress-bar
               mode="determinate"
               [value]="getStockProgress(product)"
@@ -73,18 +76,42 @@
         </td>
       </ng-container>
 
-      <!-- Precio -->
-      <ng-container matColumnDef="unit_price">
-        <th mat-header-cell *matHeaderCellDef>Precio Unit.</th>
+      <!-- Stock Reservado -->
+      <ng-container matColumnDef="reserved_qty">
+        <th mat-header-cell *matHeaderCellDef>Reservado</th>
         <td mat-cell *matCellDef="let product">
-          <span class="price-cell">$ {{ product.unit_price | number:'1.2-2' }}</span>
+          <span class="price-cell">{{ product.reserved_qty }}</span>
         </td>
       </ng-container>
 
-      <!-- Reorder Point -->
-      <ng-container matColumnDef="reorder_point">
-        <th mat-header-cell *matHeaderCellDef>Punto Reorden</th>
-        <td mat-cell *matCellDef="let product">{{ product.reorder_point }}</td>
+      <!-- Stock Pendiente (Recepción) -->
+      <ng-container matColumnDef="pending_quantity">
+        <th mat-header-cell *matHeaderCellDef>Por llegar</th>
+        <td mat-cell *matCellDef="let product">
+          @if (product.pending_quantity > 0) {
+            <span style="color:#f59e0b; font-weight:600; padding: 2px 6px; background-color: #fef3c7; border-radius: 4px;">
+              +{{ product.pending_quantity }}
+            </span>
+          } @else {
+            <span class="text-muted">—</span>
+          }
+        </td>
+      </ng-container>
+
+      <!-- Dimensiones / Peso -->
+      <ng-container matColumnDef="dimensions">
+        <th mat-header-cell *matHeaderCellDef>Medidas</th>
+        <td mat-cell *matCellDef="let product">
+          @if (product.length) {
+            <span class="sku-chip">{{ product.length }}x{{ product.width }}x{{ product.height }} {{ product.dimensions_unit }}</span>
+          } @else {
+            <span class="sku-chip">N/A</span>
+          }
+          <br>
+          @if (product.weight) {
+            <span>{{ product.weight }} {{ product.weight_unit }}</span>
+          }
+        </td>
       </ng-container>
 
       <!-- Estado -->

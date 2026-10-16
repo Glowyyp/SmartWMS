@@ -19,8 +19,13 @@ from sqlalchemy.orm import Session
 from app.database import get_db
 from app.models.inventory import ProductInventory
 from app.models.work_order import WorkOrder, WorkOrderItem
+from app.models.pending_reception import PendingReception
 from app.routers.auth import get_current_user, require_admin, require_supervisor_or_admin
-from app.schemas.inventory import ProductCreate, ProductOut, ProductUpdate
+from app.schemas.inventory import (
+    ProductCreate, ProductOut, ProductUpdate,
+    PendingReceptionCreate, PendingReceptionOut, PendingReceptionConfirm
+)
+from datetime import datetime, timezone
 
 logger = logging.getLogger(__name__)
 
@@ -50,7 +55,7 @@ def list_products(
     rows = db.execute(
         select(WorkOrderItem.sku, func.sum(WorkOrderItem.quantity).label("reserved"))
         .join(WorkOrder, WorkOrder.id == WorkOrderItem.work_order_id)
-        .where(WorkOrder.status == "pending")
+        .where(WorkOrder.status.in_(["pending", "waiting_stock", "por_asignar", "assigned", "in_preparation", "in_progress"]))
         .group_by(WorkOrderItem.sku)
     ).all()
     for row in rows:
@@ -62,6 +67,8 @@ def list_products(
         out = ProductOut.model_validate(p)
         out.reserved_qty  = reserved
         out.available_qty = max(0, p.stock_quantity - reserved)
+        if out.estimated_volume is None and p.length and p.width and p.height:
+            out.estimated_volume = p.length * p.width * p.height
         result.append(out)
 
     return result
@@ -90,7 +97,11 @@ def create_product(
             detail=f"Ya existe un producto con SKU '{product_in.sku}'",
         )
 
-    product = ProductInventory(**product_in.model_dump())
+    data = product_in.model_dump()
+    if data.get("estimated_volume") is None and data.get("length") and data.get("width") and data.get("height"):
+        data["estimated_volume"] = data["length"] * data["width"] * data["height"]
+
+    product = ProductInventory(**data)
     db.add(product)
     db.commit()
     db.refresh(product)
@@ -125,6 +136,13 @@ def update_product(
     for field, value in update_data.items():
         setattr(product, field, value)
 
+    # Recalcular volumen estimado si hay dimensiones disponibles
+    l = getattr(product, "length", None)
+    w = getattr(product, "width", None)
+    h = getattr(product, "height", None)
+    if l and w and h and ("estimated_volume" not in update_data or getattr(product, "estimated_volume", None) is None):
+        product.estimated_volume = l * w * h
+
     db.commit()
     db.refresh(product)
     logger.info("✏️  Producto actualizado: id=%d SKU=%s", product.id, product.sku)
@@ -156,3 +174,124 @@ def delete_product(
     db.delete(product)
     db.commit()
     logger.info("🗑️  Producto eliminado: id=%d SKU=%s", product_id, product.sku)
+
+
+# ─── PENDING RECEPTIONS ───────────────────────────────────────────────────────
+
+@router.get(
+    "/receptions",
+    response_model=List[PendingReceptionOut],
+    summary="Listar todas las recepciones pendientes o completadas",
+)
+def list_receptions(
+    db: Session = Depends(get_db),
+    _: object = Depends(get_current_user),
+):
+    return db.query(PendingReception).order_by(PendingReception.created_at.desc()).all()
+
+
+@router.post(
+    "/receptions",
+    response_model=PendingReceptionOut,
+    status_code=status.HTTP_201_CREATED,
+    summary="Crear un registro de stock pendiente (Supervisor/Admin)",
+)
+def create_pending_reception(
+    reception_in: PendingReceptionCreate,
+    db: Session = Depends(get_db),
+    current_user: object = Depends(require_supervisor_or_admin),
+):
+    product = db.query(ProductInventory).filter(ProductInventory.sku == reception_in.sku).first()
+    if not product:
+        raise HTTPException(status_code=404, detail="Producto no encontrado")
+    
+    reception = PendingReception(**reception_in.model_dump())
+    reception.created_by_id = current_user.id
+    db.add(reception)
+    
+    # Actualizamos el pending_quantity del producto
+    product.pending_quantity += reception.expected_quantity
+    
+    db.commit()
+    db.refresh(reception)
+    return reception
+
+
+@router.post(
+    "/receptions/{reception_id}/confirm",
+    response_model=PendingReceptionOut,
+    summary="Confirmar recepción total o parcial de stock (Supervisor/Admin)",
+)
+def confirm_pending_reception(
+    reception_id: int,
+    confirm_in: PendingReceptionConfirm,
+    db: Session = Depends(get_db),
+    current_user: object = Depends(require_supervisor_or_admin),
+):
+    reception = db.query(PendingReception).filter(PendingReception.id == reception_id).first()
+    if not reception:
+        raise HTTPException(status_code=404, detail="Recepción no encontrada")
+    if reception.status in ["completed", "cancelled"]:
+        raise HTTPException(status_code=400, detail=f"La recepción ya está {reception.status}")
+    
+    product = db.query(ProductInventory).filter(ProductInventory.sku == reception.sku).first()
+    if not product:
+        raise HTTPException(status_code=404, detail="Producto no encontrado (pudo haber sido borrado)")
+    
+    # Restamos lo que estaba pendiente originalmente para esta recepción y 
+    # si es parcial, dejamos la diferencia como pendiente? 
+    # El usuario dijo: "Si se recibe una cantidad inferior a la esperada... mantener pendiente la diferencia"
+    # Entonces: 
+    added_to_received = confirm_in.received_quantity
+    
+    if (reception.received_quantity + added_to_received) >= reception.expected_quantity:
+        reception.status = "completed"
+    else:
+        reception.status = "partial"
+        
+    reception.received_quantity += added_to_received
+    reception.received_by_id = current_user.id
+    reception.received_at = datetime.now(timezone.utc)
+    
+    # Actualizar inventario físico
+    product.stock_quantity += added_to_received
+    product.pending_quantity = max(0, product.pending_quantity - added_to_received)
+    
+    db.commit()
+    
+    # Revisar pedidos que están esperando stock (esperando_stock = "waiting_stock")
+    # Los pasamos a "pending" (ready_for_dispatch) si todos sus ítems tienen suficiente stock_quantity
+    # Ordenamos por los más viejos primero (FIFO)
+    waiting_orders = db.query(WorkOrder).filter(WorkOrder.status == "waiting_stock").order_by(WorkOrder.created_at).all()
+    
+    for wo in waiting_orders:
+        can_fulfill = True
+        for item in wo.items:
+            prod = db.query(ProductInventory).filter(ProductInventory.sku == item.sku).first()
+            # En un entorno real, restaríamos el inventario virtualmente aquí para múltiples órdenes,
+            # pero dado que el reserved_qty ya protege el stock, si sumamos el requerimiento
+            # de órdenes más antiguas, podemos validar:
+            # Aquí lo hacemos simple verificando si hay stock_quantity suficiente para el item.
+            # Nota: Esto asume que reserved_qty protege a las órdenes 'pending' y 'waiting_stock'.
+            # Para mayor rigor, calculamos si product.stock_quantity >= suma(pedidos pending) + este item
+            if not prod:
+                can_fulfill = False
+                break
+            
+            # Cantidad reservada SOLO en órdenes despachables o activas
+            already_reserved_despachable = db.execute(
+                select(func.sum(WorkOrderItem.quantity))
+                .join(WorkOrder, WorkOrder.id == WorkOrderItem.work_order_id)
+                .where(WorkOrder.status.in_(["pending", "por_asignar", "in_preparation", "in_progress"]), WorkOrderItem.sku == prod.sku)
+            ).scalar() or 0
+            
+            if (prod.stock_quantity - already_reserved_despachable) < item.quantity:
+                can_fulfill = False
+                break
+                
+        if can_fulfill:
+            wo.status = "pending" if (wo.assigned_operario_id is not None or wo.assigned_operario_email) else "por_asignar"
+            
+    db.commit()
+    db.refresh(reception)
+    return reception

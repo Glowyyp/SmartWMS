@@ -17,6 +17,10 @@ android {
     }
 
     // ─── FLAVORS: permite generar APKs para distintos entornos ────────────────
+    val serverIp = (project.findProperty("SERVER_IP") as? String)
+        ?: System.getenv("SERVER_IP")
+        ?: "192.168.1.5"
+
     flavorDimensions += "environment"
     productFlavors {
         // Para el EMULADOR Android Studio (10.0.2.2 apunta al localhost de la PC)
@@ -24,17 +28,16 @@ android {
             dimension = "environment"
             applicationIdSuffix = ".emulator"
             versionNameSuffix = "-emulator"
-            buildConfigField("String", "API_BASE_URL", "\"http://192.168.1.5:8001\"")
-            buildConfigField("String", "BOT_BASE_URL",  "\"http://192.168.1.5:8000\"")
+            buildConfigField("String", "API_BASE_URL", "\"http://10.0.2.2:8001\"")
+            buildConfigField("String", "BOT_BASE_URL",  "\"http://10.0.2.2:8000\"")
         }
-        // Para CELULAR FÍSICO conectado a la misma WiFi que la PC
-        // ⚠️ Cambia 192.168.1.5 por la IP de tu PC si cambia de red
+        // Para CELULAR FÍSICO conectado a la red WiFi o VPN
         create("device") {
             dimension = "environment"
             applicationIdSuffix = ".device"
             versionNameSuffix = "-device"
-            buildConfigField("String", "API_BASE_URL", "\"http://192.168.1.5:8001\"")
-            buildConfigField("String", "BOT_BASE_URL",  "\"http://192.168.1.5:8000\"")
+            buildConfigField("String", "API_BASE_URL", "\"http://$serverIp:8001\"")
+            buildConfigField("String", "BOT_BASE_URL",  "\"http://$serverIp:8000\"")
         }
         // Para PRODUCCIÓN en la nube (completar la URL cuando se suba)
         create("production") {

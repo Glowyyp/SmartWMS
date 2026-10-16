@@ -101,6 +101,6 @@ class MainActivity : AppCompatActivity() {
 
     override fun onSupportNavigateUp(): Boolean {
         val navHostFragment = supportFragmentManager.findFragmentById(R.id.nav_host_fragment) as NavHostFragment
-        return navHostFragment.navController.navigateUp() || super.onSupportNavigateUp()
+        return navHostFragment.navController.navigateUp() || navHostFragment.navController.popBackStack() || super.onSupportNavigateUp()
     }
 }

@@ -67,13 +67,18 @@ class ChatFragment : Fragment() {
                 val token = tokenStore.bearerToken()
                 val response = RetrofitClient.botService.sendChat(token, ChatRequest(text))
                 if (response.isSuccessful) {
-                    val botReply = response.body()?.response ?: "(sin respuesta)"
+                    val botReply = response.body()?.getDisplayText() ?: "(sin respuesta)"
                     addMessage(botReply, isBot = true)
                 } else {
-                    addMessage("Error ${response.code()} — Verifica que el bot este corriendo.", isBot = true)
+                    val errorMsg = when (response.code()) {
+                        401 -> "Sesión expirada o no autorizada. Por favor reingresa a la aplicación."
+                        404 -> "No se pudo encontrar el servicio del bot (puerto 8000)."
+                        else -> "Error ${response.code()} del servicio de bot."
+                    }
+                    addMessage("⚠️ $errorMsg", isBot = true)
                 }
             } catch (e: Exception) {
-                addMessage("Error de conexion con el bot.", isBot = true)
+                addMessage("⚠️ Error de conexión con el bot: ${e.localizedMessage ?: "Verifica que el servidor esté encendido"}", isBot = true)
             } finally {
                 binding.progressChat.visibility = View.GONE
                 binding.btnSend.isEnabled = true

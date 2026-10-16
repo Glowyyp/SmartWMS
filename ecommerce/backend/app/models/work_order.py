@@ -15,7 +15,7 @@ El stock DISPONIBLE = stock_quantity - reservado.
 """
 
 from datetime import datetime
-from sqlalchemy import Column, Integer, String, DateTime, ForeignKey, func
+from sqlalchemy import Column, Integer, String, DateTime, ForeignKey, func, Numeric
 from sqlalchemy.orm import relationship
 from app.database import Base
 
@@ -28,15 +28,16 @@ class WorkOrder(Base):
     # Número visible para los usuarios: WO-0001, WO-0002, etc.
     order_number = Column(String(20), unique=True, nullable=False, index=True)
 
-    # Estado del pedido
-    # pending | dispatched | cancelled
-    status = Column(String(20), nullable=False, default="pending", index=True)
+    # Estado del pedido:
+    # por_asignar (sin operario) | pending (asignado, listo para picking) |
+    # in_preparation (en proceso de picking/packing) | dispatched (completado) | cancelled | waiting_stock
+    status = Column(String(30), nullable=False, default="por_asignar", index=True)
 
     # Usuario Supervisor que creó el pedido
     created_by_id  = Column(Integer, ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
     created_by_email = Column(String(254), nullable=True)   # desnormalizado para lectura rápida
 
-    # Operario asignado por el supervisor (NULL = cualquier operario puede verlo)
+    # Operario asignado por el supervisor (NULL = sin asignar)
     assigned_operario_id    = Column(Integer, ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
     assigned_operario_email = Column(String(254), nullable=True)
 
@@ -53,6 +54,19 @@ class WorkOrder(Base):
     # Relación 1:N con ítems
     items = relationship(
         "WorkOrderItem",
+        back_populates="work_order",
+        cascade="all, delete-orphan",
+        lazy="selectin",
+    )
+
+    # Dimensiones globales calculadas y despachadas
+    total_weight = Column(Numeric(precision=10, scale=3), nullable=True)
+    total_volume = Column(Numeric(precision=10, scale=2), nullable=True)
+    packages_count = Column(Integer, nullable=False, default=0)
+
+    # Relación 1:N con bultos
+    packages = relationship(
+        "WorkOrderPackage",
         back_populates="work_order",
         cascade="all, delete-orphan",
         lazy="selectin",
@@ -83,3 +97,29 @@ class WorkOrderItem(Base):
 
     def __repr__(self) -> str:
         return f"<WorkOrderItem sku={self.sku} qty={self.quantity}>"
+
+
+class WorkOrderPackage(Base):
+    __tablename__ = "work_order_packages"
+
+    id = Column(Integer, primary_key=True, index=True)
+
+    work_order_id = Column(
+        Integer,
+        ForeignKey("work_orders.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
+
+    # Dimensiones físicas del bulto final
+    length = Column(Numeric(precision=10, scale=2), nullable=True)
+    width = Column(Numeric(precision=10, scale=2), nullable=True)
+    height = Column(Numeric(precision=10, scale=2), nullable=True)
+    weight = Column(Numeric(precision=10, scale=3), nullable=True)
+
+    created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+
+    work_order = relationship("WorkOrder", back_populates="packages")
+
+    def __repr__(self) -> str:
+        return f"<WorkOrderPackage id={self.id} wo_id={self.work_order_id}>"

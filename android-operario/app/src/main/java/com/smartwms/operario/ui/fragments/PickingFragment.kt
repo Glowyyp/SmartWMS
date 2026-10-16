@@ -118,11 +118,17 @@ class PickingFragment : Fragment() {
             val isEmpty = orders.isEmpty()
             binding.layoutEmptyOrders.visibility = if (isEmpty) View.VISIBLE else View.GONE
             binding.rvWorkOrders.visibility = if (isEmpty) View.GONE else View.VISIBLE
+
+            // Si el pedido seleccionado ya no está en la lista de pendientes (ej. despachado), deseleccionar automáticamente
+            val currentSelected = orderVm.selectedOrder.value
+            if (currentSelected != null && orders.none { it.id == currentSelected.id }) {
+                orderVm.clearSelectedOrder()
+            }
         }
 
         // Pedido seleccionado → cambiar entre vistas
         orderVm.selectedOrder.observe(viewLifecycleOwner) { order ->
-            if (order == null) {
+            if (order == null || order.status != "pending") {
                 showOrdersList()
             } else {
                 showOrderDetail(order)
@@ -323,6 +329,16 @@ class PickingFragment : Fragment() {
             .setMessage(message)
             .setPositiveButton("Cerrar", null)
             .show()
+    }
+
+    override fun onResume() {
+        super.onResume()
+        // Si el pedido seleccionado ya no está pendiente o fue completado/despachado, limpiar selección
+        val current = orderVm.selectedOrder.value
+        if (current != null && current.status != "pending") {
+            orderVm.clearSelectedOrder()
+        }
+        orderVm.loadPendingOrders()
     }
 
     override fun onDestroyView() {

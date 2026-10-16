@@ -33,7 +33,9 @@ class OrderDetailFragment : Fragment() {
         super.onViewCreated(view, savedInstanceState)
 
         binding.btnBackHistorial.setOnClickListener {
-            findNavController().navigateUp()
+            if (!findNavController().popBackStack()) {
+                findNavController().navigateUp()
+            }
         }
 
         val orderIdArg = arguments?.getInt("orderId") ?: return
@@ -61,6 +63,16 @@ class OrderDetailFragment : Fragment() {
 
                 binding.tvDetailCreated.text = formatDateTime(order.createdAt)
                 binding.tvDetailFinished.text = formatDateTime(order.dispatchedAt)
+
+                // Resumen Logístico
+                if (order.totalWeight != null || order.totalVolume != null) {
+                    binding.llLogisticSummary.visibility = View.VISIBLE
+                    binding.tvDetailWeight.text = "Peso Total: ${order.totalWeight ?: "0.0"} kg"
+                    binding.tvDetailVolume.text = "Volumen Estimado: ${order.totalVolume ?: "0.0"} cm³"
+                    binding.tvDetailPackages.text = "Bultos: ${order.packagesCount ?: 1}"
+                } else {
+                    binding.llLogisticSummary.visibility = View.GONE
+                }
 
                 // Renderizar productos
                 binding.llDetailProducts.removeAllViews()

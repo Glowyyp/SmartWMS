@@ -22,6 +22,27 @@ DATABASE_URL: str = os.getenv(
     "sqlite:///./ecommerce.db"  # Fallback seguro para desarrollo sin PG
 )
 
+# Si DATABASE_URL es una ruta relativa de SQLite, resolver a ruta canónica absoluta
+# para garantizar que uvicorn, pruebas y scripts apunten siempre a la misma base de datos.
+if DATABASE_URL.startswith("sqlite:///") and not DATABASE_URL.startswith("sqlite:////"):
+    raw_path = DATABASE_URL.replace("sqlite:///", "")
+    if not os.path.isabs(raw_path):
+        app_dir = os.path.dirname(os.path.abspath(__file__))        # ecommerce/backend/app
+        backend_dir = os.path.dirname(app_dir)                     # ecommerce/backend
+        root_dir = os.path.dirname(os.path.dirname(backend_dir))   # CAPSTONE
+        
+        root_db = os.path.join(root_dir, raw_path.lstrip("./\\"))
+        backend_db = os.path.join(backend_dir, raw_path.lstrip("./\\"))
+        
+        if os.path.exists(root_db):
+            canonical_file = root_db
+        elif os.path.exists(backend_db):
+            canonical_file = backend_db
+        else:
+            canonical_file = root_db
+            
+        DATABASE_URL = f"sqlite:///{canonical_file.replace(os.sep, '/')}"
+
 # Parámetros específicos de SQLite (necesarios solo en ese driver)
 connect_args: dict = {}
 if DATABASE_URL.startswith("sqlite"):
