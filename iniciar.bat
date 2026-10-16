@@ -44,14 +44,18 @@ echo.
 echo [4/4] Levantando servicios...
 
 echo   -> [1/3] Iniciando Backend API (puerto 8001)...
-start "SmartWMS - Backend API (8001)" cmd /k "cd /d "%~dp0ecommerce\backend" && python -m uvicorn app.main:app --host 0.0.0.0 --port 8001 --reload"
+cd /d "%~dp0ecommerce\backend"
+start "SmartWMS - Backend API (8001)" cmd /k "python -m uvicorn app.main:app --host 0.0.0.0 --port 8001 --reload"
 
 echo   -> [2/3] Iniciando Bot IA y Chatbot (puerto 8000)...
-start "SmartWMS - Bot IA (8000)" cmd /k "cd /d "%~dp0bot" && python main.py"
+cd /d "%~dp0bot"
+start "SmartWMS - Bot IA (8000)" cmd /k "python main.py"
 
 echo   -> [3/3] Iniciando Frontend Web Angular (puerto 4200)...
-start "SmartWMS - Frontend Angular (4200)" cmd /k "cd /d "%~dp0ecommerce\frontend\smartwms-angular" && npm start"
+cd /d "%~dp0ecommerce\frontend\smartwms-angular"
+start "SmartWMS - Frontend Angular (4200)" cmd /k "npm start"
 
+cd /d "%~dp0"
 timeout /t 3 /nobreak >nul
 
 cls

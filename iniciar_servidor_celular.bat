@@ -29,13 +29,17 @@ echo.
 
 REM Iniciar el backend principal (puerto 8001) en ventana separada
 echo [1/2] Iniciando Backend API (puerto 8001)...
-start "SmartWMS Backend :8001" cmd /k "cd /d "%~dp0ecommerce\backend" && pip install -r requirements.txt -q && python -m uvicorn app.main:app --host 0.0.0.0 --port 8001 --reload"
+cd /d "%~dp0ecommerce\backend"
+start "SmartWMS Backend :8001" cmd /k "python -m uvicorn app.main:app --host 0.0.0.0 --port 8001 --reload"
 
 timeout /t 3 /nobreak >nul
 
 REM Iniciar el bot (puerto 8000) en ventana separada
 echo [2/2] Iniciando Bot IA (puerto 8000)...
-start "SmartWMS Bot IA :8000" cmd /k "cd /d "%~dp0bot" && pip install -r requirements.txt -q && python main.py"
+cd /d "%~dp0bot"
+start "SmartWMS Bot IA :8000" cmd /k "python main.py"
+
+cd /d "%~dp0"
 
 echo.
 echo ===================================================
