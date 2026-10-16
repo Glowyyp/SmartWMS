@@ -44,10 +44,11 @@ def init_database():
         ]
 
         created_users = 0
+        updated_users = 0
         for email, password, name, role in default_users:
-            exists = db.query(User).filter(User.email == email).first()
-            if not exists:
-                hashed = pwd_context.hash(password)
+            u = db.query(User).filter(User.email == email).first()
+            hashed = pwd_context.hash(password)
+            if not u:
                 u = User(
                     email=email,
                     hashed_password=hashed,
@@ -58,12 +59,19 @@ def init_database():
                 db.add(u)
                 created_users += 1
                 print(f"  + Creado usuario: {email} (Rol: {role})")
+            else:
+                if not pwd_context.verify(password, u.hashed_password):
+                    u.hashed_password = hashed
+                    u.role = role
+                    u.is_active = True
+                    updated_users += 1
+                    print(f"  * Contraseña sincronizada para: {email}")
 
-        if created_users > 0:
+        if created_users > 0 or updated_users > 0:
             db.commit()
-            print(f"  -> {created_users} usuario(s) inicial(es) creado(s).")
+            print(f"  -> {created_users} usuario(s) creado(s), {updated_users} actualizado(s).")
         else:
-            print("  -> Usuarios existentes OK.")
+            print("  -> Usuarios esenciales sincronizados OK.")
 
         # 3. Verificar productos base si catálogo está vacío
         print("\n[3/3] Verificando inventario inicial...")
