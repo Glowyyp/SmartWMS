@@ -4,8 +4,9 @@ import docx
 from pptx import Presentation
 import PyPDF2
 
-evidencias_dir = r"c:\Users\Glowy\Desktop\CAPSTONE\Evidencias Proyecto"
-out_dir = r"c:\Users\Glowy\Desktop\CAPSTONE\Evidencias_txt"
+base_dir = os.path.dirname(os.path.abspath(__file__))
+evidencias_dir = os.path.join(base_dir, "Evidencias Proyecto")
+out_dir = os.path.join(base_dir, "Evidencias_txt")
 os.makedirs(out_dir, exist_ok=True)
 
 for file in os.listdir(evidencias_dir):

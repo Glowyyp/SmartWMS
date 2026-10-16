@@ -5,9 +5,12 @@ echo   SmartWMS — Servidor Local para Celular Fisico
 echo ===================================================
 echo.
 
-REM Obtener IP local de la red WiFi
-for /f "tokens=2 delims=:" %%a in ('ipconfig ^| findstr /R "IPv4.*192\.168"') do (
-    set LOCAL_IP=%%a
+REM Obtener IP local de la maquina dinamicamente (compatible con cualquier rango de IP: 192.168, 10.x, 172.x)
+for /f "tokens=*" %%a in ('python scripts\get_ip.py 2^>nul') do set LOCAL_IP=%%a
+if "%LOCAL_IP%"=="" (
+    for /f "tokens=2 delims=:" %%a in ('ipconfig ^| findstr /R "IPv4"') do (
+        if not defined LOCAL_IP set LOCAL_IP=%%a
+    )
 )
 set LOCAL_IP=%LOCAL_IP: =%
 
