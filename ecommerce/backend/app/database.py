@@ -11,11 +11,12 @@ Ejemplos de DATABASE_URL:
 """
 
 import os
-from sqlalchemy import create_engine, event
+from sqlalchemy import create_engine, event, inspect, text
 from sqlalchemy.orm import declarative_base, sessionmaker
-from dotenv import load_dotenv
 
-load_dotenv()
+from app.core.env import load_project_env
+
+load_project_env()
 
 DATABASE_URL: str = os.getenv(
     "DATABASE_URL",
@@ -109,3 +110,36 @@ def create_tables() -> None:
     # Importar modelos para que Base los registre antes de create_all
     from app.models import order, order_item, inventory, user, work_order  # noqa: F401
     Base.metadata.create_all(bind=engine)
+    migrate_schema()
+
+
+# Columnas agregadas después de la creación inicial de la tabla 'users'.
+# create_all() no altera tablas existentes, por eso se agregan aquí de forma
+# idempotente (solo ADD COLUMN; nunca se borran ni modifican datos).
+_USER_MFA_COLUMNS = {
+    "mfa_enabled":            "BOOLEAN NOT NULL DEFAULT 0",
+    "mfa_secret_enc":         "TEXT",
+    "mfa_pending_secret_enc": "TEXT",
+    "mfa_recovery_codes":     "TEXT",
+    "mfa_last_used_step":     "INTEGER",
+    "mfa_failed_attempts":    "INTEGER NOT NULL DEFAULT 0",
+    "mfa_locked_until":       "TIMESTAMP",
+    "mfa_enabled_at":         "TIMESTAMP",
+}
+
+
+def migrate_schema() -> list[str]:
+    """Agrega columnas faltantes. Devuelve la lista de columnas creadas."""
+    added: list[str] = []
+    insp = inspect(engine)
+    if "users" not in insp.get_table_names():
+        return added
+    existing = {c["name"] for c in insp.get_columns("users")}
+    with engine.begin() as conn:
+        for name, ddl in _USER_MFA_COLUMNS.items():
+            if name not in existing:
+                if DATABASE_URL.startswith("postgresql"):
+                    ddl = ddl.replace("DEFAULT 0", "DEFAULT FALSE") if name == "mfa_enabled" else ddl
+                conn.execute(text(f"ALTER TABLE users ADD COLUMN {name} {ddl}"))
+                added.append(name)
+    return added

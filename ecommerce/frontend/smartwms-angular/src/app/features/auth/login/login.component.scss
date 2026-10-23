@@ -1,4 +1,4 @@
-// login.component.scss — Estilos del Login con glassmorphism y gradiente oscuro
+// login.component.scss — Estilos del Login con soporte para MFA, glassmorphism y gradiente oscuro
 
 .login-container {
   min-height: 100vh;
@@ -6,12 +6,12 @@
   align-items: center;
   justify-content: center;
   background: linear-gradient(135deg, #0f0c29 0%, #302b63 50%, #24243e 100%);
-  padding: 1rem;
+  padding: 1.5rem;
 }
 
 .login-card {
   width: 100%;
-  max-width: 420px;
+  max-width: 440px;
   border-radius: 20px !important;
   background: rgba(255, 255, 255, 0.08) !important;
   backdrop-filter: blur(20px);
@@ -19,13 +19,18 @@
   border: 1px solid rgba(255, 255, 255, 0.15);
   box-shadow: 0 25px 50px rgba(0, 0, 0, 0.5) !important;
   padding: 2rem;
-  animation: slideUp 0.5s ease-out;
+  animation: slideUp 0.4s ease-out;
+  transition: max-width 0.3s ease;
+
+  &.wide-card {
+    max-width: 580px;
+  }
 }
 
 @keyframes slideUp {
   from {
     opacity: 0;
-    transform: translateY(30px);
+    transform: translateY(25px);
   }
   to {
     opacity: 1;
@@ -35,15 +40,15 @@
 
 .login-header {
   text-align: center;
-  margin-bottom: 2rem;
+  margin-bottom: 1.75rem;
 }
 
 .logo-wrapper {
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 72px;
-  height: 72px;
+  width: 68px;
+  height: 68px;
   border-radius: 50%;
   background: linear-gradient(135deg, #6c63ff, #3ecf8e);
   margin: 0 auto 1rem;
@@ -52,30 +57,32 @@
 
 .logo-icon {
   color: white !important;
-  font-size: 36px !important;
-  width: 36px !important;
-  height: 36px !important;
+  font-size: 34px !important;
+  width: 34px !important;
+  height: 34px !important;
 }
 
 .login-title {
-  font-size: 2rem;
+  font-size: 1.75rem;
   font-weight: 700;
   color: white;
-  margin: 0 0 0.25rem;
+  margin: 0 0 0.35rem;
   letter-spacing: -0.5px;
 }
 
 .login-subtitle {
-  color: rgba(255, 255, 255, 0.6);
+  color: rgba(255, 255, 255, 0.65);
   font-size: 0.875rem;
   margin: 0;
+  line-height: 1.4;
 }
+
+// ─── Estilos de Campos de Formulario ──────────────────────────────────────────
 
 .full-width {
   width: 100%;
-  margin-bottom: 0.5rem;
+  margin-bottom: 0.75rem;
 
-  // Sobreescribir colores de Material para el modo oscuro
   ::ng-deep {
     .mat-mdc-text-field-wrapper {
       background: rgba(255, 255, 255, 0.08) !important;
@@ -97,21 +104,44 @@
       color: rgba(255, 255, 255, 0.7) !important;
     }
     .mat-icon {
-      color: rgba(255, 255, 255, 0.5);
+      color: rgba(255, 255, 255, 0.6);
     }
   }
 }
 
+.otp-field {
+  ::ng-deep input.mat-mdc-input-element {
+    text-align: center;
+    font-size: 1.6rem !important;
+    letter-spacing: 6px;
+    font-weight: 700;
+    color: #3ecf8e !important;
+  }
+}
+
+.recovery-field {
+  ::ng-deep input.mat-mdc-input-element {
+    text-align: center;
+    font-size: 1.15rem !important;
+    letter-spacing: 2px;
+    font-weight: 600;
+    text-transform: uppercase;
+  }
+}
+
+// ─── Botones ──────────────────────────────────────────────────────────────────
+
 .submit-btn {
   width: 100%;
-  margin-top: 1rem;
-  padding: 0.875rem 0 !important;
+  margin-top: 0.75rem;
+  padding: 0.85rem 0 !important;
   border-radius: 10px !important;
   font-size: 1rem !important;
   font-weight: 600 !important;
   letter-spacing: 0.5px;
   background: linear-gradient(135deg, #6c63ff, #3ecf8e) !important;
   transition: transform 0.2s ease, box-shadow 0.2s ease !important;
+  color: white !important;
 
   &:not(:disabled):hover {
     transform: translateY(-2px);
@@ -119,7 +149,7 @@
   }
 
   mat-icon {
-    margin-right: 0.5rem;
+    margin-right: 0.4rem;
   }
 
   display: flex;
@@ -130,4 +160,171 @@
 
 .spinner-inline {
   display: inline-block;
+}
+
+// ─── Badges de Información ───────────────────────────────────────────────────
+
+.info-badge {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.5rem 0.85rem;
+  border-radius: 8px;
+  background: rgba(62, 207, 142, 0.15);
+  border: 1px solid rgba(62, 207, 142, 0.35);
+  color: #3ecf8e;
+  font-size: 0.825rem;
+  font-weight: 600;
+  margin-bottom: 1rem;
+}
+
+.warning-badge {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.5rem 0.85rem;
+  border-radius: 8px;
+  background: rgba(255, 179, 0, 0.15);
+  border: 1px solid rgba(255, 179, 0, 0.4);
+  color: #ffb300;
+  font-size: 0.825rem;
+  font-weight: 600;
+  margin-bottom: 1rem;
+}
+
+.mfa-instruction {
+  color: rgba(255, 255, 255, 0.85);
+  font-size: 0.9rem;
+  line-height: 1.45;
+  margin-bottom: 1.25rem;
+}
+
+.mfa-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  margin-top: 1.25rem;
+
+  .link-btn {
+    color: #6c63ff !important;
+    font-size: 0.85rem;
+    mat-icon { font-size: 18px; width: 18px; height: 18px; margin-right: 4px; }
+  }
+
+  .back-btn {
+    color: rgba(255, 255, 255, 0.6) !important;
+    font-size: 0.825rem;
+    mat-icon { font-size: 16px; width: 16px; height: 16px; margin-right: 4px; }
+  }
+}
+
+// ─── Setup Inicial con QR ────────────────────────────────────────────────────
+
+.setup-intro {
+  margin-bottom: 1.25rem;
+  color: rgba(255, 255, 255, 0.85);
+  font-size: 0.9rem;
+  line-height: 1.4;
+}
+
+.setup-card-step {
+  display: flex;
+  gap: 1rem;
+  padding: 1.15rem;
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  margin-bottom: 1rem;
+
+  .step-num {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 28px;
+    height: 28px;
+    border-radius: 50%;
+    background: #6c63ff;
+    color: white;
+    font-weight: 700;
+    font-size: 0.9rem;
+    flex-shrink: 0;
+  }
+
+  .step-content {
+    flex: 1;
+
+    h3 {
+      font-size: 1rem;
+      font-weight: 600;
+      color: white;
+      margin: 0 0 0.25rem;
+    }
+
+    p {
+      font-size: 0.825rem;
+      color: rgba(255, 255, 255, 0.65);
+      margin: 0 0 0.75rem;
+      line-height: 1.35;
+    }
+  }
+}
+
+.qr-box {
+  background: white;
+  padding: 12px;
+  border-radius: 12px;
+  display: inline-block;
+  margin: 0.25rem auto 0.75rem;
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.4);
+
+  .qr-img {
+    display: block;
+    width: 170px;
+    height: 170px;
+  }
+}
+
+.manual-secret {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  font-size: 0.8rem;
+  color: rgba(255, 255, 255, 0.75);
+
+  code {
+    background: rgba(0, 0, 0, 0.35);
+    padding: 3px 6px;
+    border-radius: 4px;
+    color: #3ecf8e;
+    font-family: monospace;
+    font-size: 0.85rem;
+    letter-spacing: 1px;
+  }
+}
+
+.recovery-box {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 0.4rem;
+  margin-bottom: 0.75rem;
+
+  .rec-chip {
+    background: rgba(0, 0, 0, 0.4);
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    padding: 4px 8px;
+    border-radius: 6px;
+    font-family: monospace;
+    font-size: 0.8rem;
+    color: #ffb300;
+    text-align: center;
+    letter-spacing: 1px;
+  }
+}
+
+.btn-copy-codes {
+  border-color: rgba(255, 255, 255, 0.25) !important;
+  color: rgba(255, 255, 255, 0.9) !important;
+  font-size: 0.825rem !important;
+  width: 100%;
 }

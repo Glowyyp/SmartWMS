@@ -83,9 +83,7 @@ object RetrofitClient {
             if (!uri.host.isNullOrEmpty()) {
                 hostInterceptor.host = uri.host
                 hostInterceptor.scheme = uri.scheme ?: "http"
-                if (uri.port != -1) {
-                    hostInterceptor.backendPort = uri.port
-                }
+                hostInterceptor.backendPort = if (uri.port != -1) uri.port else 8001
                 hostInterceptor.botPort = 8000
             }
         } catch (_: Exception) {}

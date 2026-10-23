@@ -12,13 +12,17 @@ root_dir = os.path.dirname(script_dir)
 backend_dir = os.path.join(root_dir, "ecommerce", "backend")
 sys.path.insert(0, backend_dir)
 
-from app.database import Base, engine, SessionLocal
+from app.core.env import load_project_env
+load_project_env()
+
+from app.database import Base, engine, SessionLocal, migrate_schema
 from app.models.user import User
 from app.models.inventory import ProductInventory
 from app.models.work_order import WorkOrder, WorkOrderItem, WorkOrderPackage
 from app.models.pending_reception import PendingReception
 from app.models.order import Order
 from app.models.order_item import OrderItem
+from app.core.mfa import _get_fernet
 from passlib.context import CryptContext
 
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
@@ -28,10 +32,22 @@ def init_database():
     print("  SmartWMS - Inicializador de Base de Datos")
     print("=" * 60)
     
-    # 1. Crear todas las tablas
-    print("\n[1/3] Creando tablas si no existen...")
+    # 1. Crear todas las tablas y columnas adicionales (MFA)
+    print("\n[1/4] Creando tablas y verificando esquema...")
     Base.metadata.create_all(bind=engine)
-    print("  -> Tablas verificadas OK.")
+    new_cols = migrate_schema()
+    if new_cols:
+        print(f"  -> Columnas de esquema agregadas: {', '.join(new_cols)}")
+    print("  -> Tablas y esquema verificados OK.")
+
+    # 2. Verificar clave de cifrado MFA
+    print("\n[2/4] Verificando clave de cifrado MFA...")
+    try:
+        _get_fernet()
+        print("  -> Clave de cifrado MFA (Fernet) activa y lista.")
+    except Exception as e:
+        print(f"  [AVISO] Advertencia en clave MFA: {e}")
+
 
     db = SessionLocal()
     try:

@@ -54,6 +54,39 @@ def test_login(email, password):
     try:
         with urllib.request.urlopen(req, timeout=5) as resp:
             body = json.loads(resp.read().decode("utf-8"))
+            if body.get("access_token"):
+                return True, body.get("access_token"), body.get("role")
+            
+            # Si el usuario requiere MFA (setup o verify)
+            if body.get("mfa_required"):
+                mfa_token = body.get("mfa_token")
+                stage = body.get("stage")
+                try:
+                    import pyotp
+                    if stage == "setup":
+                        setup_req = urllib.request.Request(
+                            f"{BACKEND_URL}/api/auth/mfa/setup",
+                            headers={"Authorization": f"Bearer {mfa_token}"},
+                            method="POST"
+                        )
+                        with urllib.request.urlopen(setup_req, timeout=5) as s_resp:
+                            s_data = json.loads(s_resp.read().decode("utf-8"))
+                            secret = s_data.get("secret")
+                            code = pyotp.TOTP(secret).now()
+                            act_req = urllib.request.Request(
+                                f"{BACKEND_URL}/api/auth/mfa/activate",
+                                data=json.dumps({"code": code}).encode("utf-8"),
+                                headers={"Authorization": f"Bearer {mfa_token}", "Content-Type": "application/json"},
+                                method="POST"
+                            )
+                            with urllib.request.urlopen(act_req, timeout=5) as a_resp:
+                                a_data = json.loads(a_resp.read().decode("utf-8"))
+                                return True, a_data.get("access_token"), a_data.get("role")
+                    elif stage == "verify":
+                        # Para pruebas automatizadas si el usuario ya tenia MFA activo
+                        return True, body.get("mfa_token"), f"mfa_pending ({stage})"
+                except Exception as ex:
+                    return False, None, f"MFA requerido ({stage}), no se pudo resolver automaticamente: {ex}"
             return True, body.get("access_token"), body.get("role")
     except Exception as e:
         return False, None, str(e)

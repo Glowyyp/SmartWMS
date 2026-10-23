@@ -1,0 +1,68 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- dialog_mfa_recovery_codes.xml — Diálogo de entrega de códigos de recuperación tras activar MFA -->
+<ScrollView
+    xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:background="@color/surface_dark">
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        android:padding="20dp">
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="🎉 ¡MFA Activado con Éxito!"
+            android:textSize="18sp"
+            android:textStyle="bold"
+            android:textColor="@color/green_accent"
+            android:layout_marginBottom="8dp"/>
+
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="Tu cuenta ahora está protegida con autenticación en dos factores. Si alguna vez pierdes o cambias de celular, puedes usar estos códigos de emergencia (cada uno de un solo uso) para recuperar tu acceso:"
+            android:textSize="12sp"
+            android:textColor="@color/text_secondary"
+            android:layout_marginBottom="14dp"/>
+
+        <TextView
+            android:id="@+id/tv_recovery_codes_list"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:background="@drawable/bg_card"
+            android:padding="16dp"
+            android:fontFamily="monospace"
+            android:textSize="13sp"
+            android:textColor="@color/purple_light"
+            android:lineSpacingExtra="6dp"
+            android:textIsSelectable="true"
+            android:text="1. ABCDE-12345\n2. FGHIJ-67890..."
+            android:layout_marginBottom="14dp"/>
+
+        <com.google.android.material.button.MaterialButton
+            android:id="@+id/btn_copy_recovery_codes"
+            style="@style/Widget.MaterialComponents.Button.OutlinedButton"
+            android:layout_width="match_parent"
+            android:layout_height="48dp"
+            android:text="📋 Copiar Todos los Códigos"
+            android:textSize="13sp"
+            app:strokeColor="@color/purple_light"
+            android:textColor="@color/purple_light"
+            android:layout_marginBottom="10dp"/>
+
+        <com.google.android.material.button.MaterialButton
+            android:id="@+id/btn_finish_recovery"
+            android:layout_width="match_parent"
+            android:layout_height="50dp"
+            android:text="Entendido y Guardado"
+            android:textSize="14sp"
+            android:textStyle="bold"
+            android:backgroundTint="@color/purple_primary"/>
+
+    </LinearLayout>
+</ScrollView>

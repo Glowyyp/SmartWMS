@@ -192,11 +192,12 @@
               <div class="form-field">
                 <label class="form-label">Estado del Pedido</label>
                 <select class="form-input" id="edit-status-select"
-                  [(ngModel)]="editSelectedStatus">
+                  [ngModel]="editSelectedStatus()" (ngModelChange)="editSelectedStatus.set($event)">
                   <option value="por_asignar">Por asignar</option>
                   <option value="pending">Pendiente</option>
                   <option value="in_preparation">En preparación</option>
                   <option value="in_progress">En proceso</option>
+                  <option value="waiting_stock">Esperando stock</option>
                   <option value="dispatched">Despachado</option>
                   <option value="cancelled">Cancelado</option>
                 </select>
@@ -254,6 +255,32 @@
               </div>
             } @else {
               <p class="empty-lines-hint">El pedido no tiene productos. Agrega productos con el buscador de arriba.</p>
+            }
+
+            <!-- Historial de cambios de estado del pedido -->
+            @if (editWo.status_history && editWo.status_history.length > 0) {
+              <div class="history-audit-box" style="margin-bottom: 16px; padding: 12px; background: rgba(255,255,255,0.03); border-radius: 8px; border: 1px solid rgba(255,255,255,0.08);">
+                <div style="font-size: 13px; font-weight: 600; color: #a5b4fc; margin-bottom: 8px; display: flex; align-items: center; gap: 6px;">
+                  <mat-icon style="font-size: 16px; width: 16px; height: 16px;">history</mat-icon>
+                  Historial de estados y modificaciones:
+                </div>
+                <div style="max-height: 140px; overflow-y: auto;">
+                  @for (h of editWo.status_history; track h.id) {
+                    <div style="font-size: 12px; color: #cbd5e1; padding: 5px 0; border-bottom: 1px solid rgba(255,255,255,0.05); display: flex; justify-content: space-between; align-items: center; gap: 12px;">
+                      <span>
+                        <strong style="color: #60a5fa;">{{ getWoStatusLabel(h.to_status) }}</strong>
+                        @if (h.from_status) {
+                          <span style="color: #64748b;"> (desde {{ getWoStatusLabel(h.from_status) }})</span>
+                        }
+                        · <span style="color: #94a3b8;">{{ h.notes || 'Sin detalle' }}</span>
+                      </span>
+                      <span style="color: #94a3b8; font-size: 11px; white-space: nowrap;">
+                        {{ h.changed_by_email || 'Sistema' }} · {{ h.created_at | date:'dd/MM HH:mm' }}
+                      </span>
+                    </div>
+                  }
+                </div>
+              </div>
             }
 
             <div class="form-actions">
@@ -390,9 +417,20 @@
             <ng-container matColumnDef="status">
               <th mat-header-cell *matHeaderCellDef>Estado</th>
               <td mat-cell *matCellDef="let wo">
-                <span class="status-chip" [ngClass]="getWoStatusClass(wo.status)">
-                  {{ getWoStatusLabel(wo.status) }}
-                </span>
+                @if (wo.status !== 'dispatched' && wo.status !== 'cancelled' && wo.status !== 'completed') {
+                  <select class="status-select" [ngModel]="wo.status" (change)="onStatusChange(wo, $event)" [id]="'status-select-' + wo.id">
+                    <option value="por_asignar">Por asignar</option>
+                    <option value="pending">Pendiente</option>
+                    <option value="in_preparation">En preparación</option>
+                    <option value="in_progress">En proceso</option>
+                    <option value="waiting_stock">Esperando stock</option>
+                    <option value="cancelled">Cancelar pedido</option>
+                  </select>
+                } @else {
+                  <span class="status-chip" [ngClass]="getWoStatusClass(wo.status)">
+                    {{ getWoStatusLabel(wo.status) }}
+                  </span>
+                }
               </td>
             </ng-container>
             <ng-container matColumnDef="created_by_email">
@@ -430,7 +468,7 @@
                     (click)="openEditOrderForm(wo)" [id]="'edit-wo-' + wo.id">
                     <mat-icon>edit</mat-icon>
                   </button>
-                  @if (wo.status === 'pending' || wo.status === 'por_asignar' || wo.status === 'waiting_stock') {
+                  @if (wo.status !== 'dispatched' && wo.status !== 'cancelled' && wo.status !== 'completed') {
                     <button mat-icon-button color="warn" matTooltip="Cancelar pedido"
                       (click)="cancelWorkOrder(wo)" [id]="'cancel-wo-' + wo.id">
                       <mat-icon>cancel</mat-icon>

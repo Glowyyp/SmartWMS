@@ -151,19 +151,44 @@
             android:layout_marginBottom="12dp"
             android:textAlignment="center"/>
 
-        <!-- Botón escanear mesa -->
-        <com.google.android.material.button.MaterialButton
-            android:id="@+id/btn_close_packing"
+        <!-- Botones para escanear mesa o ingresar código manualmente -->
+        <LinearLayout
             android:layout_width="match_parent"
-            android:layout_height="56dp"
-            android:text="📷 Escanear QR de Mesa"
-            android:textSize="15sp"
-            android:enabled="false"
-            android:backgroundTint="@color/surface_dark"
-            android:textColor="@color/purple_light"
-            app:strokeColor="@color/purple_primary"
-            app:strokeWidth="1dp"
-            style="@style/Widget.MaterialComponents.Button.OutlinedButton" />
+            android:layout_height="wrap_content"
+            android:orientation="horizontal">
+
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/btn_close_packing"
+                android:layout_width="0dp"
+                android:layout_height="54dp"
+                android:layout_weight="1"
+                android:text="📷 Escanear Mesa"
+                android:textSize="13sp"
+                android:textStyle="bold"
+                android:enabled="false"
+                android:backgroundTint="@color/surface_dark"
+                android:textColor="@color/purple_light"
+                app:strokeColor="@color/purple_primary"
+                app:strokeWidth="1dp"
+                style="@style/Widget.MaterialComponents.Button.OutlinedButton"
+                android:layout_marginEnd="4dp" />
+
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/btn_manual_packing"
+                android:layout_width="0dp"
+                android:layout_height="54dp"
+                android:layout_weight="1"
+                android:text="⌨️ Ingresar Mesa"
+                android:textSize="13sp"
+                android:textStyle="bold"
+                android:enabled="false"
+                android:backgroundTint="@color/surface_dark"
+                android:textColor="@color/purple_light"
+                app:strokeColor="@color/purple_primary"
+                app:strokeWidth="1dp"
+                style="@style/Widget.MaterialComponents.Button.OutlinedButton"
+                android:layout_marginStart="4dp" />
+        </LinearLayout>
 
     </LinearLayout>
 </ScrollView>

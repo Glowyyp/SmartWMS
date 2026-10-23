@@ -2,8 +2,13 @@
 <menu xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto">
     <item
+        android:id="@+id/action_mfa"
+        android:title="Reconfigurar autenticador MFA"
+        android:icon="@android:drawable/ic_lock_lock"
+        app:showAsAction="never" />
+    <item
         android:id="@+id/action_logout"
-        android:title="Cerrar sesion"
+        android:title="Cerrar sesión"
         android:icon="@android:drawable/ic_menu_close_clear_cancel"
         app:showAsAction="never" />
 </menu>

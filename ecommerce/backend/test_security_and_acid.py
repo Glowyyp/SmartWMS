@@ -81,13 +81,26 @@ def test_security():
 
     db.commit()
 
-    # 1.1 Login exitoso
+    # 1.1 Login exitoso (con flujo MFA si la política lo requiere)
     r = client.post("/api/auth/login", data={"username": "sec_super@smartwms.com", "password": "super123"})
     assert r.status_code == 200, f"Error en login: {r.text}"
     token_data = r.json()
-    assert "access_token" in token_data, "access_token no retornado"
     assert token_data["role"] == "supervisor", "Rol no retornado o incorrecto"
-    token_super = token_data["access_token"]
+    if token_data.get("mfa_required"):
+        # Completar enrolamiento o verificación MFA para obtener access_token
+        mfa_token = token_data["mfa_token"]
+        if token_data.get("stage") == "setup":
+            r_s = client.post("/api/auth/mfa/setup", headers={"Authorization": f"Bearer {mfa_token}"})
+            sec = r_s.json()["secret"]
+            import pyotp
+            code = pyotp.TOTP(sec).now()
+            r_act = client.post("/api/auth/mfa/activate", json={"code": code, "mfa_token": mfa_token})
+            token_super = r_act.json()["access_token"]
+        else:
+            token_super = create_access_token({"sub": "sec_super@smartwms.com", "role": "supervisor"})
+    else:
+        token_super = token_data["access_token"]
+    assert token_super, "access_token no obtenido"
     print("  [OK] Login exitoso y token generado con rol correcto.")
 
     # 1.2 Password incorrecto
@@ -119,7 +132,20 @@ def test_security():
 
     # 1.7 RBAC: Operario intentando crear un pedido de bodega
     r_op_login = client.post("/api/auth/login", data={"username": "sec_operario@smartwms.com", "password": "op123"})
-    token_op = r_op_login.json()["access_token"]
+    op_data = r_op_login.json()
+    if op_data.get("mfa_required"):
+        mfa_tok_op = op_data["mfa_token"]
+        if op_data.get("stage") == "setup":
+            r_s_op = client.post("/api/auth/mfa/setup", headers={"Authorization": f"Bearer {mfa_tok_op}"})
+            sec_op = r_s_op.json()["secret"]
+            import pyotp
+            code_op = pyotp.TOTP(sec_op).now()
+            r_act_op = client.post("/api/auth/mfa/activate", json={"code": code_op, "mfa_token": mfa_tok_op})
+            token_op = r_act_op.json()["access_token"]
+        else:
+            token_op = create_access_token({"sub": "sec_operario@smartwms.com", "role": "operario"})
+    else:
+        token_op = op_data["access_token"]
     r_rbac = client.post(
         "/api/v1/work-orders",
         json={"items": [{"sku": "SKU-00567", "quantity": 1}]},
@@ -127,6 +153,7 @@ def test_security():
     )
     assert r_rbac.status_code == 403, f"Operario no debería poder crear pedidos: {r_rbac.status_code}"
     print("  [OK] Control de acceso por rol (RBAC): Operario restringido de funciones de Supervisor (403).")
+
 
     # 1.8 RBAC: Operario intentando ver lista de usuarios admin
     r_admin_view = client.get("/api/v1/users/admin-view", headers={"Authorization": f"Bearer {token_op}"})

@@ -1,22 +1,25 @@
 @echo off
+setlocal enabledelayedexpansion
 chcp 65001 >nul
-title SmartWMS - Comprobación de Estado
+title SmartWMS - Comprobacion de Estado y Salud del Sistema
+cd /d "%~dp0"
 
 echo =====================================================================
-echo             SmartWMS - Verificación de Estado de Servicios
+echo             SmartWMS - Verificacion de Estado de Servicios
 echo =====================================================================
 echo.
 
 where python >nul 2>&1
 if %ERRORLEVEL% neq 0 (
-    echo [ERROR] Python no está instalado o no se encuentra en el PATH.
-    echo Por favor instala Python 3.10+ para ejecutar esta verificación.
+    echo [ERROR] Python no esta instalado o no se encuentra en el PATH.
+    echo Por favor ejecuta instalar.bat para preparar el entorno.
     echo.
     pause
     exit /b 1
 )
 
-python scripts\health_check.py
+python "%~dp0scripts\health_check.py"
 
 echo.
-pause
+echo Presiona cualquier tecla para cerrar esta ventana.
+pause >nul

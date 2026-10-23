@@ -13,10 +13,45 @@ data class LoginRequest(
 )
 
 data class LoginResponse(
-    @SerializedName("access_token") val accessToken: String,
-    @SerializedName("token_type")   val tokenType: String,
-    val role: String
+    @SerializedName("access_token") val accessToken: String? = null,
+    @SerializedName("token_type")   val tokenType: String? = null,
+    val role: String,
+    @SerializedName("mfa_required") val mfaRequired: Boolean = false,
+    @SerializedName("mfa_token")    val mfaToken: String? = null,
+    val stage: String? = null       // "verify" | "setup"
 )
+
+// Modelos para Autenticación Multifactor (MFA / TOTP)
+data class MfaVerifyRequest(
+    val code: String,
+    @SerializedName("mfa_token") val mfaToken: String
+)
+
+data class MfaActivateRequest(
+    val code: String,
+    @SerializedName("mfa_token") val mfaToken: String? = null
+)
+
+data class MfaRecoverRequest(
+    @SerializedName("recovery_code") val recoveryCode: String,
+    @SerializedName("mfa_token")     val mfaToken: String
+)
+
+data class MfaSetupResponse(
+    val secret: String,
+    @SerializedName("provisioning_uri") val provisioningUri: String,
+    @SerializedName("qr_code_svg")      val qrCodeSvg: String,
+    @SerializedName("recovery_codes")   val recoveryCodes: List<String>,
+    val issuer: String,
+    @SerializedName("account_name")     val accountName: String
+)
+
+data class MfaStatusResponse(
+    @SerializedName("mfa_enabled") val mfaEnabled: Boolean,
+    @SerializedName("remaining_recovery_codes") val remainingRecoveryCodes: Int,
+    @SerializedName("enabled_at") val enabledAt: String? = null
+)
+
 
 // ─── Inventario ───────────────────────────────────────────────────────────────
 

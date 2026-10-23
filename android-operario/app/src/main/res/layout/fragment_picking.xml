@@ -99,6 +99,42 @@
             android:layout_height="0dp"
             android:layout_weight="1"/>
 
+        <!-- Botones de lectura e ingreso manual de pedido -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:layout_marginTop="8dp">
+
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/btn_scan_order"
+                android:layout_width="0dp"
+                android:layout_height="48dp"
+                android:layout_weight="1"
+                android:text="📷 Escanear Pedido"
+                android:textSize="12sp"
+                android:backgroundTint="@color/surface_dark"
+                app:strokeColor="@color/purple_primary"
+                app:strokeWidth="1dp"
+                android:textColor="@color/purple_light"
+                style="@style/Widget.MaterialComponents.Button.OutlinedButton"
+                android:layout_marginEnd="4dp"/>
+
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/btn_manual_order"
+                android:layout_width="0dp"
+                android:layout_height="48dp"
+                android:layout_weight="1"
+                android:text="⌨️ Ingresar Pedido"
+                android:textSize="12sp"
+                android:backgroundTint="@color/surface_dark"
+                app:strokeColor="@color/purple_primary"
+                app:strokeWidth="1dp"
+                android:textColor="@color/purple_light"
+                style="@style/Widget.MaterialComponents.Button.OutlinedButton"
+                android:layout_marginStart="4dp"/>
+        </LinearLayout>
+
         <!-- Botón refrescar -->
         <com.google.android.material.button.MaterialButton
             android:id="@+id/btn_refresh_orders"
@@ -111,7 +147,7 @@
             app:strokeWidth="1dp"
             android:textColor="@color/purple_light"
             style="@style/Widget.MaterialComponents.Button.OutlinedButton"
-            android:layout_marginTop="8dp"/>
+            android:layout_marginTop="6dp"/>
     </LinearLayout>
 
 
@@ -191,19 +227,37 @@
             android:orientation="horizontal"
             android:layout_marginTop="12dp">
 
-            <!-- Botón QR -->
+            <!-- Botón Escanear (QR / Barras) -->
             <com.google.android.material.button.MaterialButton
                 android:id="@+id/btn_scan_qr"
-                android:layout_width="match_parent"
-                android:layout_height="56dp"
-                android:text="📷 Escanear QR"
-                android:textSize="14sp"
+                android:layout_width="0dp"
+                android:layout_height="52dp"
+                android:layout_weight="1"
+                android:text="📷 Escanear (QR/Barras)"
+                android:textSize="12sp"
                 android:textStyle="bold"
                 android:backgroundTint="@color/surface_dark"
                 android:textColor="@color/purple_light"
                 app:strokeColor="@color/purple_primary"
                 app:strokeWidth="1dp"
-                style="@style/Widget.MaterialComponents.Button.OutlinedButton" />
+                style="@style/Widget.MaterialComponents.Button.OutlinedButton"
+                android:layout_marginEnd="4dp" />
+
+            <!-- Botón Ingreso Manual -->
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/btn_manual_code"
+                android:layout_width="0dp"
+                android:layout_height="52dp"
+                android:layout_weight="1"
+                android:text="⌨️ Ingreso Manual"
+                android:textSize="12sp"
+                android:textStyle="bold"
+                android:backgroundTint="@color/surface_dark"
+                android:textColor="@color/purple_light"
+                app:strokeColor="@color/purple_primary"
+                app:strokeWidth="1dp"
+                style="@style/Widget.MaterialComponents.Button.OutlinedButton"
+                android:layout_marginStart="4dp" />
         </LinearLayout>
 
     </LinearLayout>

@@ -1,83 +1,345 @@
 <!-- features/auth/login/login.component.html -->
 <div class="login-container">
-  <mat-card class="login-card">
+  <mat-card class="login-card" [class.wide-card]="step() === 'mfa-setup'">
+    
+    <!-- Cabecera de la tarjeta -->
     <div class="login-header">
       <div class="logo-wrapper">
-        <mat-icon class="logo-icon">inventory_2</mat-icon>
+        <mat-icon class="logo-icon">
+          @if (step() === 'credentials') { inventory_2 }
+          @else if (step() === 'mfa-setup') { qr_code_scanner }
+          @else if (step() === 'mfa-verify') { verified_user }
+          @else { key }
+        </mat-icon>
       </div>
-      <h1 class="login-title">SmartWMS</h1>
-      <p class="login-subtitle">Sistema de Gestión de Almacenes</p>
+
+      <h1 class="login-title">
+        @if (step() === 'credentials') { SmartWMS }
+        @else if (step() === 'mfa-setup') { Vincular Autenticador }
+        @else if (step() === 'mfa-verify') { Verificación en Dos Pasos }
+        @else { Acceso de Emergencia }
+      </h1>
+
+      <p class="login-subtitle">
+        @if (step() === 'credentials') { Sistema de Gestión de Almacenes }
+        @else if (step() === 'mfa-setup') { Escanea el código QR con tu app de autenticación móvil }
+        @else if (step() === 'mfa-verify') { Ingresa el código temporal de 6 dígitos de tu aplicación }
+        @else { Usa uno de tus códigos de recuperación de un solo uso }
+      </p>
     </div>
 
     <mat-card-content>
-      <form [formGroup]="loginForm" (ngSubmit)="onSubmit()" id="login-form">
-        <!-- Email -->
-        <mat-form-field appearance="outline" class="full-width">
-          <mat-label>Correo electrónico</mat-label>
-          <input
-            id="email-input"
-            matInput
-            type="email"
-            formControlName="email"
-            placeholder="operario@smartwms.cl"
-            autocomplete="email"
-          />
-          <mat-icon matSuffix>email</mat-icon>
-          @if (emailControl.hasError('required') && emailControl.touched) {
-            <mat-error>El correo es obligatorio</mat-error>
-          }
-          @if (emailControl.hasError('email') && emailControl.touched) {
-            <mat-error>Ingresa un correo válido</mat-error>
-          }
-        </mat-form-field>
 
-        <!-- Contraseña -->
-        <mat-form-field appearance="outline" class="full-width">
-          <mat-label>Contraseña</mat-label>
-          <input
-            id="password-input"
-            matInput
-            [type]="hidePassword() ? 'password' : 'text'"
-            formControlName="password"
-            autocomplete="current-password"
-          />
+      <!-- =================================================================== -->
+      <!-- PASO 1: CREDENCIALES (Email + Contraseña)                           -->
+      <!-- =================================================================== -->
+      @if (step() === 'credentials') {
+        <form [formGroup]="loginForm" (ngSubmit)="onSubmitCredentials()" id="login-form">
+          <!-- Email -->
+          <mat-form-field appearance="outline" class="full-width">
+            <mat-label>Correo electrónico</mat-label>
+            <input
+              id="email-input"
+              matInput
+              type="email"
+              formControlName="email"
+              placeholder="supervisor@smartwms.com"
+              autocomplete="email"
+            />
+            <mat-icon matSuffix>email</mat-icon>
+            @if (emailControl.hasError('required') && emailControl.touched) {
+              <mat-error>El correo es obligatorio</mat-error>
+            }
+            @if (emailControl.hasError('email') && emailControl.touched) {
+              <mat-error>Ingresa un correo válido</mat-error>
+            }
+          </mat-form-field>
+
+          <!-- Contraseña -->
+          <mat-form-field appearance="outline" class="full-width">
+            <mat-label>Contraseña</mat-label>
+            <input
+              id="password-input"
+              matInput
+              [type]="hidePassword() ? 'password' : 'text'"
+              formControlName="password"
+              autocomplete="current-password"
+            />
+            <button
+              mat-icon-button
+              matSuffix
+              type="button"
+              (click)="togglePassword()"
+              [attr.aria-label]="hidePassword() ? 'Mostrar contraseña' : 'Ocultar contraseña'"
+            >
+              <mat-icon>{{ hidePassword() ? 'visibility_off' : 'visibility' }}</mat-icon>
+            </button>
+            @if (passwordControl.hasError('required') && passwordControl.touched) {
+              <mat-error>La contraseña es obligatoria</mat-error>
+            }
+            @if (passwordControl.hasError('minlength') && passwordControl.touched) {
+              <mat-error>Mínimo 6 caracteres</mat-error>
+            }
+          </mat-form-field>
+
+          <!-- Botón de envío -->
           <button
-            mat-icon-button
-            matSuffix
-            type="button"
-            (click)="togglePassword()"
-            [attr.aria-label]="hidePassword() ? 'Mostrar contraseña' : 'Ocultar contraseña'"
+            id="login-submit-btn"
+            mat-raised-button
+            color="primary"
+            type="submit"
+            class="submit-btn"
+            [disabled]="loginForm.invalid || isLoading()"
           >
-            <mat-icon>{{ hidePassword() ? 'visibility_off' : 'visibility' }}</mat-icon>
+            @if (isLoading()) {
+              <mat-spinner diameter="20" class="spinner-inline"></mat-spinner>
+              <span>Verificando...</span>
+            } @else {
+              <ng-container>
+                <mat-icon>login</mat-icon>
+                <span>Continuar</span>
+              </ng-container>
+            }
           </button>
-          @if (passwordControl.hasError('required') && passwordControl.touched) {
-            <mat-error>La contraseña es obligatoria</mat-error>
-          }
-          @if (passwordControl.hasError('minlength') && passwordControl.touched) {
-            <mat-error>Mínimo 6 caracteres</mat-error>
-          }
-        </mat-form-field>
+        </form>
+      }
 
-        <!-- Botón de envío -->
-        <button
-          id="login-submit-btn"
-          mat-raised-button
-          color="primary"
-          type="submit"
-          class="submit-btn"
-          [disabled]="loginForm.invalid || isLoading()"
-        >
-          @if (isLoading()) {
-            <mat-spinner diameter="20" class="spinner-inline"></mat-spinner>
-            <span>Iniciando sesión...</span>
-          } @else {
-            <ng-container>
-              <mat-icon>login</mat-icon>
-              <span>Iniciar Sesión</span>
-            </ng-container>
-          }
-        </button>
-      </form>
+      <!-- =================================================================== -->
+      <!-- PASO 2A: VERIFICACIÓN TOTP (6 dígitos)                              -->
+      <!-- =================================================================== -->
+      @if (step() === 'mfa-verify') {
+        <div class="mfa-step-container">
+          <div class="info-badge">
+            <mat-icon>shield</mat-icon>
+            <span>Protección de cuenta activa</span>
+          </div>
+
+          <p class="mfa-instruction">
+            Abre <strong>Google Authenticator</strong>, <strong>Microsoft Authenticator</strong> o <strong>Aegis</strong> e ingresa el código temporal de 6 dígitos:
+          </p>
+
+          <mat-form-field appearance="outline" class="full-width otp-field">
+            <mat-label>Código de 6 dígitos</mat-label>
+            <input
+              id="mfa-code-input"
+              matInput
+              type="text"
+              inputmode="numeric"
+              maxlength="6"
+              [formControl]="mfaCodeControl"
+              placeholder="123456"
+              autocomplete="one-time-code"
+              (keyup.enter)="onSubmitVerify()"
+            />
+            <mat-icon matSuffix>pin</mat-icon>
+            @if (mfaCodeControl.hasError('required') && mfaCodeControl.touched) {
+              <mat-error>El código es obligatorio</mat-error>
+            }
+            @if (mfaCodeControl.hasError('pattern') && mfaCodeControl.touched) {
+              <mat-error>Debe contener exactamente 6 números</mat-error>
+            }
+          </mat-form-field>
+
+          <button
+            id="btn-verify-mfa"
+            mat-raised-button
+            color="primary"
+            class="submit-btn"
+            [disabled]="mfaCodeControl.invalid || isLoading()"
+            (click)="onSubmitVerify()"
+          >
+            @if (isLoading()) {
+              <mat-spinner diameter="20" class="spinner-inline"></mat-spinner>
+              <span>Validando código...</span>
+            } @else {
+              <ng-container>
+                <mat-icon>check_circle</mat-icon>
+                <span>Verificar e Ingresar</span>
+              </ng-container>
+            }
+          </button>
+
+          <div class="mfa-actions">
+            <button mat-button type="button" class="link-btn" (click)="step.set('mfa-recover')">
+              <mat-icon>vpn_key</mat-icon>
+              <span>Usar código de recuperación de emergencia</span>
+            </button>
+
+            <button mat-button type="button" class="back-btn" (click)="backToCredentials()">
+              <mat-icon>arrow_back</mat-icon>
+              <span>Volver al login</span>
+            </button>
+          </div>
+        </div>
+      }
+
+      <!-- =================================================================== -->
+      <!-- PASO 2B: ENROLAMIENTO INICIAL (Setup QR + Guardar Códigos)          -->
+      <!-- =================================================================== -->
+      @if (step() === 'mfa-setup') {
+        <div class="mfa-setup-container">
+          <div class="setup-intro">
+            <p>
+              Tu rol requiere <strong>Autenticación Multifactor (MFA)</strong> para proteger las operaciones del almacén.
+              Completa estos 3 pasos sencillos:
+            </p>
+          </div>
+
+          <!-- Paso 1: QR -->
+          <div class="setup-card-step">
+            <div class="step-num">1</div>
+            <div class="step-content">
+              <h3>Escanea el código QR con tu celular</h3>
+              <p>Usa Google Authenticator, Microsoft Authenticator o cualquier app TOTP gratuita:</p>
+              @if (qrSafeUrl()) {
+                <div class="qr-box">
+                  <img [src]="qrSafeUrl()" alt="Código QR de Autenticación TOTP" class="qr-img" />
+                </div>
+              }
+              <div class="manual-secret">
+                <span>¿No puedes escanearlo? Clave manual:</span>
+                <code>{{ setupData()?.secret }}</code>
+                <button mat-icon-button (click)="copySecret()" [matTooltip]="copiedSecret() ? '¡Copiado!' : 'Copiar clave'">
+                  <mat-icon>{{ copiedSecret() ? 'done' : 'content_copy' }}</mat-icon>
+                </button>
+              </div>
+            </div>
+          </div>
+
+          <!-- Paso 2: Códigos de recuperación -->
+          <div class="setup-card-step">
+            <div class="step-num">2</div>
+            <div class="step-content">
+              <h3>Guarda tus códigos de emergencia</h3>
+              <p>Si pierdes tu teléfono, estos códigos te permitirán acceder. Cada uno sirve una sola vez:</p>
+              <div class="recovery-box">
+                @for (c of setupData()?.recovery_codes; track c) {
+                  <span class="rec-chip">{{ c }}</span>
+                }
+              </div>
+              <button mat-stroked-button type="button" class="btn-copy-codes" (click)="copyRecoveryCodes()">
+                <mat-icon>{{ copiedCodes() ? 'done_all' : 'copy_all' }}</mat-icon>
+                <span>{{ copiedCodes() ? '¡Códigos Copiados!' : 'Copiar Todos los Códigos' }}</span>
+              </button>
+            </div>
+          </div>
+
+          <!-- Paso 3: Confirmación -->
+          <div class="setup-card-step">
+            <div class="step-num">3</div>
+            <div class="step-content">
+              <h3>Ingresa el código que muestra tu aplicación</h3>
+              <p>Confirma que tu aplicación está sincronizada ingresando el código actual de 6 dígitos:</p>
+
+              <mat-form-field appearance="outline" class="full-width otp-field">
+                <mat-label>Código de 6 dígitos generado</mat-label>
+                <input
+                  id="activate-code-input"
+                  matInput
+                  type="text"
+                  inputmode="numeric"
+                  maxlength="6"
+                  [formControl]="mfaCodeControl"
+                  placeholder="123456"
+                  (keyup.enter)="onSubmitActivate()"
+                />
+              </mat-form-field>
+
+              <button
+                id="btn-activate-mfa"
+                mat-raised-button
+                color="primary"
+                class="submit-btn"
+                [disabled]="mfaCodeControl.invalid || isLoading()"
+                (click)="onSubmitActivate()"
+              >
+                @if (isLoading()) {
+                  <mat-spinner diameter="20" class="spinner-inline"></mat-spinner>
+                  <span>Activando...</span>
+                } @else {
+                  <ng-container>
+                    <mat-icon>lock_open</mat-icon>
+                    <span>Activar Autenticador y Entrar</span>
+                  </ng-container>
+                }
+              </button>
+            </div>
+          </div>
+
+          <div class="mfa-actions">
+            <button mat-button type="button" class="back-btn" (click)="backToCredentials()">
+              <mat-icon>arrow_back</mat-icon>
+              <span>Cancelar y volver</span>
+            </button>
+          </div>
+        </div>
+      }
+
+      <!-- =================================================================== -->
+      <!-- PASO 2C: RECUPERACIÓN DE EMERGENCIA                                 -->
+      <!-- =================================================================== -->
+      @if (step() === 'mfa-recover') {
+        <div class="mfa-step-container">
+          <div class="warning-badge">
+            <mat-icon>warning</mat-icon>
+            <span>Acceso de Emergencia de un Solo Uso</span>
+          </div>
+
+          <p class="mfa-instruction">
+            Ingresa uno de los 10 códigos de recuperación que guardaste al vincular tu cuenta (formato: <code>ABCDE-12345</code>):
+          </p>
+
+          <mat-form-field appearance="outline" class="full-width recovery-field">
+            <mat-label>Código de recuperación</mat-label>
+            <input
+              id="recovery-code-input"
+              matInput
+              type="text"
+              maxlength="12"
+              [formControl]="recoveryCodeControl"
+              placeholder="XXXXX-XXXXX"
+              autocomplete="off"
+              (keyup.enter)="onSubmitRecover()"
+            />
+            <mat-icon matSuffix>key</mat-icon>
+            @if (recoveryCodeControl.hasError('required') && recoveryCodeControl.touched) {
+              <mat-error>El código de recuperación es obligatorio</mat-error>
+            }
+          </mat-form-field>
+
+          <button
+            id="btn-recover-mfa"
+            mat-raised-button
+            color="primary"
+            class="submit-btn"
+            [disabled]="recoveryCodeControl.invalid || isLoading()"
+            (click)="onSubmitRecover()"
+          >
+            @if (isLoading()) {
+              <mat-spinner diameter="20" class="spinner-inline"></mat-spinner>
+              <span>Validando código de emergencia...</span>
+            } @else {
+              <ng-container>
+                <mat-icon>vpn_key</mat-icon>
+                <span>Acceder con Código de Emergencia</span>
+              </ng-container>
+            }
+          </button>
+
+          <div class="mfa-actions">
+            <button mat-button type="button" class="link-btn" (click)="step.set('mfa-verify')">
+              <mat-icon>phonelink_ring</mat-icon>
+              <span>Volver a intentar con la app autenticadora</span>
+            </button>
+
+            <button mat-button type="button" class="back-btn" (click)="backToCredentials()">
+              <mat-icon>arrow_back</mat-icon>
+              <span>Volver al login</span>
+            </button>
+          </div>
+        </div>
+      }
+
     </mat-card-content>
   </mat-card>
 </div>

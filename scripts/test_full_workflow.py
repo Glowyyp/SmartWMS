@@ -27,6 +27,28 @@ def log(msg, ok=True):
     prefix = "  [OK]" if ok else "  [ERROR]"
     print(f"{prefix} {msg}")
 
+def perform_login(session, username, password):
+    r = session.post(f"{BASE_API}/api/auth/login", data={"username": username, "password": password})
+    if r.status_code != 200:
+        r = session.post(f"{BASE_API}/api/auth/login", data={"username": username, "password": "admin123"})
+    assert r.status_code == 200, f"Fallo login {username}: {r.text}"
+    body = r.json()
+    if body.get("access_token"):
+        return body["access_token"], body.get("role")
+    
+    if body.get("mfa_required"):
+        mfa_token = body.get("mfa_token")
+        stage = body.get("stage")
+        import pyotp
+        if stage == "setup":
+            s_res = session.post(f"{BASE_API}/api/auth/mfa/setup", headers={"Authorization": f"Bearer {mfa_token}"})
+            secret = s_res.json()["secret"]
+            code = pyotp.TOTP(secret).now()
+            act_res = session.post(f"{BASE_API}/api/auth/mfa/activate", json={"code": code}, headers={"Authorization": f"Bearer {mfa_token}"})
+            act_data = act_res.json()
+            return act_data["access_token"], act_data.get("role")
+    return body.get("access_token"), body.get("role")
+
 def run():
     print("\n" + "="*70)
     print(" INICIANDO PRUEBAS FINALES DE FLUJO COMPLETO: SUPERVISOR Y OPERARIO")
@@ -37,27 +59,17 @@ def run():
     # -------------------------------------------------------------------------
     # 1. LOGIN DE SUPERVISOR Y OPERARIO
     # -------------------------------------------------------------------------
-    print("\n1. Autenticación de Roles en Backend (Puerto 8001)")
+    print("\n1. Autenticación de Roles en Backend con MFA (Puerto 8001)")
     
     # Login Supervisor
-    r_sup = session.post(f"{BASE_API}/api/auth/login", data={"username": "supervisor@smartwms.com", "password": "supervisor123"})
-    if r_sup.status_code != 200:
-        # Intentar con admin123 si la password por defecto fue cambiada
-        r_sup = session.post(f"{BASE_API}/api/auth/login", data={"username": "supervisor@smartwms.com", "password": "admin123"})
-    assert r_sup.status_code == 200, f"Fallo login supervisor: {r_sup.text}"
-    token_sup = r_sup.json()["access_token"]
-    role_sup = r_sup.json()["role"]
+    token_sup, role_sup = perform_login(session, "supervisor@smartwms.com", "supervisor123")
     assert role_sup == "supervisor"
-    log(f"Login Supervisor exitoso ({role_sup}) - Token JWT generado.")
+    log(f"Login Supervisor exitoso ({role_sup}) - Token JWT y 2FA completado.")
 
     # Login Operario
-    r_op = session.post(f"{BASE_API}/api/auth/login", data={"username": "operario@smartwms.com", "password": "operario123"})
-    if r_op.status_code != 200:
-        r_op = session.post(f"{BASE_API}/api/auth/login", data={"username": "operario@smartwms.com", "password": "admin123"})
-    assert r_op.status_code == 200, f"Fallo login operario: {r_op.text}"
-    token_op = r_op.json()["access_token"]
-    role_op = r_op.json()["role"]
+    token_op, role_op = perform_login(session, "operario@smartwms.com", "operario123")
     assert role_op == "operario"
+    log(f"Login Operario exitoso ({role_op}) - Token JWT y 2FA completado.")
     log(f"Login Operario exitoso ({role_op}) - Token JWT generado.")
 
     headers_sup = {"Authorization": f"Bearer {token_sup}"}

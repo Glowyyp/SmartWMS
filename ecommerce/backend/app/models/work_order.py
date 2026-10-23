@@ -15,7 +15,7 @@ El stock DISPONIBLE = stock_quantity - reservado.
 """
 
 from datetime import datetime
-from sqlalchemy import Column, Integer, String, DateTime, ForeignKey, func, Numeric
+from sqlalchemy import Column, Integer, String, DateTime, ForeignKey, func, Numeric, desc
 from sqlalchemy.orm import relationship
 from app.database import Base
 
@@ -45,11 +45,23 @@ class WorkOrder(Base):
     dispatched_by_id    = Column(Integer, ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
     dispatched_by_email = Column(String(254), nullable=True)  # desnormalizado
 
+    # Usuario que canceló el pedido (NULL si no está cancelado)
+    cancelled_by_id    = Column(Integer, ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
+    cancelled_by_email = Column(String(254), nullable=True)
+
     # Timestamps
     created_at    = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
     dispatched_at = Column(DateTime(timezone=True), nullable=True)
     cancelled_at  = Column(DateTime(timezone=True), nullable=True)
 
+    # Relación 1:N con historial de cambios de estado
+    status_history = relationship(
+        "WorkOrderStatusHistory",
+        back_populates="work_order",
+        cascade="all, delete-orphan",
+        lazy="selectin",
+        order_by="desc(WorkOrderStatusHistory.id)",
+    )
 
     # Relación 1:N con ítems
     items = relationship(
@@ -123,3 +135,29 @@ class WorkOrderPackage(Base):
 
     def __repr__(self) -> str:
         return f"<WorkOrderPackage id={self.id} wo_id={self.work_order_id}>"
+
+
+class WorkOrderStatusHistory(Base):
+    __tablename__ = "work_order_status_history"
+
+    id = Column(Integer, primary_key=True, index=True)
+
+    work_order_id = Column(
+        Integer,
+        ForeignKey("work_orders.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
+
+    from_status = Column(String(30), nullable=True)
+    to_status = Column(String(30), nullable=False)
+    changed_by_id = Column(Integer, ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
+    changed_by_email = Column(String(254), nullable=True)
+    notes = Column(String(255), nullable=True)
+    created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+
+    work_order = relationship("WorkOrder", back_populates="status_history")
+
+    def __repr__(self) -> str:
+        return f"<WorkOrderStatusHistory wo={self.work_order_id} {self.from_status}->{self.to_status} by={self.changed_by_email}>"
+

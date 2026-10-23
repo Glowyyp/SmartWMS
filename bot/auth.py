@@ -52,6 +52,9 @@ def create_access_token(data: dict, expires_delta: timedelta | None = None) -> s
 def decode_access_token(token: str) -> dict:
     """
     Decodifica y valida un JWT emitido por el backend.
-    :raises JWTError: si el token es inválido, expirado o no coincide el secret.
+    :raises JWTError: si el token es inválido, expirado o es un token temporal de MFA.
     """
-    return jwt.decode(token, JWT_SECRET, algorithms=[JWT_ALGORITHM])
+    payload = jwt.decode(token, JWT_SECRET, algorithms=[JWT_ALGORITHM])
+    if payload.get("type") == "mfa_pending":
+        raise JWTError("Token requiere completar el segundo factor de autenticación (MFA)")
+    return payload

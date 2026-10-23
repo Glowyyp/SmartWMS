@@ -16,6 +16,33 @@ interface ApiService {
         @Field("password") password: String
     ): Response<LoginResponse>
 
+    @POST("api/auth/mfa/verify")
+    suspend fun mfaVerify(
+        @Body request: MfaVerifyRequest
+    ): Response<LoginResponse>
+
+    @POST("api/auth/mfa/activate")
+    suspend fun mfaActivate(
+        @Body request: MfaActivateRequest,
+        @Header("Authorization") token: String? = null
+    ): Response<LoginResponse>
+
+    @POST("api/auth/mfa/recover")
+    suspend fun mfaRecover(
+        @Body request: MfaRecoverRequest
+    ): Response<LoginResponse>
+
+    @POST("api/auth/mfa/setup")
+    suspend fun mfaSetup(
+        @Header("Authorization") token: String
+    ): Response<MfaSetupResponse>
+
+    @GET("api/auth/mfa/status")
+    suspend fun getMfaStatus(
+        @Header("Authorization") token: String
+    ): Response<MfaStatusResponse>
+
+
     // ── Inventario ────────────────────────────────────────────────────────────
     // Incluye warehouse_location para mostrar la zona de cada SKU al operario
     @GET("api/v1/inventory")

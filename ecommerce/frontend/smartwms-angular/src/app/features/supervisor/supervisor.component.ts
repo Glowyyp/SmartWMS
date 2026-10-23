@@ -443,14 +443,59 @@ export class SupervisorComponent implements OnInit, OnDestroy {
   }
 
   cancelWorkOrder(wo: WorkOrder): void {
-    if (!confirm(`¿Cancelar el pedido ${wo.order_number}? La reserva de stock será liberada.`)) return;
+    if (wo.status === 'dispatched') {
+      this.snackBar.open('❌ No se puede cancelar un pedido que ya ha sido despachado.', 'Cerrar', { duration: 4000 });
+      return;
+    }
+    if (wo.status === 'cancelled') {
+      this.snackBar.open('⚠️ Este pedido ya se encuentra cancelado.', 'Cerrar', { duration: 3000 });
+      return;
+    }
+    const confirmed = confirm(
+      `¿Estás seguro de que deseas cancelar el pedido ${wo.order_number}?\n\n` +
+      `• La reserva de stock físico asociada será liberada inmediatamente.\n` +
+      `• Esta acción quedará registrada en el historial de auditoría.\n` +
+      `• No se podrá reactivar posteriormente.`
+    );
+    if (!confirmed) return;
+
     this.workOrdersService.cancel(wo.id).subscribe({
       next: updated => {
         this.workOrders.update(wos => wos.map(w => w.id === updated.id ? updated : w));
-        this.snackBar.open(`Pedido ${updated.order_number} cancelado`, '', { duration: 3000 });
+        this.snackBar.open(`✅ Pedido ${updated.order_number} cancelado correctamente. Reserva liberada.`, 'OK', { duration: 4000 });
         this.loadInventory(); // Actualizar stock disponible
       },
-      error: err => this.snackBar.open(err.error?.detail ?? 'Error al cancelar', 'Cerrar', { duration: 4000 }),
+      error: err => {
+        const msg = err.error?.detail ?? 'Error al cancelar pedido';
+        this.snackBar.open(`❌ ${msg}`, 'Cerrar', { duration: 5000 });
+      },
+    });
+  }
+
+  onStatusChange(wo: WorkOrder, event: any): void {
+    const targetStatus = event.target.value;
+    if (!targetStatus || targetStatus === wo.status) return;
+
+    if (targetStatus === 'cancelled') {
+      this.cancelWorkOrder(wo);
+      return;
+    }
+
+    this.workOrdersService.updateWorkOrder(wo.id, { status: targetStatus }).subscribe({
+      next: updated => {
+        this.workOrders.update(wos => wos.map(w => w.id === updated.id ? updated : w));
+        this.snackBar.open(
+          `✅ Pedido ${wo.order_number} actualizado a estado "${this.getWoStatusLabel(updated.status)}"`,
+          'OK',
+          { duration: 3500 }
+        );
+        this.loadInventory();
+      },
+      error: err => {
+        const msg = err.error?.detail ?? 'No se pudo actualizar el estado';
+        this.snackBar.open(`❌ ${msg}`, 'Cerrar', { duration: 4500 });
+        this.loadWorkOrders(); // Revertir selector
+      }
     });
   }
 

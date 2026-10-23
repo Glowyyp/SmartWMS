@@ -1,9 +1,8 @@
 // core/services/auth.service.ts
-// Servicio de autenticación: gestiona el token JWT en localStorage
-// y expone helpers de login/logout/estado
+// Servicio de autenticación con soporte para MFA (TOTP), tokens seguros y guards
 
 import { Injectable, signal, computed } from '@angular/core';
-import { HttpClient } from '@angular/common/http';
+import { HttpClient, HttpHeaders } from '@angular/common/http';
 import { Router } from '@angular/router';
 import { tap } from 'rxjs/operators';
 import { Observable } from 'rxjs';
@@ -15,9 +14,21 @@ export interface LoginPayload {
 }
 
 export interface AuthResponse {
-  access_token: string;
-  token_type: string;
-  role: string;  // Retornado por TokenResponse del backend
+  access_token?: string | null;
+  token_type?: string;
+  role: string;
+  mfa_required?: boolean;
+  mfa_token?: string | null;
+  stage?: 'verify' | 'setup' | null;
+}
+
+export interface MFASetupResponse {
+  secret: string;
+  provisioning_uri: string;
+  qr_code_svg: string;
+  recovery_codes: string[];
+  issuer: string;
+  account_name: string;
 }
 
 @Injectable({ providedIn: 'root' })
@@ -32,24 +43,79 @@ export class AuthService {
   constructor(private http: HttpClient, private router: Router) {}
 
   /**
-   * Envía credenciales al backend y almacena el token JWT.
-   * El operador tap() actúa como side-effect sin alterar el stream.
+   * Paso 1: Envía credenciales al backend.
+   * Si mfa_required es true, NO almacena sesión (espera segundo factor).
    */
   login(credentials: LoginPayload): Observable<AuthResponse> {
-    // OAuth2PasswordRequestForm espera form-data con 'username' y 'password'
     const formData = new FormData();
-    formData.append('username', credentials.email);
+    formData.append('username', credentials.email.trim());
     formData.append('password', credentials.password);
 
     return this.http
       .post<AuthResponse>(`${environment.apiUrl}/api/auth/login`, formData)
       .pipe(
         tap((response) => {
-          localStorage.setItem(this.TOKEN_KEY, response.access_token);
-          localStorage.setItem(this.ROLE_KEY, response.role);
-          this._isAuth.set(true);
+          if (!response.mfa_required && response.access_token) {
+            this.saveFinalSession(response);
+          }
         })
       );
+  }
+
+  /**
+   * Paso 2A: Verificar código de 6 dígitos del autenticador (TOTP).
+   */
+  mfaVerify(code: string, mfaToken: string): Observable<AuthResponse> {
+    return this.http
+      .post<AuthResponse>(`${environment.apiUrl}/api/auth/mfa/verify`, {
+        code: code.trim(),
+        mfa_token: mfaToken,
+      })
+      .pipe(tap((response) => this.saveFinalSession(response)));
+  }
+
+  /**
+   * Paso 2B: Iniciar enrolamiento de autenticador (obtener QR, secreto y recovery codes).
+   */
+  mfaSetup(mfaToken: string): Observable<MFASetupResponse> {
+    const headers = new HttpHeaders({ Authorization: `Bearer ${mfaToken}` });
+    return this.http.post<MFASetupResponse>(
+      `${environment.apiUrl}/api/auth/mfa/setup`,
+      { body_token: mfaToken },
+      { headers }
+    );
+  }
+
+  /**
+   * Paso 2C: Confirmar código inicial y activar MFA definitivamente en la cuenta.
+   */
+  mfaActivate(code: string, mfaToken: string): Observable<AuthResponse> {
+    return this.http
+      .post<AuthResponse>(`${environment.apiUrl}/api/auth/mfa/activate`, {
+        code: code.trim(),
+        mfa_token: mfaToken,
+      })
+      .pipe(tap((response) => this.saveFinalSession(response)));
+  }
+
+  /**
+   * Paso 2D: Acceso de emergencia con código de recuperación de un solo uso.
+   */
+  mfaRecover(recoveryCode: string, mfaToken: string): Observable<AuthResponse> {
+    return this.http
+      .post<AuthResponse>(`${environment.apiUrl}/api/auth/mfa/recover`, {
+        recovery_code: recoveryCode.trim(),
+        mfa_token: mfaToken,
+      })
+      .pipe(tap((response) => this.saveFinalSession(response)));
+  }
+
+  private saveFinalSession(response: AuthResponse): void {
+    if (response.access_token) {
+      localStorage.setItem(this.TOKEN_KEY, response.access_token);
+      localStorage.setItem(this.ROLE_KEY, response.role);
+      this._isAuth.set(true);
+    }
   }
 
   logout(): void {
@@ -67,10 +133,6 @@ export class AuthService {
     return localStorage.getItem(this.ROLE_KEY);
   }
 
-  /**
-   * Extrae el email del JWT almacenado (campo 'sub' del payload).
-   * Decodifica en cliente sin validar firma — solo para mostrar en UI.
-   */
   getEmail(): string | null {
     const token = this.getToken();
     if (!token) return null;
@@ -86,7 +148,6 @@ export class AuthService {
     return this.hasValidToken();
   }
 
-  /** Verifica que exista un token y que su firma no haya expirado según exp */
   private hasValidToken(): boolean {
     const token = localStorage.getItem(this.TOKEN_KEY);
     if (!token) return false;

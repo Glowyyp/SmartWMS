@@ -24,6 +24,10 @@ import com.journeyapps.barcodescanner.ScanOptions
 import com.journeyapps.barcodescanner.ScanIntentResult
 import androidx.navigation.fragment.findNavController
 import com.smartwms.operario.R
+import android.widget.EditText
+import android.widget.FrameLayout
+import android.text.InputType
+import android.graphics.Color
 
 class PickingFragment : Fragment() {
 
@@ -38,10 +42,17 @@ class PickingFragment : Fragment() {
 
     // Ya no mantenemos estado duplicado local. El adapter usará el estado que le pasemos.
 
-    // Launcher para el escáner QR de ZXing
+    // Launcher para escanear código de pedido (QR o Código de barras)
+    private val orderScanLauncher = registerForActivityResult(ScanContract()) { result: ScanIntentResult ->
+        if (result.contents != null) {
+            processOrderCode(result.contents)
+        }
+    }
+
+    // Launcher para el escáner de productos (QR o Código de barras ZXing multiformato)
     private val qrLauncher = registerForActivityResult(ScanContract()) { result: ScanIntentResult ->
         if (result.contents != null) {
-            handleQrScan(result.contents)
+            processProductCode(result.contents)
         }
     }
 
@@ -62,6 +73,7 @@ class PickingFragment : Fragment() {
         // Refrescar manualmente
         binding.btnRefreshOrders.setOnClickListener {
             orderVm.loadPendingOrders()
+            orderVm.loadAllOrders()
         }
     }
 
@@ -73,13 +85,31 @@ class PickingFragment : Fragment() {
         }
         binding.rvWorkOrders.layoutManager = LinearLayoutManager(requireContext())
         binding.rvWorkOrders.adapter = workOrderAdapter
+
+        // Escanear código de pedido (QR o Barras)
+        binding.btnScanOrder.setOnClickListener {
+            val options = ScanOptions().apply {
+                setDesiredBarcodeFormats(ScanOptions.ALL_CODE_TYPES)
+                setPrompt("Escanea el código del pedido (QR o Barras)")
+                setCameraId(0)
+                setBeepEnabled(true)
+                setBarcodeImageEnabled(false)
+                setOrientationLocked(false)
+            }
+            orderScanLauncher.launch(options)
+        }
+
+        // Ingreso manual de código de pedido
+        binding.btnManualOrder.setOnClickListener {
+            showManualOrderDialog()
+        }
     }
 
     // ── VISTA 2: Detalle del pedido activo ────────────────────────────────────
 
     private fun setupPickingDetail() {
         pickingAdapter = PickingAdapter(
-            items = mutableListOf(), // Inicia vacío, pero modificable
+            items = mutableListOf(),
             onLocationClick = { sku, location ->
                 showLocationDialog(sku, location)
             }
@@ -88,19 +118,23 @@ class PickingFragment : Fragment() {
         binding.rvPickingItems.layoutManager = LinearLayoutManager(requireContext())
         binding.rvPickingItems.adapter = pickingAdapter
 
-        // Botón QR Scanner
+        // Botón Escáner de producto (compatible con QR y Código de barras 1D)
         binding.btnScanQr.setOnClickListener {
-            val options = ScanOptions()
-            options.setDesiredBarcodeFormats(ScanOptions.ALL_CODE_TYPES)
-            options.setPrompt("Escanea el código del producto (SKU)")
-            options.setCameraId(0)
-            options.setBeepEnabled(true)
-            options.setBarcodeImageEnabled(false)
-            options.setOrientationLocked(false)
+            val options = ScanOptions().apply {
+                setDesiredBarcodeFormats(ScanOptions.ALL_CODE_TYPES)
+                setPrompt("Escanea el código del producto (QR o Barras)")
+                setCameraId(0)
+                setBeepEnabled(true)
+                setBarcodeImageEnabled(false)
+                setOrientationLocked(false)
+            }
             qrLauncher.launch(options)
         }
 
-        // Ya no hay botón Confirmar Despacho en Picking. Se redirige a Packing.
+        // Botón Ingreso manual de código de producto
+        binding.btnManualCode.setOnClickListener {
+            showManualProductDialog()
+        }
 
         // Botón volver a la lista
         binding.btnBackToList.setOnClickListener {
@@ -220,17 +254,155 @@ class PickingFragment : Fragment() {
         binding.tvProgress.text = "$pct% completado ($done/$total)"
     }
 
-    // ── PROCESAMIENTO DE QR ───────────────────────────────────────────────────
+    // ── LECTURA E INGRESO MANUAL DE PEDIDO ────────────────────────────────────
 
-    private fun handleQrScan(scannedCode: String) {
-        val cleanCode = scannedCode.trim()
+    private fun showManualOrderDialog() {
+        val input = EditText(requireContext()).apply {
+            hint = "Ej: WO-0001 o 1"
+            inputType = InputType.TYPE_CLASS_TEXT
+            setTextColor(Color.WHITE)
+            setHintTextColor(Color.GRAY)
+        }
+        val container = FrameLayout(requireContext()).apply {
+            val params = FrameLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                ViewGroup.LayoutParams.WRAP_CONTENT
+            )
+            params.setMargins(50, 20, 50, 10)
+            input.layoutParams = params
+            addView(input)
+        }
+
+        AlertDialog.Builder(requireContext())
+            .setTitle("⌨️ Ingresar Código de Pedido")
+            .setMessage("Escribe el número de pedido para abrirlo:")
+            .setView(container)
+            .setPositiveButton("Abrir Pedido") { _, _ ->
+                val code = input.text.toString().trim()
+                if (code.isNotEmpty()) {
+                    processOrderCode(code)
+                } else {
+                    Toast.makeText(requireContext(), "Debes ingresar un número de pedido.", Toast.LENGTH_SHORT).show()
+                }
+            }
+            .setNegativeButton("Cancelar", null)
+            .show()
+    }
+
+    private fun processOrderCode(rawCode: String) {
+        val clean = rawCode.trim()
+        if (clean.isEmpty()) return
+
+        // Normalizar si se ingresa solo el número secuencial (ej: 1 -> WO-0001)
+        val normalized = if (clean.all { it.isDigit() }) {
+            String.format(java.util.Locale.US, "WO-%04d", clean.toInt())
+        } else {
+            clean
+        }
+
+        val pendingList = orderVm.workOrders.value ?: emptyList()
+        val order = pendingList.find {
+            it.orderNumber.equals(normalized, ignoreCase = true) ||
+            it.orderNumber.equals(clean, ignoreCase = true) ||
+            it.id.toString() == clean
+        }
+
+        if (order != null) {
+            orderVm.selectOrder(order)
+            Toast.makeText(requireContext(), "✓ Pedido ${order.orderNumber} cargado para picking", Toast.LENGTH_SHORT).show()
+            return
+        }
+
+        // Si no está en pendientes, buscar en el historial general para retroalimentar con precisión
+        val allList = orderVm.allOrders.value ?: emptyList()
+        val historicalOrder = allList.find {
+            it.orderNumber.equals(normalized, ignoreCase = true) ||
+            it.orderNumber.equals(clean, ignoreCase = true) ||
+            it.id.toString() == clean
+        }
+
+        if (historicalOrder != null) {
+            when (historicalOrder.status) {
+                "dispatched" -> {
+                    AlertDialog.Builder(requireContext())
+                        .setTitle("⚠️ Pedido ya Despachado")
+                        .setMessage("El pedido ${historicalOrder.orderNumber} ya fue procesado y despachado con anterioridad.")
+                        .setPositiveButton("OK", null)
+                        .show()
+                }
+                "cancelled" -> {
+                    AlertDialog.Builder(requireContext())
+                        .setTitle("❌ Pedido Cancelado")
+                        .setMessage("El pedido ${historicalOrder.orderNumber} fue cancelado por el supervisor y no está disponible para picking.")
+                        .setPositiveButton("OK", null)
+                        .show()
+                }
+                else -> {
+                    AlertDialog.Builder(requireContext())
+                        .setTitle("⚠️ Pedido No Disponible")
+                        .setMessage("El pedido ${historicalOrder.orderNumber} se encuentra en estado '${historicalOrder.status}' y no está asignado a tu usuario para picking.")
+                        .setPositiveButton("OK", null)
+                        .show()
+                }
+            }
+        } else {
+            AlertDialog.Builder(requireContext())
+                .setTitle("❌ Pedido No Encontrado")
+                .setMessage("El código de pedido '$clean' no existe en el sistema o no corresponde a tus pedidos asignados.")
+                .setPositiveButton("OK", null)
+                .show()
+        }
+    }
+
+    // ── LECTURA E INGRESO MANUAL DE PRODUCTO (SKU / BARRAS / QR) ──────────────
+
+    private fun showManualProductDialog() {
+        val input = EditText(requireContext()).apply {
+            hint = "Ej: SKU-001 o código de barras"
+            inputType = InputType.TYPE_CLASS_TEXT
+            setTextColor(Color.WHITE)
+            setHintTextColor(Color.GRAY)
+        }
+        val container = FrameLayout(requireContext()).apply {
+            val params = FrameLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                ViewGroup.LayoutParams.WRAP_CONTENT
+            )
+            params.setMargins(50, 20, 50, 10)
+            input.layoutParams = params
+            addView(input)
+        }
+
+        AlertDialog.Builder(requireContext())
+            .setTitle("⌨️ Ingreso Manual de Producto")
+            .setMessage("Ingresa el código SKU o código de barras del producto:")
+            .setView(container)
+            .setPositiveButton("Validar Código") { _, _ ->
+                val code = input.text.toString().trim()
+                if (code.isNotEmpty()) {
+                    processProductCode(code)
+                } else {
+                    Toast.makeText(requireContext(), "Debes ingresar un código de producto.", Toast.LENGTH_SHORT).show()
+                }
+            }
+            .setNegativeButton("Cancelar", null)
+            .show()
+    }
+
+    private fun processProductCode(scannedOrManualCode: String) {
+        val cleanCode = scannedOrManualCode.trim()
+        if (cleanCode.isEmpty()) {
+            Toast.makeText(requireContext(), "Código vacío.", Toast.LENGTH_SHORT).show()
+            return
+        }
+
         val order = orderVm.selectedOrder.value ?: return
         val item = order.items.find { it.sku.trim().equals(cleanCode, ignoreCase = true) }
         
         if (item == null) {
             AlertDialog.Builder(requireContext())
                 .setTitle("❌ Código Inválido")
-                .setMessage("El producto escaneado ($cleanCode) no pertenece a este pedido.")
+                .setMessage("El producto con código '$cleanCode' no pertenece a este pedido (${order.orderNumber}).")
                 .setPositiveButton("OK", null)
                 .show()
             return
@@ -242,17 +414,17 @@ class PickingFragment : Fragment() {
         if (pendingQty <= 0) {
             AlertDialog.Builder(requireContext())
                 .setTitle("⚠️ Producto completado")
-                .setMessage("Ya recolectaste todas las unidades requeridas de ${item.productName}.")
+                .setMessage("Ya recolectaste todas las unidades requeridas de ${item.productName} (${item.quantity}/${item.quantity}).")
                 .setPositiveButton("OK", null)
                 .show()
             return
         }
 
         if (item.quantity == 1) {
-            // Si solo se pidió 1, saltar el cuadro de texto y agregar directo
+            // Si solo se pidió 1 unidad, sumar de inmediato sin pedir diálogo adicional
             processQuantityInput(item, 1)
         } else {
-            // Mostrar input para solicitar cantidad
+            // Solicitar cantidad pendiente
             showQuantityInputDialog(item, pendingQty)
         }
     }

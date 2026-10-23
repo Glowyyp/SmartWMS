@@ -20,6 +20,9 @@ import com.journeyapps.barcodescanner.ScanContract
 import com.journeyapps.barcodescanner.ScanOptions
 import com.journeyapps.barcodescanner.ScanIntentResult
 import android.app.AlertDialog
+import android.widget.EditText
+import android.widget.FrameLayout
+import android.text.InputType
 
 class PackingFragment : Fragment() {
 
@@ -94,16 +97,26 @@ class PackingFragment : Fragment() {
         binding.btnClosePacking.setOnClickListener {
             val order = orderVm.selectedOrder.value
             if (order != null && (order.status == "pending" || order.status == "assigned")) {
-                val options = ScanOptions()
-                options.setDesiredBarcodeFormats(ScanOptions.ALL_CODE_TYPES)
-                options.setPrompt("Escanea el QR de la Mesa")
-                options.setCameraId(0)
-                options.setBeepEnabled(true)
-                options.setBarcodeImageEnabled(false)
-                options.setOrientationLocked(false)
+                val options = ScanOptions().apply {
+                    setDesiredBarcodeFormats(ScanOptions.ALL_CODE_TYPES)
+                    setPrompt("Escanea el código de la Mesa (QR o Barras)")
+                    setCameraId(0)
+                    setBeepEnabled(true)
+                    setBarcodeImageEnabled(false)
+                    setOrientationLocked(false)
+                }
                 qrLauncher.launch(options)
             } else if (order != null && order.status == "dispatched") {
                 navigateBackSafely()
+            } else {
+                Toast.makeText(requireContext(), "No hay pedido pendiente para cerrar.", Toast.LENGTH_SHORT).show()
+            }
+        }
+
+        binding.btnManualPacking.setOnClickListener {
+            val order = orderVm.selectedOrder.value
+            if (order != null && (order.status == "pending" || order.status == "assigned")) {
+                showManualTableDialog()
             } else {
                 Toast.makeText(requireContext(), "No hay pedido pendiente para cerrar.", Toast.LENGTH_SHORT).show()
             }
@@ -135,6 +148,8 @@ class PackingFragment : Fragment() {
             "dispatched" -> {
                 binding.tvPackingStatus.setTextColor(Color.parseColor("#4ade80"))
                 binding.btnClosePacking.isEnabled = true
+                binding.btnManualPacking.isEnabled = false
+                binding.btnManualPacking.visibility = View.GONE
                 binding.btnClosePacking.text = "✅ Pedido Despachado (Volver al Inicio)"
                 binding.btnClosePacking.setOnClickListener {
                     navigateBackSafely()
@@ -144,13 +159,16 @@ class PackingFragment : Fragment() {
             "cancelled" -> {
                 binding.tvPackingStatus.setTextColor(Color.parseColor("#f87171"))
                 binding.btnClosePacking.isEnabled = false
+                binding.btnManualPacking.isEnabled = false
                 "❌ Pedido ${order.orderNumber} está cancelado."
             }
             else -> {
                 binding.tvPackingStatus.setTextColor(Color.parseColor("#4ade80"))
                 binding.btnClosePacking.isEnabled = true
-                binding.btnClosePacking.text = "📷 Escanear QR de Mesa"
-                "📋 Pedido ${order.orderNumber} — Todos los productos recolectados.\n\nEscanea la mesa para finalizar."
+                binding.btnManualPacking.isEnabled = true
+                binding.btnManualPacking.visibility = View.VISIBLE
+                binding.btnClosePacking.text = "📷 Escanear Mesa"
+                "📋 Pedido ${order.orderNumber} — Todos los productos recolectados.\n\nEscanea o ingresa la mesa para finalizar."
             }
         }
         binding.tvPackingStatus.text = statusLabel
@@ -205,37 +223,75 @@ class PackingFragment : Fragment() {
         }
     }
 
-    private fun handleQrScan(scannedCode: String) {
+    private fun showManualTableDialog() {
         val order = orderVm.selectedOrder.value ?: return
         val expectedCode = "MESA-${order.orderNumber}"
-        
-        if (scannedCode.trim().equals(expectedCode, ignoreCase = true)) {
+        val input = EditText(requireContext()).apply {
+            hint = "Ej: $expectedCode"
+            inputType = InputType.TYPE_CLASS_TEXT
+            setTextColor(Color.WHITE)
+            setHintTextColor(Color.GRAY)
+        }
+        val container = FrameLayout(requireContext()).apply {
+            val params = FrameLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                ViewGroup.LayoutParams.WRAP_CONTENT
+            )
+            params.setMargins(50, 20, 50, 10)
+            input.layoutParams = params
+            addView(input)
+        }
+
+        AlertDialog.Builder(requireContext())
+            .setTitle("⌨️ Ingreso Manual de Mesa")
+            .setMessage("Ingresa el identificador de la mesa de empaque asignada:")
+            .setView(container)
+            .setPositiveButton("Confirmar Mesa") { _, _ ->
+                val code = input.text.toString().trim()
+                if (code.isNotEmpty()) {
+                    processTableCode(code)
+                } else {
+                    Toast.makeText(requireContext(), "Debes ingresar un código de mesa.", Toast.LENGTH_SHORT).show()
+                }
+            }
+            .setNegativeButton("Cancelar", null)
+            .show()
+    }
+
+    private fun handleQrScan(scannedCode: String) {
+        processTableCode(scannedCode)
+    }
+
+    private fun processTableCode(code: String) {
+        val order = orderVm.selectedOrder.value ?: return
+        val expectedCode = "MESA-${order.orderNumber}"
+        val clean = code.trim()
+
+        if (clean.equals(expectedCode, ignoreCase = true) || clean.equals(order.orderNumber, ignoreCase = true)) {
             // Leer valores de los bultos
             val l = binding.etPkgLength.text.toString().toDoubleOrNull()
             val w = binding.etPkgWidth.text.toString().toDoubleOrNull()
             val h = binding.etPkgHeight.text.toString().toDoubleOrNull()
             val weight = binding.etPkgWeight.text.toString().toDoubleOrNull()
-            
+
             val pkgList = if (l != null || w != null || h != null || weight != null) {
                 listOf(com.smartwms.operario.data.api.DispatchPackageIn(
                     length = l, width = w, height = h, weight = weight
                 ))
             } else emptyList()
-            
+
             val payload = com.smartwms.operario.data.api.DispatchIn(
                 packages = pkgList,
                 totalWeight = weight,
                 totalVolume = if (l != null && w != null && h != null) (l * w * h) else null
             )
-            
-            // Mesa válida
-            Toast.makeText(requireContext(), "Mesa válida. Finalizando pedido...", Toast.LENGTH_SHORT).show()
+
+            Toast.makeText(requireContext(), "✓ Mesa verificada. Finalizando despacho...", Toast.LENGTH_SHORT).show()
             orderVm.dispatchSelectedOrder(payload)
         } else {
-            // Mesa inválida
             AlertDialog.Builder(requireContext())
                 .setTitle("❌ Mesa Incorrecta")
-                .setMessage("Esta mesa no corresponde al pedido.\n\nCódigo escaneado: $scannedCode\nEsperado: $expectedCode")
+                .setMessage("El código ingresado o escaneado no corresponde a la mesa de este pedido.\n\nCódigo recibido: $clean\nEsperado: $expectedCode")
                 .setPositiveButton("OK", null)
                 .show()
         }

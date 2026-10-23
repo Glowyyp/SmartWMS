@@ -24,6 +24,17 @@ export interface WorkOrderPackage {
   created_at: string;
 }
 
+export interface WorkOrderStatusHistory {
+  id: number;
+  work_order_id: number;
+  from_status: string | null;
+  to_status: string;
+  changed_by_id?: number | null;
+  changed_by_email?: string | null;
+  notes?: string | null;
+  created_at: string;
+}
+
 export interface WorkOrder {
   id: number;
   order_number: string;
@@ -34,6 +45,8 @@ export interface WorkOrder {
   assigned_operario_email: string | null;
   dispatched_by_id?: number | null;
   dispatched_by_email: string | null;
+  cancelled_by_id?: number | null;
+  cancelled_by_email?: string | null;
   created_at: string;
   dispatched_at: string | null;
   cancelled_at: string | null;
@@ -44,6 +57,7 @@ export interface WorkOrder {
   total_amount?: number;
   items: WorkOrderItemOut[];
   packages: WorkOrderPackage[];
+  status_history?: WorkOrderStatusHistory[];
 }
 
 export interface Operario {
@@ -121,4 +135,10 @@ export class WorkOrdersService {
   getOperarios(): Observable<Operario[]> {
     return this.http.get<Operario[]>(`${this.baseUrl}/operarios`);
   }
+
+  /** Historial de estados y cambios de un pedido */
+  getOrderHistory(id: number): Observable<WorkOrderStatusHistory[]> {
+    return this.http.get<WorkOrderStatusHistory[]>(`${this.baseUrl}/${id}/history`);
+  }
 }
+

@@ -1,0 +1,231 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- dialog_mfa_setup.xml — Diálogo completo de configuración y activación de MFA (TOTP) -->
+<ScrollView
+    xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:background="@color/surface_dark">
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        android:padding="20dp">
+
+        <!-- ══ CABECERA ══ -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:gravity="center_vertical"
+            android:layout_marginBottom="16dp">
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="🛡️"
+                android:textSize="26sp"
+                android:layout_marginEnd="12dp"/>
+
+            <LinearLayout
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:orientation="vertical">
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="Configurar Autenticador (MFA)"
+                    android:textSize="17sp"
+                    android:textStyle="bold"
+                    android:textColor="@color/text_primary"/>
+
+                <TextView
+                    android:id="@+id/tv_mfa_account"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="Cuenta: operario@smartwms.com"
+                    android:textSize="12sp"
+                    android:textColor="@color/purple_light"
+                    android:layout_marginTop="2dp"/>
+            </LinearLayout>
+        </LinearLayout>
+
+        <!-- ══ PASO 1: VINCULAR APP ══ -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical"
+            android:background="@drawable/bg_card"
+            android:padding="16dp"
+            android:layout_marginBottom="16dp">
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Paso 1: Vincular App Autenticadora"
+                android:textSize="14sp"
+                android:textStyle="bold"
+                android:textColor="@color/text_primary"
+                android:layout_marginBottom="6dp"/>
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Toca el botón para abrir automáticamente tu app de autenticación (Google Authenticator, Aegis o Microsoft):"
+                android:textSize="12sp"
+                android:textColor="@color/text_secondary"
+                android:layout_marginBottom="12dp"/>
+
+            <!-- Botón de apertura automática mediante otpauth:// -->
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/btn_open_authenticator"
+                android:layout_width="match_parent"
+                android:layout_height="50dp"
+                android:text="📲 Abrir en App Autenticadora"
+                android:textSize="13sp"
+                android:textStyle="bold"
+                android:backgroundTint="@color/purple_primary"
+                android:layout_marginBottom="14dp"/>
+
+            <!-- Separador visual -->
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_gravity="center_horizontal"
+                android:text="— o escanea este código QR —"
+                android:textSize="11sp"
+                android:textColor="@color/text_muted"
+                android:layout_marginBottom="12dp"/>
+
+            <!-- Código QR generado con ZXing -->
+            <ImageView
+                android:id="@+id/iv_mfa_qr"
+                android:layout_width="210dp"
+                android:layout_height="210dp"
+                android:layout_gravity="center_horizontal"
+                android:background="#ffffff"
+                android:padding="8dp"
+                android:contentDescription="Código QR de configuración MFA"
+                android:layout_marginBottom="14dp"/>
+
+            <!-- Clave de configuración manual -->
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="O ingresa esta clave secreta manualmente:"
+                android:textSize="11sp"
+                android:textColor="@color/text_muted"
+                android:layout_marginBottom="6dp"/>
+
+            <TextView
+                android:id="@+id/tv_mfa_secret"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="JBSWY3DPEHPK3PXP"
+                android:textSize="14sp"
+                android:fontFamily="monospace"
+                android:textStyle="bold"
+                android:textColor="@color/purple_light"
+                android:gravity="center"
+                android:textIsSelectable="true"
+                android:background="@drawable/bg_card_accent"
+                android:padding="10dp"
+                android:layout_marginBottom="8dp"/>
+
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/btn_copy_secret"
+                style="@style/Widget.MaterialComponents.Button.OutlinedButton"
+                android:layout_width="match_parent"
+                android:layout_height="44dp"
+                android:text="📋 Copiar Clave al Portapapeles"
+                android:textSize="12sp"
+                app:strokeColor="@color/purple_light"
+                android:textColor="@color/purple_light"/>
+        </LinearLayout>
+
+        <!-- ══ PASO 2: VALIDAR Y ACTIVAR ══ -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical"
+            android:background="@drawable/bg_card"
+            android:padding="16dp"
+            android:layout_marginBottom="16dp">
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Paso 2: Confirmar Código Temporal"
+                android:textSize="14sp"
+                android:textStyle="bold"
+                android:textColor="@color/text_primary"
+                android:layout_marginBottom="6dp"/>
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Ingresa el código temporal de 6 dígitos que muestra tu app autenticadora:"
+                android:textSize="12sp"
+                android:textColor="@color/text_secondary"
+                android:layout_marginBottom="12dp"/>
+
+            <EditText
+                android:id="@+id/et_mfa_code"
+                android:layout_width="match_parent"
+                android:layout_height="54dp"
+                android:hint="123456"
+                android:inputType="number"
+                android:maxLength="6"
+                android:textSize="24sp"
+                android:fontFamily="monospace"
+                android:textStyle="bold"
+                android:gravity="center"
+                android:textColor="@color/text_primary"
+                android:textColorHint="@color/text_muted"
+                android:background="@drawable/bg_card_accent"
+                android:letterSpacing="0.2"/>
+
+            <TextView
+                android:id="@+id/tv_mfa_error"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:textColor="@color/error_color"
+                android:textSize="12sp"
+                android:gravity="center"
+                android:visibility="gone"
+                android:layout_marginTop="8dp"/>
+
+            <ProgressBar
+                android:id="@+id/pb_mfa_loading"
+                android:layout_width="32dp"
+                android:layout_height="32dp"
+                android:layout_gravity="center_horizontal"
+                android:visibility="gone"
+                android:layout_marginTop="10dp"/>
+
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/btn_activate_mfa"
+                android:layout_width="match_parent"
+                android:layout_height="52dp"
+                android:text="✅ Validar y Activar MFA"
+                android:textSize="14sp"
+                android:textStyle="bold"
+                android:backgroundTint="@color/green_accent"
+                android:textColor="#0f0f1a"
+                android:layout_marginTop="12dp"/>
+        </LinearLayout>
+
+        <!-- Botón Cancelar -->
+        <com.google.android.material.button.MaterialButton
+            android:id="@+id/btn_cancel_mfa"
+            style="@style/Widget.MaterialComponents.Button.TextButton"
+            android:layout_width="match_parent"
+            android:layout_height="44dp"
+            android:text="Cancelar"
+            android:textColor="@color/text_muted"/>
+
+    </LinearLayout>
+</ScrollView>

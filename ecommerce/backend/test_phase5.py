@@ -24,7 +24,34 @@ def create_user(db, email, role):
 def get_token(username, password):
     resp = client.post("/api/auth/login", data={"username": username, "password": password})
     assert resp.status_code == 200, f"Login failed for {username}: {resp.text}"
-    return resp.json()["access_token"]
+    body = resp.json()
+    if body.get("access_token"):
+        return body["access_token"]
+    
+    if body.get("mfa_required"):
+        mfa_token = body.get("mfa_token")
+        stage = body.get("stage")
+        import pyotp
+        from app.core.mfa import decrypt_secret
+        from app.models.user import User
+        if stage == "setup":
+            s_res = client.post("/api/auth/mfa/setup", headers={"Authorization": f"Bearer {mfa_token}"})
+            secret = s_res.json()["secret"]
+            code = pyotp.TOTP(secret).now()
+            act_res = client.post("/api/auth/mfa/activate", json={"code": code}, headers={"Authorization": f"Bearer {mfa_token}"})
+            return act_res.json()["access_token"]
+        elif stage == "verify":
+            with SessionLocal() as db:
+                user = db.query(User).filter(User.email == username).first()
+                user.mfa_last_used_step = None
+                user.mfa_failed_attempts = 0
+                user.mfa_locked_until = None
+                db.commit()
+                secret = decrypt_secret(user.mfa_secret_enc)
+                code = pyotp.TOTP(secret).now()
+            v_res = client.post("/api/auth/mfa/verify", json={"code": code}, headers={"Authorization": f"Bearer {mfa_token}"})
+            return v_res.json()["access_token"]
+    return body.get("access_token")
 
 def main():
     print("Iniciando pruebas de la Fase 5...")

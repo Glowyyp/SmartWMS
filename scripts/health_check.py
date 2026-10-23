@@ -8,9 +8,9 @@ import socket
 import os
 
 services = [
-    ("Backend API (FastAPI)", "http://127.0.0.1:8001/api/v1/orders", 8001),
-    ("Bot IA & Copiloto",     "http://127.0.0.1:8000/docs",          8000),
-    ("Frontend Web (Angular)","http://127.0.0.1:4200",               4200),
+    ("Backend API (FastAPI)", "http://127.0.0.1:8001/health", 8001),
+    ("Bot IA & Copiloto",     "http://127.0.0.1:8000/health", 8000),
+    ("Frontend Web (Angular)","http://127.0.0.1:4200",        4200),
 ]
 
 def check_service(name, url, port):
@@ -36,26 +36,59 @@ def check_service(name, url, port):
     except Exception as exc:
         return "[ACTIVO]  ", f"Puerto abierto (iniciando...)"
 
+def check_database():
+    import sqlite3
+    db_path = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "ecommerce.db")
+    if not os.path.exists(db_path):
+        return "[INACTIVO]", f"Archivo no encontrado ({os.path.basename(db_path)})"
+    try:
+        conn = sqlite3.connect(db_path, timeout=2.0)
+        cur = conn.cursor()
+        cur.execute("SELECT COUNT(*) FROM users")
+        user_count = cur.fetchone()[0]
+        cur.execute("SELECT COUNT(*) FROM product_inventory")
+        prod_count = cur.fetchone()[0]
+        cur.execute("SELECT COUNT(*) FROM work_orders")
+        wo_count = cur.fetchone()[0]
+        conn.close()
+        return "[ACTIVO]  ", f"ecommerce.db OK ({user_count} usuarios, {prod_count} productos, {wo_count} ordenes trabajo)"
+    except Exception as e:
+        return "[ERROR]   ", f"Error de lectura SQLite: {e}"
+
 def main():
-    print("=" * 65)
-    print("         SmartWMS - ESTADO DE LOS SERVICIOS")
-    print("=" * 65)
-    print(f"{'SERVICIO':<25} | {'ESTADO':<10} | {'DETALLE'}")
-    print("-" * 65)
+    try:
+        from get_ip import detect_ip
+        ip = detect_ip()
+    except Exception:
+        ip = "127.0.0.1"
+
+    print("=" * 68)
+    print("           SmartWMS - ESTADO DE LOS SERVICIOS Y RECURSOS")
+    print("=" * 68)
+    print(f" IP detectada para red local / remota: {ip}")
+    print("-" * 68)
+    print(f"{'COMPONENTE':<25} | {'ESTADO':<10} | {'DETALLE'}")
+    print("-" * 68)
     
-    all_ok = True
+    # 1. Base de datos
+    db_status, db_detail = check_database()
+    print(f"{'Base de Datos (SQLite)':<25} | {db_status} | {db_detail}")
+
+    # 2. Servicios de red
+    all_ok = "[ACTIVO]" in db_status
     for name, url, port in services:
         status, detail = check_service(name, url, port)
         print(f"{name:<25} | {status} | {detail}")
         if "[ACTIVO]" not in status:
             all_ok = False
             
-    print("-" * 65)
+    print("-" * 68)
     if all_ok:
-        print("[OK] Todos los servicios estan funcionando correctamente.")
+        print("[OK] Todos los servicios y recursos estan funcionando correctamente.")
     else:
         print("[INFO] Algunos servicios no estan activos. Ejecuta 'iniciar.bat'.")
-    print("=" * 65)
+    print("=" * 68)
 
 if __name__ == "__main__":
     main()
+

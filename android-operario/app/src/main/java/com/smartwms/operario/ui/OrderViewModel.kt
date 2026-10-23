@@ -11,6 +11,7 @@ import androidx.lifecycle.LiveData
 import androidx.lifecycle.MutableLiveData
 import androidx.lifecycle.viewModelScope
 import com.smartwms.operario.data.api.ApiService
+import com.smartwms.operario.data.api.MfaStatusResponse
 import com.smartwms.operario.data.api.Product
 import com.smartwms.operario.data.api.RetrofitClient
 import com.smartwms.operario.data.api.WorkOrder
@@ -57,6 +58,10 @@ class OrderViewModel(application: Application) : AndroidViewModel(application) {
     var currentUserRole: String = ""
         private set
 
+    // ── Estado: MFA del usuario logueado ──────────────────────────────────────
+    private val _mfaStatus = MutableLiveData<MfaStatusResponse?>(null)
+    val mfaStatus: LiveData<MfaStatusResponse?> = _mfaStatus
+
     // ── Estado: SKUs recolectados para el pedido activo ───────────────────────
     private val _pickedSkus = MutableLiveData<Map<String, Int>>(emptyMap())
     val pickedSkus: LiveData<Map<String, Int>> = _pickedSkus
@@ -66,7 +71,21 @@ class OrderViewModel(application: Application) : AndroidViewModel(application) {
         loadInventory()
         loadPendingOrders()
         loadAllOrders()
+        loadMfaStatus()
         startPolling()
+    }
+
+    fun loadMfaStatus() {
+        viewModelScope.launch {
+            try {
+                val token = tokenStore.bearerToken()
+                val resp = api.getMfaStatus(token)
+                if (resp.isSuccessful) {
+                    _mfaStatus.value = resp.body()
+                }
+            } catch (_: Exception) {
+            }
+        }
     }
 
     // ── INFO DEL USUARIO ──────────────────────────────────────────────────────

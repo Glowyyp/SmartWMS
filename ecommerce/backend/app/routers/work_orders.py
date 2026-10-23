@@ -35,7 +35,7 @@ from sqlalchemy.orm import Session
 from app.database import get_db
 from app.models.inventory import ProductInventory
 from app.models.user import User
-from app.models.work_order import WorkOrder, WorkOrderItem, WorkOrderPackage
+from app.models.work_order import WorkOrder, WorkOrderItem, WorkOrderPackage, WorkOrderStatusHistory
 from app.routers.auth import get_current_user, require_supervisor_or_admin
 
 logger = logging.getLogger(__name__)
@@ -125,6 +125,19 @@ class WorkOrderPackageOut(BaseModel):
     model_config = {"from_attributes": True}
 
 
+class WorkOrderStatusHistoryOut(BaseModel):
+    id: int
+    work_order_id: int
+    from_status: Optional[str] = None
+    to_status: str
+    changed_by_id: Optional[int] = None
+    changed_by_email: Optional[str] = None
+    notes: Optional[str] = None
+    created_at: datetime
+
+    model_config = {"from_attributes": True}
+
+
 class WorkOrderOut(BaseModel):
     id: int
     order_number: str
@@ -135,6 +148,8 @@ class WorkOrderOut(BaseModel):
     assigned_operario_email: Optional[str] = None
     dispatched_by_id: Optional[int] = None
     dispatched_by_email: Optional[str] = None
+    cancelled_by_id: Optional[int] = None
+    cancelled_by_email: Optional[str] = None
     created_at: datetime
     dispatched_at: Optional[datetime] = None
     cancelled_at: Optional[datetime] = None
@@ -145,6 +160,7 @@ class WorkOrderOut(BaseModel):
     total_amount: float = 0.0
     items: List[WorkOrderItemOut] = []
     packages: List[WorkOrderPackageOut] = []
+    status_history: List[WorkOrderStatusHistoryOut] = []
 
     model_config = {"from_attributes": True}
 
@@ -248,6 +264,27 @@ def _validate_and_get_operario(
     return user
 
 
+def _record_status_change(
+    wo: WorkOrder,
+    from_status: Optional[str],
+    to_status: str,
+    user: Optional[User],
+    db: Session,
+    notes: Optional[str] = None,
+) -> WorkOrderStatusHistory:
+    """Registra una entrada en el historial de estados de pedidos con auditoría del usuario."""
+    entry = WorkOrderStatusHistory(
+        work_order_id=wo.id,
+        from_status=from_status,
+        to_status=to_status,
+        changed_by_id=user.id if user else None,
+        changed_by_email=user.email if user else None,
+        notes=notes,
+    )
+    db.add(entry)
+    return entry
+
+
 def _enrich_work_order(wo: WorkOrder, db: Session) -> WorkOrderOut:
     """
     Enriquece un WorkOrder con precios unitarios, subtotales, totales
@@ -293,6 +330,10 @@ def _enrich_work_order(wo: WorkOrder, db: Session) -> WorkOrderOut:
         WorkOrderPackageOut.model_validate(p) for p in (wo.packages or [])
     ]
 
+    history_out = [
+        WorkOrderStatusHistoryOut.model_validate(h) for h in (wo.status_history or [])
+    ]
+
     return WorkOrderOut(
         id=wo.id,
         order_number=wo.order_number,
@@ -303,6 +344,8 @@ def _enrich_work_order(wo: WorkOrder, db: Session) -> WorkOrderOut:
         assigned_operario_email=wo.assigned_operario_email,
         dispatched_by_id=wo.dispatched_by_id,
         dispatched_by_email=wo.dispatched_by_email,
+        cancelled_by_id=wo.cancelled_by_id,
+        cancelled_by_email=wo.cancelled_by_email,
         created_at=wo.created_at,
         dispatched_at=wo.dispatched_at,
         cancelled_at=wo.cancelled_at,
@@ -313,6 +356,7 @@ def _enrich_work_order(wo: WorkOrder, db: Session) -> WorkOrderOut:
         total_amount=round(total_amt, 2),
         items=items_out,
         packages=pkgs_out,
+        status_history=history_out,
     )
 
 
@@ -495,6 +539,8 @@ def create_work_order(
             quantity=item.quantity,
         ))
 
+    _record_status_change(wo, None, wo.status, current_user, db, notes="Pedido creado")
+
     db.commit()
     db.refresh(wo)
     logger.info("📦 Pedido creado: %s status=%s operario=%s", wo.order_number, wo.status, wo.assigned_operario_email)
@@ -529,6 +575,9 @@ def update_work_order(
     wo = db.query(WorkOrder).filter(WorkOrder.id == order_id).first()
     if not wo:
         raise HTTPException(http_status.HTTP_404_NOT_FOUND, detail=f"Pedido {order_id} no encontrado")
+
+    old_status = wo.status
+    old_operario = wo.assigned_operario_email
 
     # Invariante: pedidos finalizados no pueden reactivarse ni cambiar sus ítems
     if wo.status in ["dispatched", "cancelled"]:
@@ -577,8 +626,12 @@ def update_work_order(
 
         if target_status == "cancelled" and wo.status != "cancelled":
             wo.cancelled_at = datetime.now(timezone.utc)
+            wo.cancelled_by_id = current_user.id
+            wo.cancelled_by_email = current_user.email
         elif target_status != "cancelled":
             wo.cancelled_at = None
+            wo.cancelled_by_id = None
+            wo.cancelled_by_email = None
 
         wo.status = target_status
 
@@ -631,6 +684,17 @@ def update_work_order(
                 quantity=item.quantity,
             ))
 
+    if wo.status != old_status:
+        _record_status_change(
+            wo, old_status, wo.status, current_user, db,
+            notes=f"Estado actualizado por {current_user.email}",
+        )
+    elif wo.assigned_operario_email != old_operario:
+        _record_status_change(
+            wo, old_status, wo.status, current_user, db,
+            notes=f"Operario modificado a '{wo.assigned_operario_email or 'Sin asignar'}' por {current_user.email}",
+        )
+
     db.commit()
     db.refresh(wo)
     logger.info("✏️ Pedido %s actualizado: status=%s operario=%s", wo.order_number, wo.status, wo.assigned_operario_email)
@@ -666,6 +730,9 @@ def assign_work_order(
     if wo.status in ["dispatched", "cancelled"]:
         raise HTTPException(http_status.HTTP_409_CONFLICT, detail=f"No se puede asignar un pedido en estado {wo.status}")
 
+    old_status = wo.status
+    old_op_email = wo.assigned_operario_email
+
     op_user = _validate_and_get_operario(
         db, payload.assigned_operario_id, payload.assigned_operario_email
     )
@@ -680,6 +747,11 @@ def assign_work_order(
         wo.assigned_operario_email = None
         if wo.status in ["pending", "assigned"]:
             wo.status = "por_asignar"
+
+    _record_status_change(
+        wo, old_status, wo.status, current_user, db,
+        notes=f"Operario asignado a '{wo.assigned_operario_email or 'Sin asignar'}' por {current_user.email}",
+    )
 
     db.commit()
     db.refresh(wo)
@@ -715,6 +787,7 @@ def dispatch_work_order(
             raise HTTPException(http_status.HTTP_409_CONFLICT, detail="El pedido está esperando stock y no es despachable")
         raise HTTPException(http_status.HTTP_409_CONFLICT, detail=f"El pedido está en estado {wo.status} y no puede despacharse")
 
+    old_status = wo.status
     calc_total_weight = 0.0
     calc_total_volume = 0.0
 
@@ -786,6 +859,11 @@ def dispatch_work_order(
             )
             db.add(pkg)
 
+        _record_status_change(
+            wo, old_status, "dispatched", current_user, db,
+            notes=f"Pedido despachado por {current_user.email}",
+        )
+
         db.commit()
         db.refresh(wo)
         logger.info("✅ Pedido despachado: %s por %s", wo.order_number, current_user.email)
@@ -825,12 +903,44 @@ def cancel_work_order(
     if wo.status == "dispatched":
         raise HTTPException(http_status.HTTP_409_CONFLICT, detail="No se puede cancelar un pedido ya despachado")
     if wo.status == "cancelled":
-        raise HTTPException(http_status.HTTP_409_CONFLICT, detail="El pedido ya está cancelado")
-
+        raise HTTPException(http_status.HTTP_409_CONFLICT, detail="El pedido ya se encuentra cancelado")
+    old_status = wo.status
     wo.status = "cancelled"
     wo.cancelled_at = datetime.now(timezone.utc)
+    wo.cancelled_by_id = current_user.id
+    wo.cancelled_by_email = current_user.email
+
+    _record_status_change(wo, old_status, "cancelled", current_user, db, notes="Pedido cancelado por supervisor")
 
     db.commit()
     db.refresh(wo)
     logger.info("❌ Pedido cancelado: %s por %s", wo.order_number, current_user.email)
     return _enrich_work_order(wo, db)
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# GET /api/v1/work-orders/{id}/history
+# ─────────────────────────────────────────────────────────────────────────────
+
+@router.get(
+    "/{order_id}/history",
+    response_model=List[WorkOrderStatusHistoryOut],
+    summary="Historial de cambios de estado del pedido",
+)
+def get_work_order_history(
+    order_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Retorna el historial completo de transiciones de estado y modificaciones del pedido."""
+    wo = db.query(WorkOrder).filter(WorkOrder.id == order_id).first()
+    if not wo:
+        raise HTTPException(http_status.HTTP_404_NOT_FOUND, detail=f"Pedido {order_id} no encontrado")
+
+    history = (
+        db.query(WorkOrderStatusHistory)
+        .filter(WorkOrderStatusHistory.work_order_id == order_id)
+        .order_by(WorkOrderStatusHistory.id.desc())
+        .all()
+    )
+    return [WorkOrderStatusHistoryOut.model_validate(h) for h in history]

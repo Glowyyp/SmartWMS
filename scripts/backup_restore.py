@@ -46,11 +46,8 @@ def restore(target_file=None):
         print(f"[ERROR] El archivo de respaldo no existe: {target_file}")
         return False
 
-    # Copiar a la raiz y a backend
+    # Copiar a la raiz (base de datos canonica)
     shutil.copy2(target_file, db_source)
-    backend_db = os.path.join(root_dir, "ecommerce", "backend", "ecommerce.db")
-    if os.path.exists(os.path.dirname(backend_db)):
-        shutil.copy2(target_file, backend_db)
 
     print(f"[OK] Base de datos restaurada correctamente desde:")
     print(f"     {target_file} -> {db_source}")

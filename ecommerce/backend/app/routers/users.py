@@ -104,3 +104,39 @@ def toggle_user_active(
     state = "activado" if user.is_active else "desactivado"
     logger.info("Usuario %s: %s", user.email, state)
     return user
+
+
+@router.post(
+    "/{user_id}/reset-mfa",
+    response_model=UserOut,
+    summary="Restablecer MFA de un usuario (admin o supervisor)",
+)
+def reset_user_mfa_admin(
+    user_id: int,
+    db: Session = Depends(get_db),
+    admin_user: User = Depends(require_supervisor_or_admin),
+):
+    """
+    Procedimiento de recuperación administrativo:
+    Desvincula el autenticador TOTP y códigos del usuario especificado.
+    En su siguiente inicio de sesión, el usuario podrá volver a vincular un nuevo autenticador.
+    """
+    from app.core import mfa
+
+    user = db.query(User).filter(User.id == user_id).first()
+    if not user:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Usuario con id={user_id} no encontrado",
+        )
+    mfa.reset_user_mfa(user)
+    db.commit()
+    db.refresh(user)
+    logger.warning(
+        "MFA restablecido para %s por orden de %s (%s)",
+        user.email,
+        admin_user.email,
+        admin_user.role,
+    )
+    return user
+

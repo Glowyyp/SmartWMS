@@ -87,6 +87,25 @@ class MainActivity : AppCompatActivity() {
 
     override fun onOptionsItemSelected(item: MenuItem): Boolean {
         return when (item.itemId) {
+            R.id.action_mfa -> {
+                lifecycleScope.launch {
+                    val token = tokenStore.getToken()
+                    if (token != null) {
+                        MfaDialogHelper.showMfaSetupDialog(
+                            activity = this@MainActivity,
+                            token = token,
+                            isPendingToken = false
+                        ) { newToken ->
+                            lifecycleScope.launch {
+                                val email = tokenStore.getEmail() ?: "operario"
+                                val role  = tokenStore.getRole() ?: "operario"
+                                tokenStore.saveCredentials(newToken, role, email)
+                            }
+                        }
+                    }
+                }
+                true
+            }
             R.id.action_logout -> {
                 lifecycleScope.launch {
                     tokenStore.clear()
