@@ -1189,7 +1189,9 @@ export class SupervisorComponent implements OnInit, OnDestroy {
   }
 
   getItemsTooltip(wo: WorkOrder): string {
-    return (wo.items || []).map(it => `${it.sku}: ${it.quantity} uds (${it.product_name})`).join('\n');
+    return (wo.items || [])
+      .map(it => `• ${it.sku} — ${it.product_name} (${it.quantity} uds)`)
+      .join('\n');
   }
 
   getStockStatus(p: ProductInventory): 'critical' | 'warning' | 'ok' {

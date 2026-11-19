@@ -1,7 +1,8 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- fragment_putaway.xml -->
+<!-- fragment_putaway.xml — Almacenamiento y asignación de ubicaciones reales en bodega -->
 <ScrollView
     xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
     android:background="@color/bg_dark">
@@ -15,38 +16,116 @@
         <TextView
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:text="Almacenamiento de Producto"
+            android:text="Putaway — Almacenamiento en Bodega"
             android:textSize="16sp"
             android:textStyle="bold"
             android:textColor="@color/text_secondary"
             android:textAllCaps="true"
             android:letterSpacing="0.06"
-            android:layout_marginBottom="20dp"/>
+            android:layout_marginBottom="6dp"/>
 
-        <!-- SKU -->
-        <com.google.android.material.textfield.TextInputLayout
-            android:id="@+id/til_sku"
-            style="@style/Widget.MaterialComponents.TextInputLayout.OutlinedBox"
+        <TextView
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:hint="SKU del Producto *"
-            android:layout_marginBottom="16dp">
-            <com.google.android.material.textfield.TextInputEditText
-                android:id="@+id/et_sku"
+            android:text="Selecciona un producto del inventario (por SKU, nombre o escáner) y asígnale su rack o zona de almacenamiento real."
+            android:textSize="12.5sp"
+            android:textColor="@color/text_muted"
+            android:layout_marginBottom="16dp"/>
+
+        <!-- Campo SKU con Autocompletado + botón de escáner -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:gravity="top"
+            android:layout_marginBottom="12dp">
+
+            <com.google.android.material.textfield.TextInputLayout
+                android:id="@+id/til_sku"
+                style="@style/Widget.MaterialComponents.TextInputLayout.OutlinedBox.ExposedDropdownMenu"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:hint="Buscar o seleccionar SKU *"
+                app:boxStrokeColor="@color/purple_primary"
+                app:hintTextColor="@color/purple_light">
+
+                <AutoCompleteTextView
+                    android:id="@+id/actv_sku"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:completionThreshold="0"
+                    android:dropDownHeight="260dp"
+                    android:inputType="textNoSuggestions"
+                    android:textColor="@color/text_primary"
+                    android:fontFamily="monospace"
+                    android:imeOptions="actionNext" />
+            </com.google.android.material.textfield.TextInputLayout>
+
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/btn_scan_putaway_sku"
+                style="@style/Widget.MaterialComponents.Button.OutlinedButton"
+                android:layout_width="wrap_content"
+                android:layout_height="56dp"
+                android:layout_marginStart="8dp"
+                android:layout_marginTop="4dp"
+                android:text="📷"
+                android:textSize="18sp"
+                app:strokeColor="@color/purple_primary" />
+        </LinearLayout>
+
+        <!-- Tarjeta de producto seleccionado -->
+        <LinearLayout
+            android:id="@+id/card_selected_product"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical"
+            android:background="@drawable/bg_card_accent"
+            android:padding="12dp"
+            android:layout_marginBottom="16dp"
+            android:visibility="gone">
+
+            <TextView
+                android:id="@+id/tv_selected_name"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:inputType="text"
                 android:textColor="@color/text_primary"
-                android:fontFamily="monospace"/>
-        </com.google.android.material.textfield.TextInputLayout>
+                android:textSize="15sp"
+                android:textStyle="bold" />
 
-        <!-- Cantidad -->
+            <TextView
+                android:id="@+id/tv_selected_sku"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="2dp"
+                android:fontFamily="monospace"
+                android:textColor="@color/purple_light"
+                android:textSize="12.5sp" />
+
+            <TextView
+                android:id="@+id/tv_selected_stock"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="6dp"
+                android:textSize="13sp"
+                android:textStyle="bold" />
+
+            <TextView
+                android:id="@+id/tv_selected_current_loc"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="2dp"
+                android:textColor="@color/text_secondary"
+                android:textSize="12.5sp" />
+        </LinearLayout>
+
+        <!-- Cantidad a almacenar -->
         <com.google.android.material.textfield.TextInputLayout
             android:id="@+id/til_quantity"
             style="@style/Widget.MaterialComponents.TextInputLayout.OutlinedBox"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:hint="Cantidad *"
+            android:hint="Cantidad a almacenar *"
             android:layout_marginBottom="16dp">
             <com.google.android.material.textfield.TextInputEditText
                 android:id="@+id/et_quantity"
@@ -56,11 +135,11 @@
                 android:textColor="@color/text_primary"/>
         </com.google.android.material.textfield.TextInputLayout>
 
-        <!-- Ubicacion (Spinner) -->
+        <!-- Ubicacion (Spinner conectado al layout del almacén) -->
         <TextView
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:text="Ubicacion de Destino *"
+            android:text="Ubicación de Destino *"
             android:textSize="12sp"
             android:textColor="@color/text_muted"
             android:layout_marginBottom="4dp"/>
@@ -70,7 +149,16 @@
             android:layout_width="match_parent"
             android:layout_height="56dp"
             android:background="@drawable/bg_spinner"
-            android:layout_marginBottom="24dp"/>
+            android:layout_marginBottom="20dp"/>
+
+        <ProgressBar
+            android:id="@+id/pb_putaway"
+            style="?android:attr/progressBarStyleHorizontal"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:indeterminate="true"
+            android:visibility="gone"
+            android:layout_marginBottom="8dp" />
 
         <!-- Boton Confirmar -->
         <com.google.android.material.button.MaterialButton

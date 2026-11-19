@@ -5,6 +5,7 @@ import { ApplicationConfig, provideZonelessChangeDetection } from '@angular/core
 import { provideRouter, withViewTransitions } from '@angular/router';
 import { provideHttpClient, withInterceptors } from '@angular/common/http';
 import { provideAnimationsAsync } from '@angular/platform-browser/animations/async';
+import { MAT_TOOLTIP_DEFAULT_OPTIONS } from '@angular/material/tooltip';
 
 import { routes } from './app.routes';
 import { authInterceptor } from './core/interceptors/auth.interceptor';
@@ -22,5 +23,17 @@ export const appConfig: ApplicationConfig = {
 
     // Animaciones de Angular Material (lazy por defecto en v17+)
     provideAnimationsAsync(),
+
+    // Configuración uniforme de tooltips en toda la aplicación
+    {
+      provide: MAT_TOOLTIP_DEFAULT_OPTIONS,
+      useValue: {
+        showDelay: 120,
+        hideDelay: 120,
+        touchendHideDelay: 1500,
+        position: 'above',
+        disableTooltipInteractivity: false,
+      },
+    },
   ],
 };

@@ -10,6 +10,7 @@ DELETE /api/v1/inventory/{id}  → Eliminar producto (requiere JWT admin)
 from __future__ import annotations
 
 import logging
+import re
 from typing import List
 
 from fastapi import APIRouter, Depends, HTTPException, status
@@ -24,13 +25,39 @@ from app.models.pending_reception import PendingReception
 from app.routers.auth import get_current_user, require_admin, require_supervisor_or_admin
 from app.schemas.inventory import (
     ProductCreate, ProductOut, ProductUpdate,
-    PendingReceptionCreate, PendingReceptionOut, PendingReceptionConfirm, PendingReceptionUpdate
+    PendingReceptionCreate, PendingReceptionOut, PendingReceptionConfirm, PendingReceptionUpdate,
+    PutawayRequest, PutawayResponse,
 )
 from datetime import datetime, timezone
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/v1/inventory", tags=["Inventario"])
+
+ACTIVE_RESERVED_STATUSES = [
+    "pending",
+    "waiting_stock",
+    "por_asignar",
+    "assigned",
+    "in_preparation",
+    "in_progress",
+]
+
+WAREHOUSE_LAYOUT_RACKS = [
+    {"code": "A-01", "zone": "A", "label": "Zona A — Insumos (Rack A-01)"},
+    {"code": "A-02", "zone": "A", "label": "Zona A — Insumos (Rack A-02)"},
+    {"code": "A-03", "zone": "A", "label": "Zona A — Insumos (Rack A-03)"},
+    {"code": "B-01", "zone": "B", "label": "Zona B — Electrónica (Rack B-01)"},
+    {"code": "B-02", "zone": "B", "label": "Zona B — Electrónica (Rack B-02)"},
+    {"code": "B-03", "zone": "B", "label": "Zona B — Electrónica (Rack B-03)"},
+    {"code": "B-04", "zone": "B", "label": "Zona B — Electrónica (Rack B-04)"},
+    {"code": "C-01", "zone": "C", "label": "Zona C — Periféricos (Rack C-01)"},
+    {"code": "C-02", "zone": "C", "label": "Zona C — Periféricos (Rack C-02)"},
+    {"code": "C-03", "zone": "C", "label": "Zona C — Periféricos (Rack C-03)"},
+    {"code": "D-01", "zone": "D", "label": "Zona D — Cuarentena (Rack D-01)"},
+    {"code": "D-02", "zone": "D", "label": "Zona D — Cuarentena (Rack D-02)"},
+]
+VALID_LOCATION_PATTERN = re.compile(r"^[ABCD](?:-\d{2}(?:-[A-Z0-9]+)?)?$")
 
 
 # ─── GET /api/v1/inventory ────────────────────────────────────────────────────
@@ -433,3 +460,112 @@ def cancel_pending_reception(
     db.commit()
     db.refresh(reception)
     return reception
+
+
+# ─── PUTAWAY (Ubicación de productos en bodega) ────────────────────────────────
+
+@router.get(
+    "/locations",
+    summary="Listar ubicaciones válidas del layout físico del almacén",
+)
+def list_warehouse_locations(
+    _: object = Depends(get_current_user),
+):
+    """Retorna los racks del layout físico del almacén para asignación de Putaway."""
+    return WAREHOUSE_LAYOUT_RACKS
+
+
+@router.post(
+    "/putaway",
+    response_model=PutawayResponse,
+    summary="Registrar almacenamiento (Putaway) y asignar ubicación a un producto",
+)
+def register_putaway(
+    payload: PutawayRequest,
+    db: Session = Depends(get_db),
+    current_user: object = Depends(get_current_user),
+):
+    """
+    Registra el almacenamiento físico (Putaway) de un SKU existente en una
+    ubicación válida del almacén, actualizando su warehouse_location real.
+    Valida existencia del SKU, formato de ubicación y stock físico suficiente.
+    """
+    clean_sku = payload.sku.strip()
+    clean_location = payload.location.strip().upper()
+
+    if not clean_sku:
+        raise HTTPException(status_code=422, detail="El SKU es obligatorio.")
+
+    if not VALID_LOCATION_PATTERN.match(clean_location):
+        raise HTTPException(
+            status_code=422,
+            detail=(
+                f"Ubicación '{payload.location}' inválida. Usa una zona o rack del layout "
+                "(ej: A-01, B-02, C-03, D-01)."
+            ),
+        )
+
+    product = db.execute(
+        select(ProductInventory)
+        .where(func.lower(ProductInventory.sku) == clean_sku.lower())
+        .with_for_update()
+    ).scalar_one_or_none()
+
+    if not product:
+        raise HTTPException(
+            status_code=404,
+            detail=f"El SKU '{clean_sku}' no existe en el inventario.",
+        )
+
+    if product.stock_quantity <= 0:
+        raise HTTPException(
+            status_code=409,
+            detail=(
+                f"El producto {product.sku} ({product.product_name}) no tiene stock físico "
+                "en bodega (stock = 0). Registra o confirma una recepción primero."
+            ),
+        )
+
+    if payload.quantity > product.stock_quantity:
+        raise HTTPException(
+            status_code=409,
+            detail=(
+                f"La cantidad a almacenar ({payload.quantity}) supera el stock físico "
+                f"actual en bodega ({product.stock_quantity}) para {product.sku}."
+            ),
+        )
+
+    reserved = db.execute(
+        select(func.sum(WorkOrderItem.quantity))
+        .join(WorkOrder, WorkOrder.id == WorkOrderItem.work_order_id)
+        .where(
+            WorkOrder.status.in_(ACTIVE_RESERVED_STATUSES),
+            WorkOrderItem.sku == product.sku,
+        )
+    ).scalar() or 0
+    reserved_int = int(reserved)
+    available_int = max(0, product.stock_quantity - reserved_int)
+
+    previous_location = product.warehouse_location
+    product.warehouse_location = clean_location
+
+    db.commit()
+    db.refresh(product)
+
+    user_email = getattr(current_user, "email", "usuario")
+    logger.info(
+        "📥 Putaway registrado por %s: SKU=%s qty=%d ubicacion %s -> %s",
+        user_email, product.sku, payload.quantity, previous_location, clean_location,
+    )
+
+    return PutawayResponse(
+        message=f"Putaway confirmado: {product.sku} x{payload.quantity} almacenado en {clean_location}.",
+        sku=product.sku,
+        product_name=product.product_name,
+        quantity=payload.quantity,
+        previous_location=previous_location,
+        new_location=clean_location,
+        stock_quantity=product.stock_quantity,
+        reserved_qty=reserved_int,
+        available_qty=available_int,
+    )

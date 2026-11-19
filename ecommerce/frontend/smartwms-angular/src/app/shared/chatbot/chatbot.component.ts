@@ -34,6 +34,8 @@ interface ChatMessage {
       color="primary"
       (click)="toggleOpen()"
       [matTooltip]="isOpen() ? 'Cerrar Copiloto' : 'Abrir Copiloto IA'"
+      matTooltipPosition="left"
+      matTooltipClass="wms-tooltip"
     >
       <mat-icon>{{ isOpen() ? 'close' : 'smart_toy' }}</mat-icon>
     </button>
@@ -438,6 +440,6 @@ export class ChatbotComponent implements AfterViewChecked {
     try {
       const el = this.messagesContainer?.nativeElement;
       if (el) el.scrollTop = el.scrollHeight;
-    } catch (_) {}
+    } catch (_) { }
   }
 }

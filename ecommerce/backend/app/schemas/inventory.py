@@ -123,3 +123,23 @@ class PendingReceptionOut(BaseModel):
     received_at: datetime | None = None
 
     model_config = {"from_attributes": True}
+
+
+# ─── Putaway ──────────────────────────────────────────────────────────────────
+
+class PutawayRequest(BaseModel):
+    sku: str = Field(min_length=1, max_length=100)
+    quantity: int = Field(gt=0)
+    location: str = Field(min_length=1, max_length=50)
+
+
+class PutawayResponse(BaseModel):
+    message: str
+    sku: str
+    product_name: str
+    quantity: int
+    previous_location: str | None = None
+    new_location: str
+    stock_quantity: int
+    reserved_qty: int
+    available_qty: int

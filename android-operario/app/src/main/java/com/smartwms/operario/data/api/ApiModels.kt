@@ -144,6 +144,32 @@ data class DispatchIn(
     @SerializedName("total_volume") val totalVolume: Double? = null
 )
 
+// ─── Putaway ──────────────────────────────────────────────────────────────────
+
+data class WarehouseLocationItem(
+    val code: String,
+    val zone: String,
+    val label: String
+)
+
+data class PutawayRequest(
+    val sku: String,
+    val quantity: Int,
+    val location: String
+)
+
+data class PutawayResponse(
+    val message: String,
+    val sku: String,
+    @SerializedName("product_name")      val productName: String,
+    val quantity: Int,
+    @SerializedName("previous_location") val previousLocation: String? = null,
+    @SerializedName("new_location")      val newLocation: String,
+    @SerializedName("stock_quantity")    val stockQuantity: Int,
+    @SerializedName("reserved_qty")      val reservedQty: Int,
+    @SerializedName("available_qty")     val availableQty: Int
+)
+
 // ─── Picking (local, sin endpoint real aun) ───────────────────────────────────
 
 data class PickingItem(

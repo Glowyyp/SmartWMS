@@ -55,6 +55,17 @@ interface ApiService {
         @Header("Authorization") token: String
     ): Response<List<Product>>
 
+    @GET("api/v1/inventory/locations")
+    suspend fun getWarehouseLocations(
+        @Header("Authorization") token: String
+    ): Response<List<WarehouseLocationItem>>
+
+    @POST("api/v1/inventory/putaway")
+    suspend fun registerPutaway(
+        @Header("Authorization") token: String,
+        @Body request: PutawayRequest
+    ): Response<PutawayResponse>
+
     // ── Work Orders (Pedidos de Bodega) ───────────────────────────────────────
 
     /**

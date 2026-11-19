@@ -53,7 +53,7 @@
           <p class="user-role">{{ getRoleLabel(userRole()) }}</p>
         </div>
       </div>
-      <button mat-icon-button (click)="logout()" matTooltip="Cerrar sesión">
+      <button mat-icon-button (click)="logout()" matTooltip="Cerrar sesión" matTooltipPosition="right" matTooltipClass="wms-tooltip">
         <mat-icon>logout</mat-icon>
       </button>
     </div>
@@ -324,7 +324,7 @@
                       [value]="line.quantity" min="1" [max]="line.available_qty"
                       (change)="updateEditLineQty(line.sku, +$any($event.target).value)" />
                     <span class="line-subtotal amount">{{ (line.quantity * (line.unit_price || 0)) | currency:'USD' }}</span>
-                    <button mat-icon-button color="warn" (click)="removeEditLine(line.sku)" [id]="'edit-rm-' + line.sku" matTooltip="Eliminar ítem">
+                    <button mat-icon-button color="warn" (click)="removeEditLine(line.sku)" [id]="'edit-rm-' + line.sku" matTooltip="Eliminar ítem" matTooltipClass="wms-tooltip">
                       <mat-icon>close</mat-icon>
                     </button>
                   </div>

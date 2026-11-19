@@ -13,7 +13,10 @@ import androidx.lifecycle.viewModelScope
 import com.smartwms.operario.data.api.ApiService
 import com.smartwms.operario.data.api.MfaStatusResponse
 import com.smartwms.operario.data.api.Product
+import com.smartwms.operario.data.api.PutawayRequest
+import com.smartwms.operario.data.api.PutawayResponse
 import com.smartwms.operario.data.api.RetrofitClient
+import com.smartwms.operario.data.api.WarehouseLocationItem
 import com.smartwms.operario.data.api.WorkOrder
 import com.smartwms.operario.data.local.TokenStore
 import kotlinx.coroutines.Job
@@ -43,6 +46,9 @@ class OrderViewModel(application: Application) : AndroidViewModel(application) {
     private val _inventoryMap = MutableLiveData<Map<String, Product>>(emptyMap())
     val inventoryMap: LiveData<Map<String, Product>> = _inventoryMap
 
+    private val _warehouseLocations = MutableLiveData<List<WarehouseLocationItem>>(emptyList())
+    val warehouseLocations: LiveData<List<WarehouseLocationItem>> = _warehouseLocations
+
     // ── Estado: loading y error ───────────────────────────────────────────────
     private val _isLoading = MutableLiveData(false)
     val isLoading: LiveData<Boolean> = _isLoading
@@ -70,6 +76,7 @@ class OrderViewModel(application: Application) : AndroidViewModel(application) {
     init {
         loadUserInfo()
         loadInventory()
+        loadWarehouseLocations()
         loadPendingOrders()
         loadAllOrders()
         loadMfaStatus()
@@ -98,6 +105,24 @@ class OrderViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     // ── CARGA DE INVENTARIO ───────────────────────────────────────────────────
+    fun refreshInventory() {
+        loadInventory()
+        loadWarehouseLocations()
+    }
+
+    private fun loadWarehouseLocations() {
+        viewModelScope.launch {
+            try {
+                val token = tokenStore.bearerToken()
+                val resp = api.getWarehouseLocations(token)
+                if (resp.isSuccessful) {
+                    _warehouseLocations.postValue(resp.body() ?: emptyList())
+                }
+            } catch (_: Exception) {
+            }
+        }
+    }
+
     /**
      * Carga el inventario completo para tener warehouse_location de cada SKU.
      * Esta es la misma fuente de datos que el Supervisor usa en Layout.
@@ -314,6 +339,42 @@ class OrderViewModel(application: Application) : AndroidViewModel(application) {
                 }
             } catch (e: Exception) {
                 _error.postValue("Error de conexión: ${e.message}")
+            } finally {
+                _isLoading.postValue(false)
+            }
+        }
+    }
+
+    fun registerPutaway(
+        sku: String,
+        quantity: Int,
+        location: String,
+        onSuccess: (PutawayResponse) -> Unit,
+        onError: (String) -> Unit
+    ) {
+        viewModelScope.launch {
+            _isLoading.postValue(true)
+            try {
+                val token = tokenStore.bearerToken()
+                val resp = api.registerPutaway(
+                    token = token,
+                    request = PutawayRequest(sku = sku, quantity = quantity, location = location)
+                )
+                if (resp.isSuccessful && resp.body() != null) {
+                    val result = resp.body()!!
+                    loadInventory()
+                    onSuccess(result)
+                } else {
+                    val raw = resp.errorBody()?.string().orEmpty()
+                    val detail = try {
+                        org.json.JSONObject(raw).optString("detail").ifBlank { raw }
+                    } catch (_: Exception) {
+                        raw
+                    }
+                    onError(detail.ifBlank { "Error HTTP ${resp.code()} al registrar Putaway." })
+                }
+            } catch (e: Exception) {
+                onError("Sin conexión al servidor: ${e.message}")
             } finally {
                 _isLoading.postValue(false)
             }
