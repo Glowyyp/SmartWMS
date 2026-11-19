@@ -6,14 +6,18 @@ import {
 } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
+import { DomSanitizer, SafeHtml } from '@angular/platform-browser';
 import { MatIconModule } from '@angular/material/icon';
 import { MatButtonModule } from '@angular/material/button';
 import { MatTooltipModule } from '@angular/material/tooltip';
+import { marked } from 'marked';
+import DOMPurify from 'dompurify';
 import { ChatService } from '../../core/services/chat.service';
 
 interface ChatMessage {
   role: 'user' | 'assistant';
   text: string;
+  renderedHtml?: SafeHtml;
   timestamp: Date;
 }
 
@@ -58,7 +62,11 @@ interface ChatMessage {
           @for (msg of messages(); track $index) {
             <div class="message-row" [class.user-row]="msg.role === 'user'">
               <div class="message-bubble" [class.user-bubble]="msg.role === 'user'" [class.bot-bubble]="msg.role === 'assistant'">
-                <p class="message-text">{{ msg.text }}</p>
+                @if (msg.role === 'assistant') {
+                  <div class="md-content" [innerHTML]="msg.renderedHtml"></div>
+                } @else {
+                  <p class="message-text">{{ msg.text }}</p>
+                }
                 <p class="message-time">{{ msg.timestamp | date:'HH:mm' }}</p>
               </div>
             </div>
@@ -194,7 +202,96 @@ interface ChatMessage {
       border-bottom-left-radius: 4px;
     }
     .message-text { margin: 0 0 4px; white-space: pre-wrap; word-break: break-word; }
-    .message-time { margin: 0; font-size: 10px; opacity: 0.5; }
+    .message-time { margin: 4px 0 0; font-size: 10px; opacity: 0.5; }
+
+    .bot-bubble { max-width: 88%; }
+
+    .md-content {
+      word-break: break-word;
+      overflow-x: auto;
+    }
+    .md-content ::ng-deep p { margin: 0 0 8px; }
+    .md-content ::ng-deep p:last-child { margin-bottom: 0; }
+    .md-content ::ng-deep h1,
+    .md-content ::ng-deep h2,
+    .md-content ::ng-deep h3 {
+      margin: 10px 0 6px;
+      font-weight: 700;
+      color: #f8fafc;
+      line-height: 1.3;
+    }
+    .md-content ::ng-deep h1:first-child,
+    .md-content ::ng-deep h2:first-child,
+    .md-content ::ng-deep h3:first-child { margin-top: 0; }
+    .md-content ::ng-deep h1 { font-size: 15px; }
+    .md-content ::ng-deep h2 { font-size: 14px; }
+    .md-content ::ng-deep h3 { font-size: 13.5px; color: #c7d2fe; }
+    .md-content ::ng-deep strong { color: #ffffff; font-weight: 700; }
+    .md-content ::ng-deep em { font-style: italic; color: #cbd5e1; }
+    .md-content ::ng-deep ul,
+    .md-content ::ng-deep ol {
+      margin: 4px 0 8px;
+      padding-left: 18px;
+    }
+    .md-content ::ng-deep li { margin-bottom: 3px; }
+    .md-content ::ng-deep code {
+      background: rgba(99, 102, 241, 0.22);
+      color: #c7d2fe;
+      padding: 1px 5px;
+      border-radius: 4px;
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 12px;
+    }
+    .md-content ::ng-deep pre {
+      background: rgba(15, 15, 26, 0.85);
+      border: 1px solid rgba(99, 102, 241, 0.28);
+      border-radius: 8px;
+      padding: 8px 10px;
+      margin: 6px 0 8px;
+      overflow-x: auto;
+    }
+    .md-content ::ng-deep pre code {
+      background: transparent;
+      padding: 0;
+      color: #e2e8f0;
+      font-size: 11.5px;
+      display: block;
+      white-space: pre;
+    }
+    .md-content ::ng-deep blockquote {
+      margin: 6px 0 8px;
+      padding: 4px 10px;
+      border-left: 3px solid #818cf8;
+      background: rgba(99, 102, 241, 0.1);
+      border-radius: 0 6px 6px 0;
+      color: #cbd5e1;
+    }
+    .md-content ::ng-deep hr {
+      border: none;
+      border-top: 1px solid rgba(255, 255, 255, 0.14);
+      margin: 8px 0;
+    }
+    .md-content ::ng-deep a {
+      color: #93c5fd;
+      text-decoration: underline;
+    }
+    .md-content ::ng-deep table {
+      width: 100%;
+      border-collapse: collapse;
+      margin: 6px 0 8px;
+      font-size: 12px;
+    }
+    .md-content ::ng-deep th,
+    .md-content ::ng-deep td {
+      border: 1px solid rgba(255, 255, 255, 0.14);
+      padding: 5px 7px;
+      text-align: left;
+    }
+    .md-content ::ng-deep th {
+      background: rgba(99, 102, 241, 0.22);
+      color: #f8fafc;
+      font-weight: 600;
+    }
 
     .typing-bubble { display: flex; gap: 5px; align-items: center; padding: 14px; }
     .dot {
@@ -257,15 +354,42 @@ export class ChatbotComponent implements AfterViewChecked {
   isLoading = signal(false);
   inputText = '';
 
-  messages = signal<ChatMessage[]>([
-    {
-      role: 'assistant',
-      text: '¡Hola! Soy el Copiloto IA de SmartWMS. Puedo ayudarte con consultas de stock, procesos de picking, packing y protocolos de bodega. ¿En qué te ayudo?',
-      timestamp: new Date(),
-    },
-  ]);
+  messages = signal<ChatMessage[]>([]);
 
-  constructor(private chatService: ChatService) {}
+  constructor(
+    private chatService: ChatService,
+    private sanitizer: DomSanitizer,
+  ) {
+    marked.setOptions({ gfm: true, breaks: true });
+    this.messages.set([
+      this.buildBotMessage(
+        '¡Hola! Soy el **Copiloto IA de SmartWMS**. Puedo ayudarte con consultas de stock, procesos de picking, packing y protocolos de bodega. ¿En qué te ayudo?'
+      ),
+    ]);
+  }
+
+  private renderMarkdown(markdownText: string): SafeHtml {
+    const rawHtml = marked.parse(markdownText || '', { async: false }) as string;
+    const cleanHtml = DOMPurify.sanitize(rawHtml, {
+      USE_PROFILES: { html: true },
+      ADD_ATTR: ['target', 'rel'],
+    });
+    // Asegurar que enlaces externos abran de forma segura en nueva pestaña
+    const withSafeLinks = cleanHtml.replace(
+      /<a\s+href=/gi,
+      '<a target="_blank" rel="noopener noreferrer" href='
+    );
+    return this.sanitizer.bypassSecurityTrustHtml(withSafeLinks);
+  }
+
+  private buildBotMessage(text: string): ChatMessage {
+    return {
+      role: 'assistant',
+      text,
+      renderedHtml: this.renderMarkdown(text),
+      timestamp: new Date(),
+    };
+  }
 
   ngAfterViewChecked(): void {
     this.scrollToBottom();
@@ -296,14 +420,14 @@ export class ChatbotComponent implements AfterViewChecked {
         const replyText = res.reply?.text ?? 'Sin respuesta del servidor.';
         this.messages.update(msgs => [
           ...msgs,
-          { role: 'assistant', text: replyText, timestamp: new Date() }
+          this.buildBotMessage(replyText)
         ]);
         this.isLoading.set(false);
       },
       error: () => {
         this.messages.update(msgs => [
           ...msgs,
-          { role: 'assistant', text: '❌ No se pudo conectar con el Copiloto IA. Verifica que el bot esté corriendo en el puerto 8000.', timestamp: new Date() }
+          this.buildBotMessage('❌ No se pudo conectar con el Copiloto IA. Verifica que el servicio esté disponible.')
         ]);
         this.isLoading.set(false);
       },

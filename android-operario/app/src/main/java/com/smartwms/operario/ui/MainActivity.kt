@@ -14,6 +14,7 @@ import androidx.navigation.ui.AppBarConfiguration
 import androidx.navigation.ui.setupActionBarWithNavController
 import androidx.navigation.ui.setupWithNavController
 import com.smartwms.operario.R
+import com.smartwms.operario.data.api.RetrofitClient
 import com.smartwms.operario.data.local.TokenStore
 import com.smartwms.operario.databinding.ActivityMainBinding
 import kotlinx.coroutines.launch
@@ -108,6 +109,14 @@ class MainActivity : AppCompatActivity() {
             }
             R.id.action_logout -> {
                 lifecycleScope.launch {
+                    try {
+                        val vm = androidx.lifecycle.ViewModelProvider(this@MainActivity)[OrderViewModel::class.java]
+                        vm.stopPolling()
+                        val bearer = tokenStore.bearerToken()
+                        if (bearer != "Bearer ") {
+                            RetrofitClient.apiService.logout(bearer)
+                        }
+                    } catch (_: Exception) {}
                     tokenStore.clear()
                     startActivity(Intent(this@MainActivity, LoginActivity::class.java))
                     finish()

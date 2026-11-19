@@ -119,9 +119,17 @@ export class AuthService {
   }
 
   logout(): void {
+    const token = this.getToken();
     localStorage.removeItem(this.TOKEN_KEY);
     localStorage.removeItem(this.ROLE_KEY);
     this._isAuth.set(false);
+    if (token) {
+      this.http.post(
+        `${environment.apiUrl}/api/auth/logout`,
+        {},
+        { headers: { Authorization: `Bearer ${token}` } }
+      ).subscribe({ error: () => {} });
+    }
     this.router.navigate(['/login']);
   }
 

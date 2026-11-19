@@ -42,6 +42,11 @@ interface ApiService {
         @Header("Authorization") token: String
     ): Response<MfaStatusResponse>
 
+    @POST("api/auth/logout")
+    suspend fun logout(
+        @Header("Authorization") token: String
+    ): Response<Unit>
+
 
     // ── Inventario ────────────────────────────────────────────────────────────
     // Incluye warehouse_location para mostrar la zona de cada SKU al operario

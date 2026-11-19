@@ -31,6 +31,10 @@ class Order(Base):
     status = Column(String(50), nullable=False, default="received")
     # Posibles valores: received | processing | completed | cancelled | failed
 
+    # Estado real de pago (no se deduce automáticamente de status)
+    payment_status = Column(String(30), nullable=False, default="pending")
+    # Posibles valores: pending | paid
+
     # Timestamps
     received_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
     event_timestamp = Column(DateTime(timezone=True), nullable=False)

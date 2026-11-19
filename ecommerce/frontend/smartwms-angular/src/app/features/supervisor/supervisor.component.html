@@ -9,8 +9,8 @@
     <nav class="sidebar-nav">
       <button class="nav-item" [class.active]="activeTab() === 0" (click)="activeTab.set(0)">
         <mat-icon>dashboard</mat-icon><span>Órdenes</span>
-        @if (orders().length) {
-          <span class="nav-badge">{{ orders().length }}</span>
+        @if (paidOrders().length) {
+          <span class="nav-badge">{{ paidOrders().length }}</span>
         }
       </button>
       <!-- NUEVA pestaña: Pedidos de Bodega -->
@@ -73,11 +73,9 @@
           <div class="header-actions">
             <select id="order-status-filter" class="status-select" [(ngModel)]="selectedStatus" (ngModelChange)="onStatusFilter()">
               <option value="">Todos los estados</option>
-              <option value="received">Recibidas</option>
-              <option value="processing">Procesando</option>
-              <option value="completed">Completadas</option>
-              <option value="failed">Fallidas</option>
-              <option value="cancelled">Canceladas</option>
+              <option value="received">Recibido</option>
+              <option value="processing">En proceso</option>
+              <option value="rejected">Rechazado</option>
             </select>
             <button mat-stroked-button (click)="loadOrders()">
               <mat-icon>refresh</mat-icon> Actualizar
@@ -91,37 +89,94 @@
         @if (ordersLoading()) { <mat-progress-bar mode="indeterminate"></mat-progress-bar> }
 
         <div class="table-card">
-          <table mat-table [dataSource]="orders()" class="wms-table">
-            <ng-container matColumnDef="id">
-              <th mat-header-cell *matHeaderCellDef>#</th>
-              <td mat-cell *matCellDef="let o">{{ o.id }}</td>
-            </ng-container>
-            <ng-container matColumnDef="external_order_id">
-              <th mat-header-cell *matHeaderCellDef>ID Externo</th>
-              <td mat-cell *matCellDef="let o"><code class="mono">{{ o.external_order_id }}</code></td>
-            </ng-container>
-            <ng-container matColumnDef="customer_name">
-              <th mat-header-cell *matHeaderCellDef>Cliente</th>
-              <td mat-cell *matCellDef="let o">{{ o.customer_name }}</td>
-            </ng-container>
-            <ng-container matColumnDef="total">
-              <th mat-header-cell *matHeaderCellDef>Total</th>
-              <td mat-cell *matCellDef="let o" class="amount">${{ o.total | number:'1.2-2' }}</td>
-            </ng-container>
-            <ng-container matColumnDef="status">
-              <th mat-header-cell *matHeaderCellDef>Estado</th>
-              <td mat-cell *matCellDef="let o">
-                <span class="status-chip" [ngClass]="getOrderStatusClass(o.status)">{{ o.status }}</span>
-              </td>
-            </ng-container>
-            <ng-container matColumnDef="received_at">
-              <th mat-header-cell *matHeaderCellDef>Recibida</th>
-              <td mat-cell *matCellDef="let o">{{ o.received_at | date:'dd/MM HH:mm' }}</td>
-            </ng-container>
-            <tr mat-header-row *matHeaderRowDef="orderColumns; sticky: true"></tr>
-            <tr mat-row *matRowDef="let row; columns: orderColumns;" class="table-row"></tr>
+          <table class="wms-table native-table">
+            <thead>
+              <tr>
+                <th style="width: 40px;"></th>
+                <th>#</th>
+                <th>ID Externo</th>
+                <th>Cliente</th>
+                <th>Total</th>
+                <th>Estado</th>
+                <th>Recibida</th>
+              </tr>
+            </thead>
+            <tbody>
+              @for (o of paidOrders(); track o.id) {
+                <tr class="table-row clickable-row"
+                    [class.expanded-parent]="expandedOrderId() === o.id"
+                    (click)="toggleOrderExpand(o)"
+                    [id]="'order-row-' + o.id">
+                  <td>
+                    <mat-icon class="expand-chevron" [class.rotated]="expandedOrderId() === o.id">
+                      expand_more
+                    </mat-icon>
+                  </td>
+                  <td>{{ o.id }}</td>
+                  <td><code class="mono">{{ o.external_order_id }}</code></td>
+                  <td>{{ o.customer_name }}</td>
+                  <td class="amount">${{ o.total | number:'1.2-2' }}</td>
+                  <td>
+                    <select class="status-select order-status-select"
+                      [ngClass]="getOrderStatusClass(o.status)"
+                      [ngModel]="normalizeOrderStatusForSelect(o.status)"
+                      (change)="onOrderStatusChange(o, $event)"
+                      (click)="$event.stopPropagation()"
+                      [id]="'order-status-select-' + o.id">
+                      <option value="received">Recibido</option>
+                      <option value="processing">En proceso</option>
+                      <option value="rejected">Rechazado</option>
+                    </select>
+                  </td>
+                  <td>{{ o.received_at | date:'dd/MM HH:mm' }}</td>
+                </tr>
+                @if (expandedOrderId() === o.id) {
+                  <tr class="expanded-detail-row">
+                    <td colspan="7" class="expanded-detail-cell">
+                      <div class="order-detail-panel">
+                        <div class="order-detail-header">
+                          <div>
+                            <h3 class="order-detail-title">Orden #{{ o.id }} <code class="mono">({{ o.external_order_id }})</code></h3>
+                            <p class="order-detail-customer">
+                              Cliente: <strong>{{ o.customer_name }}</strong>
+                              @if (o.customer_id) { <span class="text-muted"> · ID: {{ o.customer_id }}</span> }
+                            </p>
+                          </div>
+                          <div class="order-detail-badges">
+                            <span class="status-chip" [ngClass]="getOrderStatusClass(o.status)">{{ getOrderStatusLabel(o.status) }}</span>
+                          </div>
+                        </div>
+
+                        @if (o.items && o.items.length > 0) {
+                          <table class="order-items-subtable">
+                            <thead>
+                              <tr>
+                                <th>Producto</th>
+                                <th>SKU</th>
+                                <th style="text-align: right;">Cantidad</th>
+                              </tr>
+                            </thead>
+                            <tbody>
+                              @for (item of o.items; track item.id) {
+                                <tr>
+                                  <td>{{ item.product_name || item.sku }}</td>
+                                  <td><code class="mono">{{ item.sku }}</code></td>
+                                  <td style="text-align: right;"><strong>{{ item.quantity }}</strong></td>
+                                </tr>
+                              }
+                            </tbody>
+                          </table>
+                        } @else {
+                          <p class="empty-lines-hint">Esta orden no registra productos asociados.</p>
+                        }
+                      </div>
+                    </td>
+                  </tr>
+                }
+              }
+            </tbody>
           </table>
-          @if (!orders().length && !ordersLoading()) {
+          @if (!paidOrders().length && !ordersLoading()) {
             <div class="empty-state"><mat-icon>receipt_long</mat-icon><p>No hay órdenes para mostrar</p></div>
           }
         </div>
@@ -300,6 +355,43 @@
           <div class="add-product-form" id="new-order-form">
             <h2 class="form-title"><mat-icon>assignment_add</mat-icon> Crear Nuevo Pedido</h2>
 
+            <!-- Cargar desde N° de Orden existente -->
+            <div class="form-field order-lookup-box">
+              <label class="form-label">Cargar productos por número o ID de orden</label>
+              <div class="order-lookup-row">
+                <input class="form-input" id="order-lookup-input" type="text"
+                  placeholder="Ej: 1024 o ORD-20240917-001"
+                  [ngModel]="orderLookupRef()"
+                  (ngModelChange)="orderLookupRef.set($event)"
+                  (keydown.enter)="loadItemsFromOrder()"
+                  [disabled]="loadingOrderLookup()"
+                  autocomplete="off" />
+                <button mat-flat-button color="accent" id="btn-load-from-order"
+                  (click)="loadItemsFromOrder()"
+                  [disabled]="loadingOrderLookup() || !orderLookupRef().trim()">
+                  <mat-icon>playlist_add</mat-icon>
+                  {{ loadingOrderLookup() ? 'Cargando...' : 'Cargar Orden' }}
+                </button>
+              </div>
+              @if (orderLookupError()) {
+                <div class="error-banner order-stock-error" id="order-lookup-error">
+                  <mat-icon>error_outline</mat-icon>
+                  <div>
+                    @if (orderLookupInsufficient().length > 0) {
+                      <strong>No se pudo completar pedido por falta de stock de:</strong>
+                      <ul class="insufficient-stock-list">
+                        @for (item of orderLookupInsufficient(); track item.sku) {
+                          <li>{{ item.sku }} - {{ item.product_name }}.</li>
+                        }
+                      </ul>
+                    } @else {
+                      <span>{{ orderLookupError() }}</span>
+                    }
+                  </div>
+                </div>
+              }
+            </div>
+
             <!-- Buscador de SKU -->
             <div class="form-field" style="position:relative">
               <label class="form-label">Buscar producto por SKU o nombre</label>
@@ -444,7 +536,10 @@
             <ng-container matColumnDef="items_count">
               <th mat-header-cell *matHeaderCellDef>Items / Total</th>
               <td mat-cell *matCellDef="let wo">
-                <span class="items-detail" [matTooltip]="getItemsTooltip(wo)">
+                <span class="items-detail"
+                  [matTooltip]="getItemsTooltip(wo)"
+                  matTooltipPosition="above"
+                  matTooltipClass="wms-tooltip">
                   {{ wo.items.length }} SKU(s) · {{ getTotalItems(wo) }} uds
                   @if (getTotalAmount(wo) > 0) {
                     <div class="items-total-amount">{{ getTotalAmount(wo) | currency:'USD':'symbol':'1.2-2' }}</div>
@@ -464,12 +559,14 @@
               <th mat-header-cell *matHeaderCellDef>Acciones</th>
               <td mat-cell *matCellDef="let wo">
                 <div class="actions-cell">
-                  <button mat-icon-button color="primary" matTooltip="Editar pedido"
+                  <button mat-icon-button color="primary"
+                    matTooltip="Editar pedido" matTooltipPosition="above" matTooltipClass="wms-tooltip"
                     (click)="openEditOrderForm(wo)" [id]="'edit-wo-' + wo.id">
                     <mat-icon>edit</mat-icon>
                   </button>
                   @if (wo.status !== 'dispatched' && wo.status !== 'cancelled' && wo.status !== 'completed') {
-                    <button mat-icon-button color="warn" matTooltip="Cancelar pedido"
+                    <button mat-icon-button color="warn"
+                      matTooltip="Cancelar pedido" matTooltipPosition="left" matTooltipClass="wms-tooltip"
                       (click)="cancelWorkOrder(wo)" [id]="'cancel-wo-' + wo.id">
                       <mat-icon>cancel</mat-icon>
                     </button>
@@ -602,66 +699,89 @@
         @if (productsLoading()) { <mat-progress-bar mode="indeterminate"></mat-progress-bar> }
 
         <div class="table-card">
-          <table mat-table [dataSource]="filteredProducts()" class="wms-table">
-            <ng-container matColumnDef="sku">
-              <th mat-header-cell *matHeaderCellDef>SKU</th>
-              <td mat-cell *matCellDef="let p"><code class="mono">{{ p.sku }}</code></td>
-            </ng-container>
-            <ng-container matColumnDef="product_name">
-              <th mat-header-cell *matHeaderCellDef>Producto</th>
-              <td mat-cell *matCellDef="let p">{{ p.product_name }}</td>
-            </ng-container>
-            <ng-container matColumnDef="stock_available">
-              <th mat-header-cell *matHeaderCellDef>Disponible</th>
-              <td mat-cell *matCellDef="let p">
-                <span class="stock-value" [class.critical]="getStockStatus(p) === 'critical'" [class.warning]="getStockStatus(p) === 'warning'">
-                  {{ p.available_qty }}
-                </span>
-              </td>
-            </ng-container>
-            <ng-container matColumnDef="stock_reserved">
-              <th mat-header-cell *matHeaderCellDef>Reservado</th>
-              <td mat-cell *matCellDef="let p">
-                <span class="reserved-badge" [class.has-reserved]="p.reserved_qty > 0">
-                  @if (p.reserved_qty > 0) { {{ p.reserved_qty }} } @else { — }
-                </span>
-              </td>
-            </ng-container>
-            <ng-container matColumnDef="pending_quantity">
-              <th mat-header-cell *matHeaderCellDef>Por llegar</th>
-              <td mat-cell *matCellDef="let p">
-                @if (p.pending_quantity > 0) {
-                  <span style="color:#f59e0b; font-weight:600; padding: 2px 6px; background-color: #fef3c7; border-radius: 4px;">
-                    +{{ p.pending_quantity }}
-                  </span>
-                } @else {
-                  <span class="text-muted">—</span>
+          <table class="wms-table native-table">
+            <thead>
+              <tr>
+                <th>SKU</th>
+                <th>Producto</th>
+                <th>Disponible</th>
+                <th>Reservado</th>
+                <th>Por llegar</th>
+                <th>Estado</th>
+                <th></th>
+              </tr>
+            </thead>
+            <tbody>
+              @for (p of filteredProducts(); track p.id) {
+                <tr class="table-row" [class.expanded-parent]="expandedProductQrId() === p.id">
+                  <td><code class="mono">{{ p.sku }}</code></td>
+                  <td>{{ p.product_name }}</td>
+                  <td>
+                    <span class="stock-value" [class.critical]="getStockStatus(p) === 'critical'" [class.warning]="getStockStatus(p) === 'warning'">
+                      {{ p.available_qty }}
+                    </span>
+                  </td>
+                  <td>
+                    <span class="reserved-badge" [class.has-reserved]="p.reserved_qty > 0">
+                      @if (p.reserved_qty > 0) { {{ p.reserved_qty }} } @else { — }
+                    </span>
+                  </td>
+                  <td>
+                    @if (p.pending_quantity > 0) {
+                      <span style="color:#f59e0b; font-weight:600; padding: 2px 6px; background-color: #fef3c7; border-radius: 4px;">
+                        +{{ p.pending_quantity }}
+                      </span>
+                    } @else {
+                      <span class="text-muted">—</span>
+                    }
+                  </td>
+                  <td>
+                    <span class="status-chip" [ngClass]="getStockStatus(p) === 'ok' ? 'chip-success' : 'chip-danger'">
+                      {{ getStockStatus(p) === 'ok' ? 'Saludable' : 'Crítico' }}
+                    </span>
+                  </td>
+                  <td style="white-space: nowrap">
+                    <button mat-icon-button color="primary"
+                      matTooltip="Editar" matTooltipPosition="above" matTooltipClass="wms-tooltip"
+                      (click)="editProduct(p)" [id]="'edit-product-' + p.id">
+                      <mat-icon>edit</mat-icon>
+                    </button>
+                    <button mat-icon-button color="warn"
+                      matTooltip="Eliminar (solo admin)" matTooltipPosition="above" matTooltipClass="wms-tooltip"
+                      (click)="deleteProduct(p.id, p.sku)" [id]="'del-product-' + p.id">
+                      <mat-icon>delete_outline</mat-icon>
+                    </button>
+                    <button mat-icon-button
+                      [color]="expandedProductQrId() === p.id ? 'accent' : ''"
+                      matTooltip="Ver código QR" matTooltipPosition="left" matTooltipClass="wms-tooltip"
+                      (click)="toggleProductQr(p)"
+                      [id]="'qr-product-' + p.id">
+                      <mat-icon>qr_code_2</mat-icon>
+                    </button>
+                  </td>
+                </tr>
+                @if (expandedProductQrId() === p.id) {
+                  <tr class="expanded-detail-row">
+                    <td colspan="7" class="expanded-detail-cell">
+                      <div class="product-qr-panel" [id]="'qr-panel-' + p.id">
+                        <div class="qr-card-box">
+                          @if (p.qr_code) {
+                            <img [src]="p.qr_code" [alt]="'Código QR ' + p.sku" class="product-qr-img" />
+                          } @else {
+                            <p class="text-muted">QR no disponible</p>
+                          }
+                          <code class="qr-sku-caption">{{ p.sku }}</code>
+                        </div>
+                        <div class="qr-meta-info">
+                          <p class="qr-product-name">{{ p.product_name }}</p>
+                          <p class="qr-hint">Escanea este código QR desde la app de operario para identificar el producto por su SKU.</p>
+                        </div>
+                      </div>
+                    </td>
+                  </tr>
                 }
-              </td>
-            </ng-container>
-            <ng-container matColumnDef="status">
-              <th mat-header-cell *matHeaderCellDef>Estado</th>
-              <td mat-cell *matCellDef="let p">
-                <span class="status-chip" [ngClass]="getStockStatus(p) === 'ok' ? 'chip-success' : 'chip-danger'">
-                  {{ getStockStatus(p) === 'ok' ? 'Saludable' : 'Crítico' }}
-                </span>
-              </td>
-            </ng-container>
-            <ng-container matColumnDef="actions">
-              <th mat-header-cell *matHeaderCellDef></th>
-              <td mat-cell *matCellDef="let p" style="white-space: nowrap">
-                <button mat-icon-button color="primary" matTooltip="Editar"
-                  (click)="editProduct(p)" [id]="'edit-product-' + p.id">
-                  <mat-icon>edit</mat-icon>
-                </button>
-                <button mat-icon-button color="warn" matTooltip="Eliminar (solo admin)"
-                  (click)="deleteProduct(p.id, p.sku)" [id]="'del-product-' + p.id">
-                  <mat-icon>delete_outline</mat-icon>
-                </button>
-              </td>
-            </ng-container>
-            <tr mat-header-row *matHeaderRowDef="inventoryColumns; sticky: true"></tr>
-            <tr mat-row *matRowDef="let row; columns: inventoryColumns;" class="table-row"></tr>
+              }
+            </tbody>
           </table>
         </div>
       </section>
@@ -672,8 +792,8 @@
       <section class="panel-section">
         <div class="section-header">
           <div>
-            <h1 class="section-title">Usuarios Registrados</h1>
-            <p class="section-subtitle">{{ users().length }} usuarios en el sistema</p>
+            <h1 class="section-title">Usuarios Conectados</h1>
+            <p class="section-subtitle">{{ visibleUsers().length }} usuarios visibles según tu rol</p>
           </div>
           <button mat-stroked-button (click)="loadUsers()">
             <mat-icon>refresh</mat-icon> Actualizar
@@ -681,22 +801,31 @@
         </div>
         @if (usersLoading()) { <mat-progress-bar mode="indeterminate"></mat-progress-bar> }
         <div class="users-grid">
-          @for (u of users(); track u.id) {
+          @for (u of visibleUsers(); track u.id) {
             <div class="user-card">
-              <div class="user-avatar">{{ (u.email[0] || '?').toUpperCase() }}</div>
+              <div class="user-avatar">{{ (getUserDisplayName(u)[0] || '?').toUpperCase() }}</div>
               <div class="user-details">
-                <p class="user-email">{{ u.email }}</p>
-                <p class="user-name">{{ u.full_name || '—' }}</p>
-                <span class="role-badge" [ngClass]="getRoleBadgeClass(u.role)">{{ getRoleLabel(u.role) }}</span>
-              </div>
-              <div class="user-meta">
-                <span class="active-dot" [class.inactive]="!u.is_active" [matTooltip]="u.is_active ? 'Activo' : 'Inactivo'"></span>
-                <p class="user-date">{{ u.created_at | date:'dd/MM/yy' }}</p>
+                <p class="user-email">{{ getUserDisplayName(u) }}</p>
+                <div class="user-badges-row">
+                  <span class="role-badge" [ngClass]="getRoleBadgeClass(u.role)">{{ getRoleLabel(u.role) }}</span>
+                  <span class="conn-badge" [class.online]="u.is_online">
+                    <span class="active-dot" [class.inactive]="!u.is_online"></span>
+                    {{ u.is_online ? 'Conectado' : 'Desconectado' }}
+                  </span>
+                </div>
+                <p class="user-last-conn">
+                  Última conexión:
+                  @if (getUserLastConnection(u); as lastConn) {
+                    <strong>{{ lastConn | date:'dd/MM/yyyy HH:mm' }}</strong>
+                  } @else {
+                    <span>Sin registro</span>
+                  }
+                </p>
               </div>
             </div>
           }
-          @if (!users().length && !usersLoading()) {
-            <div class="empty-state"><mat-icon>group_off</mat-icon><p>No hay usuarios registrados</p></div>
+          @if (!visibleUsers().length && !usersLoading()) {
+            <div class="empty-state"><mat-icon>group_off</mat-icon><p>No hay usuarios disponibles</p></div>
           }
         </div>
       </section>
@@ -764,7 +893,7 @@
           <div class="bi-card bi-card--purple">
             <mat-icon>group</mat-icon>
             <h3>Usuarios del Sistema</h3>
-            <p class="bi-value">{{ users().length }}</p>
+            <p class="bi-value">{{ visibleUsers().length }}</p>
             <p class="bi-subtitle">Activos en SmartWMS</p>
           </div>
         </div>

@@ -55,6 +55,9 @@ class ProductInventory(Base):
     
     has_box = Column(Boolean, nullable=False, default=True)
 
+    # Código QR único (SVG Data URI) vinculado al SKU del producto
+    qr_code = Column(Text, nullable=True)
+
     # Timestamps de auditoría
     created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
     updated_at = Column(

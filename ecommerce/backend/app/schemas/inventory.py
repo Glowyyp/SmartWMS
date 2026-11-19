@@ -78,6 +78,7 @@ class ProductOut(BaseModel):
     weight: Decimal | None = None
     weight_unit: str = "kg"
     has_box: bool = True
+    qr_code: str | None = None
     created_at: datetime
     updated_at: datetime
 

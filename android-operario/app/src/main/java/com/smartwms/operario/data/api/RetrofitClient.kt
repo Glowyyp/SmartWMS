@@ -18,7 +18,7 @@ class HostSelectionInterceptor : Interceptor {
     @Volatile var host: String? = null
     @Volatile var scheme: String? = null
     @Volatile var backendPort: Int? = null
-    @Volatile var botPort: Int = 8000
+    @Volatile var botPort: Int? = 8000
 
     override fun intercept(chain: Interceptor.Chain): Response {
         var request = chain.request()
@@ -31,7 +31,7 @@ class HostSelectionInterceptor : Interceptor {
             // Distinguir llamadas al bot (puerto 8000 o ruta que contiene chat)
             val isBotRequest = request.url.port == 8000 || request.url.encodedPath.contains("chat")
             val targetPort = if (isBotRequest) {
-                botPort
+                botPort ?: backendPort ?: request.url.port
             } else {
                 backendPort ?: request.url.port
             }
@@ -81,10 +81,18 @@ object RetrofitClient {
         try {
             val uri = URI(clean)
             if (!uri.host.isNullOrEmpty()) {
+                val resolvedScheme = uri.scheme ?: "http"
                 hostInterceptor.host = uri.host
-                hostInterceptor.scheme = uri.scheme ?: "http"
-                hostInterceptor.backendPort = if (uri.port != -1) uri.port else 8001
-                hostInterceptor.botPort = 8000
+                hostInterceptor.scheme = resolvedScheme
+                if (resolvedScheme == "https") {
+                    val httpsPort = if (uri.port != -1) uri.port else 443
+                    hostInterceptor.backendPort = httpsPort
+                    // En HTTPS (Cloud Run) el backend hace proxy de /api/chat en el mismo puerto
+                    hostInterceptor.botPort = httpsPort
+                } else {
+                    hostInterceptor.backendPort = if (uri.port != -1) uri.port else 8001
+                    hostInterceptor.botPort = 8000
+                }
             }
         } catch (_: Exception) {}
     }

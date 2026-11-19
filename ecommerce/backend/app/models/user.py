@@ -22,6 +22,9 @@ class User(Base):
     # roles posibles: 'admin' | 'supervisor' | 'operario'
 
     is_active      = Column(Boolean, default=True, nullable=False)
+    is_connected   = Column(Boolean, default=False, nullable=False)
+    last_login_at  = Column(DateTime(timezone=True), nullable=True)
+    last_seen_at   = Column(DateTime(timezone=True), nullable=True)
 
     # ─── Autenticación multifactor (TOTP RFC 6238) ───────────────────────────
     # Los secretos se guardan CIFRADOS (Fernet/AES) y los códigos de recuperación

@@ -42,3 +42,4 @@ local.properties
 # Varios
 .DS_Store
 Thumbs.db
+firebase-debug.log

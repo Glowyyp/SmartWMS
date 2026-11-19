@@ -23,6 +23,7 @@ export interface ProductInventory {
   weight: number | null;
   weight_unit: string;
   has_box: boolean;
+  qr_code?: string | null;
   created_at: string;
   updated_at: string;
   reserved_qty: number;     // Unidades reservadas en pedidos pendientes

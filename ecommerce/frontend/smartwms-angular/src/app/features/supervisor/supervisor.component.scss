@@ -169,6 +169,7 @@
 .wms-table {
   width: 100%;
   background: transparent !important;
+  border-collapse: collapse;
 
   ::ng-deep th.mat-mdc-header-cell, th {
     background: rgba(99,102,241,0.12) !important;
@@ -183,6 +184,18 @@
     font-size: 13px;
     border-bottom: 1px solid rgba(255,255,255,0.06) !important;
     background: transparent !important;
+  }
+
+  &.native-table {
+    th {
+      padding: 14px 16px;
+      text-align: left;
+      white-space: nowrap;
+    }
+    td {
+      padding: 10px 16px;
+      vertical-align: middle;
+    }
   }
 
   ::ng-deep tr.mat-mdc-row:hover td, .table-row:hover td {
@@ -803,4 +816,216 @@ select.form-input {
 .chip-primary {
   background: rgba(168, 85, 247, 0.15);
   color: #c084fc;
+}
+
+// ── EXPANDABLE ORDER & QR PANELS ─────────────────────────────────────────────
+.clickable-row { cursor: pointer; }
+.expanded-parent td { border-bottom-color: transparent !important; }
+.expanded-detail-row { height: 0 !important; }
+.expanded-detail-cell {
+  padding: 0 !important;
+  background: rgba(15, 15, 26, 0.65) !important;
+  border-bottom: 1px solid rgba(99, 102, 241, 0.25) !important;
+}
+
+.expand-chevron {
+  font-size: 20px;
+  color: #94a3b8;
+  transition: transform 0.2s ease;
+  &.rotated { transform: rotate(180deg); color: #a5b4fc; }
+}
+
+.order-detail-panel {
+  padding: 16px 24px 20px;
+  animation: slideDown 0.18s ease;
+}
+
+.order-detail-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin-bottom: 14px;
+}
+
+.order-detail-title {
+  margin: 0;
+  font-size: 15px;
+  font-weight: 700;
+  color: #f8fafc;
+}
+
+.order-detail-customer {
+  margin: 4px 0 0;
+  font-size: 13px;
+  color: #cbd5e1;
+}
+
+.order-detail-badges {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.order-items-subtable {
+  width: 100%;
+  border-collapse: collapse;
+  background: rgba(255, 255, 255, 0.02);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 8px;
+  overflow: hidden;
+
+  th, td {
+    padding: 8px 12px;
+    font-size: 13px;
+    text-align: left;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+  }
+  th {
+    background: rgba(99, 102, 241, 0.12);
+    color: #cbd5e1;
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+  }
+  tr:last-child td { border-bottom: none; }
+}
+
+.product-qr-panel {
+  display: flex;
+  align-items: center;
+  gap: 20px;
+  padding: 16px 24px;
+  animation: slideDown 0.18s ease;
+  flex-wrap: wrap;
+}
+
+.qr-card-box {
+  background: #ffffff;
+  border-radius: 12px;
+  padding: 12px;
+  display: inline-flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.35);
+}
+
+.product-qr-img {
+  width: 156px;
+  height: 156px;
+  display: block;
+}
+
+.qr-sku-caption {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 13px;
+  font-weight: 700;
+  color: #0f172a;
+  letter-spacing: 0.04em;
+}
+
+.qr-meta-info {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.qr-product-name {
+  margin: 0;
+  font-size: 15px;
+  font-weight: 600;
+  color: #f8fafc;
+}
+
+.qr-hint {
+  margin: 0;
+  font-size: 12.5px;
+  color: #94a3b8;
+  max-width: 360px;
+}
+
+.user-badges-row {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 6px;
+}
+
+.conn-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 11px;
+  font-weight: 600;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: rgba(148, 163, 184, 0.12);
+  color: #94a3b8;
+
+  &.online {
+    background: rgba(74, 222, 128, 0.14);
+    color: #4ade80;
+  }
+}
+
+.user-last-conn {
+  margin: 6px 0 0;
+  font-size: 11.5px;
+  color: #94a3b8;
+  strong { color: #e2e8f0; font-weight: 600; }
+}
+
+// ── ORDER STATUS SELECT & ORDER LOOKUP ───────────────────────────────────────
+.order-status-select {
+  padding: 5px 10px;
+  font-size: 12px;
+  font-weight: 600;
+  border-radius: 10px;
+  min-width: 124px;
+
+  &.chip-info {
+    background: rgba(56, 189, 248, 0.14) !important;
+    border-color: rgba(56, 189, 248, 0.4) !important;
+    color: #38bdf8 !important;
+  }
+  &.chip-warning {
+    background: rgba(251, 191, 36, 0.14) !important;
+    border-color: rgba(251, 191, 36, 0.4) !important;
+    color: #fbbf24 !important;
+  }
+  &.chip-danger {
+    background: rgba(239, 68, 68, 0.14) !important;
+    border-color: rgba(239, 68, 68, 0.4) !important;
+    color: #f87171 !important;
+  }
+}
+
+.order-lookup-box {
+  margin-bottom: 16px;
+  padding-bottom: 16px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.order-lookup-row {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  .form-input { flex: 1; }
+  button { flex-shrink: 0; height: 42px; }
+}
+
+.order-stock-error {
+  margin-top: 10px;
+  margin-bottom: 0;
+  align-items: flex-start;
+}
+
+.insufficient-stock-list {
+  margin: 4px 0 0;
+  padding-left: 18px;
+  font-size: 12.5px;
+  line-height: 1.5;
 }

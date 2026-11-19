@@ -16,6 +16,7 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
+from app.core.qr import generate_sku_qr_data_uri
 from app.database import get_db
 from app.models.inventory import ProductInventory
 from app.models.work_order import WorkOrder, WorkOrderItem
@@ -61,6 +62,14 @@ def list_products(
     for row in rows:
         reserved_by_sku[row.sku] = int(row.reserved)
 
+    dirty_qr = False
+    for p in products:
+        if not p.qr_code:
+            p.qr_code = generate_sku_qr_data_uri(p.sku)
+            dirty_qr = True
+    if dirty_qr:
+        db.commit()
+
     result = []
     for p in products:
         reserved = reserved_by_sku.get(p.sku, 0)
@@ -100,6 +109,7 @@ def create_product(
     data = product_in.model_dump()
     if data.get("estimated_volume") is None and data.get("length") and data.get("width") and data.get("height"):
         data["estimated_volume"] = data["length"] * data["width"] * data["height"]
+    data["qr_code"] = generate_sku_qr_data_uri(product_in.sku)
 
     product = ProductInventory(**data)
     db.add(product)

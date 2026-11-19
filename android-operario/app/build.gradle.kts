@@ -21,6 +21,10 @@ android {
         ?: System.getenv("SERVER_IP")
         ?: "192.168.1.5"
 
+    val cloudRunUrl = ((project.findProperty("CLOUD_RUN_URL") as? String)
+        ?: System.getenv("CLOUD_RUN_URL")
+        ?: "https://smartwms-backend-523602689123.southamerica-west1.run.app").trimEnd('/')
+
     flavorDimensions += "environment"
     productFlavors {
         // Para el EMULADOR Android Studio (10.0.2.2 apunta al localhost de la PC)
@@ -39,12 +43,12 @@ android {
             buildConfigField("String", "API_BASE_URL", "\"http://$serverIp:8001\"")
             buildConfigField("String", "BOT_BASE_URL",  "\"http://$serverIp:8000\"")
         }
-        // Para PRODUCCIÓN en la nube (completar la URL cuando se suba)
+        // Para PRODUCCIÓN en la nube (pasar -PCLOUD_RUN_URL=https://tu-backend.run.app)
         create("production") {
             dimension = "environment"
             versionNameSuffix = "-prod"
-            buildConfigField("String", "API_BASE_URL", "\"https://TU-DOMINIO-EN-LA-NUBE.com\"")
-            buildConfigField("String", "BOT_BASE_URL",  "\"https://TU-DOMINIO-EN-LA-NUBE.com\"")
+            buildConfigField("String", "API_BASE_URL", "\"$cloudRunUrl\"")
+            buildConfigField("String", "BOT_BASE_URL",  "\"$cloudRunUrl\"")
         }
     }
 
@@ -97,6 +101,20 @@ dependencies {
 
     // QR Scanner
     implementation("com.journeyapps:zxing-android-embedded:4.3.0")
+
+    // Markdown renderer (tablas, listas, código, citas, encabezados, enlaces)
+    implementation("io.noties.markwon:core:4.6.2") {
+        exclude(group = "org.jetbrains", module = "annotations-java5")
+    }
+    implementation("io.noties.markwon:ext-tables:4.6.2") {
+        exclude(group = "org.jetbrains", module = "annotations-java5")
+    }
+    implementation("io.noties.markwon:ext-strikethrough:4.6.2") {
+        exclude(group = "org.jetbrains", module = "annotations-java5")
+    }
+    implementation("io.noties.markwon:linkify:4.6.2") {
+        exclude(group = "org.jetbrains", module = "annotations-java5")
+    }
 
     // Tests
     testImplementation(libs.junit)

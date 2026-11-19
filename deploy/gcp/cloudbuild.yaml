@@ -1,0 +1,107 @@
+# Cloud Build CI/CD — Compila y actualiza smartwms-bot, smartwms-backend y smartwms-frontend en Cloud Run
+# Diseñado para ejecutarse automáticamente desde un Activador (Trigger) conectado a GitHub.
+substitutions:
+  _REGION: southamerica-west1
+  _AR_REPO: smartwms
+
+options:
+  logging: CLOUD_LOGGING_ONLY
+
+steps:
+  - id: build-bot
+    name: gcr.io/cloud-builders/docker
+    waitFor: ['-']
+    args:
+      - build
+      - -t
+      - ${_REGION}-docker.pkg.dev/$PROJECT_ID/${_AR_REPO}/smartwms-bot:$SHORT_SHA
+      - -t
+      - ${_REGION}-docker.pkg.dev/$PROJECT_ID/${_AR_REPO}/smartwms-bot:latest
+      - ./bot
+
+  - id: push-bot
+    name: gcr.io/cloud-builders/docker
+    waitFor: ['build-bot']
+    args:
+      - push
+      - --all-tags
+      - ${_REGION}-docker.pkg.dev/$PROJECT_ID/${_AR_REPO}/smartwms-bot
+
+  - id: build-backend
+    name: gcr.io/cloud-builders/docker
+    waitFor: ['-']
+    args:
+      - build
+      - -t
+      - ${_REGION}-docker.pkg.dev/$PROJECT_ID/${_AR_REPO}/smartwms-backend:$SHORT_SHA
+      - -t
+      - ${_REGION}-docker.pkg.dev/$PROJECT_ID/${_AR_REPO}/smartwms-backend:latest
+      - ./ecommerce/backend
+
+  - id: push-backend
+    name: gcr.io/cloud-builders/docker
+    waitFor: ['build-backend']
+    args:
+      - push
+      - --all-tags
+      - ${_REGION}-docker.pkg.dev/$PROJECT_ID/${_AR_REPO}/smartwms-backend
+
+  - id: build-frontend
+    name: gcr.io/cloud-builders/docker
+    waitFor: ['-']
+    args:
+      - build
+      - -t
+      - ${_REGION}-docker.pkg.dev/$PROJECT_ID/${_AR_REPO}/smartwms-frontend:$SHORT_SHA
+      - -t
+      - ${_REGION}-docker.pkg.dev/$PROJECT_ID/${_AR_REPO}/smartwms-frontend:latest
+      - ./ecommerce/frontend/smartwms-angular
+
+  - id: push-frontend
+    name: gcr.io/cloud-builders/docker
+    waitFor: ['build-frontend']
+    args:
+      - push
+      - --all-tags
+      - ${_REGION}-docker.pkg.dev/$PROJECT_ID/${_AR_REPO}/smartwms-frontend
+
+  - id: deploy-bot
+    name: gcr.io/google.com/cloudsdktool/cloud-sdk
+    waitFor: ['push-bot']
+    entrypoint: gcloud
+    args:
+      - run
+      - services
+      - update
+      - smartwms-bot
+      - --region=${_REGION}
+      - --image=${_REGION}-docker.pkg.dev/$PROJECT_ID/${_AR_REPO}/smartwms-bot:$SHORT_SHA
+
+  - id: deploy-backend
+    name: gcr.io/google.com/cloudsdktool/cloud-sdk
+    waitFor: ['push-backend']
+    entrypoint: gcloud
+    args:
+      - run
+      - services
+      - update
+      - smartwms-backend
+      - --region=${_REGION}
+      - --image=${_REGION}-docker.pkg.dev/$PROJECT_ID/${_AR_REPO}/smartwms-backend:$SHORT_SHA
+
+  - id: deploy-frontend
+    name: gcr.io/google.com/cloudsdktool/cloud-sdk
+    waitFor: ['push-frontend']
+    entrypoint: gcloud
+    args:
+      - run
+      - services
+      - update
+      - smartwms-frontend
+      - --region=${_REGION}
+      - --image=${_REGION}-docker.pkg.dev/$PROJECT_ID/${_AR_REPO}/smartwms-frontend:$SHORT_SHA
+
+images:
+  - ${_REGION}-docker.pkg.dev/$PROJECT_ID/${_AR_REPO}/smartwms-bot:$SHORT_SHA
+  - ${_REGION}-docker.pkg.dev/$PROJECT_ID/${_AR_REPO}/smartwms-backend:$SHORT_SHA
+  - ${_REGION}-docker.pkg.dev/$PROJECT_ID/${_AR_REPO}/smartwms-frontend:$SHORT_SHA

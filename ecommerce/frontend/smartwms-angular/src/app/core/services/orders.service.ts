@@ -9,6 +9,7 @@ import { environment } from '../../../environments/environment';
 export interface OrderItem {
   id: number;
   sku: string;
+  product_name?: string | null;
   quantity: number;
   unit_price: number;
   subtotal: number;
@@ -21,10 +22,35 @@ export interface Order {
   customer_name: string;
   customer_email: string;
   total: number;
-  status: string; // received | processing | completed | failed | cancelled
+  status: string; // received | processing | rejected | completed | failed | cancelled
+  payment_status?: string; // pending | paid
   received_at: string;
   event_timestamp: string;
   items: OrderItem[];
+}
+
+export interface PreparedOrderItem {
+  sku: string;
+  product_name: string;
+  quantity: number;
+  available_qty: number;
+}
+
+export interface InsufficientStockItem {
+  sku: string;
+  product_name: string;
+  requested: number;
+  available: number;
+}
+
+export interface PrepareWorkOrderResponse {
+  ok: boolean;
+  order_id: number;
+  external_order_id: string;
+  customer_name: string;
+  items: PreparedOrderItem[];
+  insufficient_items: InsufficientStockItem[];
+  error_message?: string | null;
 }
 
 @Injectable({ providedIn: 'root' })
@@ -46,5 +72,19 @@ export class OrdersService {
 
   getOrder(id: number): Observable<Order> {
     return this.http.get<Order>(`${this.baseUrl}/${id}`);
+  }
+
+  updateOrderStatus(id: number, status: 'received' | 'processing' | 'rejected'): Observable<Order> {
+    return this.http.patch<Order>(`${this.baseUrl}/${id}/status`, { status });
+  }
+
+  prepareWorkOrder(
+    orderRef: string,
+    existingQuantities: Record<string, number>
+  ): Observable<PrepareWorkOrderResponse> {
+    return this.http.post<PrepareWorkOrderResponse>(`${this.baseUrl}/prepare-work-order`, {
+      order_ref: orderRef,
+      existing_quantities: existingQuantities,
+    });
   }
 }

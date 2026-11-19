@@ -71,6 +71,15 @@ option {
 }
 ::-webkit-scrollbar-thumb:hover { background: #6c63ff; }
 
+// ─── Angular Material: Tooltips compactos dentro de pantalla ───────────────
+.wms-tooltip {
+  max-width: 240px !important;
+  white-space: pre-line !important;
+  font-size: 11.5px !important;
+  line-height: 1.35 !important;
+  pointer-events: none !important;
+}
+
 // ─── Angular Material: Snackbar de error ───────────────────────────────────
 .error-snack {
   background: #ef4444 !important;

@@ -137,6 +137,11 @@ class OrderWebhookPayload(BaseModel):
         description="Timestamp ISO 8601 de cuando se creó la orden en el sistema origen",
         examples=["2024-09-17T18:30:00Z"],
     )
+    payment_status: Literal["paid", "pending", "pagado", "pendiente", "confirmed"] = Field(
+        default="paid",
+        description="Estado de pago de la orden ('paid' = Pagado, 'pending' = Pago pendiente). Por defecto 'paid' en entorno de prueba.",
+        examples=["paid"],
+    )
 
     @model_validator(mode="after")
     def total_must_match_items(self) -> "OrderWebhookPayload":
@@ -179,6 +184,7 @@ class OrderWebhookPayload(BaseModel):
                 ],
                 "total": "74.97",
                 "timestamp": "2024-09-17T18:30:00Z",
+                "payment_status": "paid",
             }
         },
     }

@@ -22,7 +22,7 @@ import { MatDialogModule } from '@angular/material/dialog';
 import { MatSnackBar, MatSnackBarModule } from '@angular/material/snack-bar';
 
 import { AuthService } from '../../core/services/auth.service';
-import { OrdersService, Order } from '../../core/services/orders.service';
+import { OrdersService, Order, InsufficientStockItem } from '../../core/services/orders.service';
 import { InventoryService, ProductInventory, PendingReception } from '../../core/services/inventory.service';
 import { UsersService, UserRecord } from '../../core/services/users.service';
 import { WorkOrdersService, WorkOrder, WorkOrderItemIn, WorkOrderUpdate, Operario } from '../../core/services/work-orders.service';
@@ -66,15 +66,16 @@ export class SupervisorComponent implements OnInit, OnDestroy {
 
   // ── Órdenes (webhook) ──────────────────────────────────────────────────────
   orders = signal<Order[]>([]);
+  paidOrders = computed(() => this.orders().filter(o => this.isOrderPaid(o)));
   ordersLoading = signal(false);
   ordersError = signal('');
-  orderColumns = ['id', 'external_order_id', 'customer_name', 'total', 'status', 'received_at'];
+  expandedOrderId = signal<number | null>(null);
 
   // ── Inventario ─────────────────────────────────────────────────────────────
   products = signal<ProductInventory[]>([]);
   productsLoading = signal(false);
   inventorySearch = signal('');
-  inventoryColumns = ['sku', 'product_name', 'stock_available', 'stock_reserved', 'pending_quantity', 'status', 'actions'];
+  expandedProductQrId = signal<number | null>(null);
 
   showAddForm = signal(false);
   addingProduct = signal(false);
@@ -141,6 +142,11 @@ export class SupervisorComponent implements OnInit, OnDestroy {
   showNewOrderForm = signal(false);
   orderLines = signal<NewOrderLine[]>([]);
   skuSearch = signal('');
+  orderLookupRef = signal('');
+  loadingOrderLookup = signal(false);
+  orderLookupError = signal('');
+  orderLookupInsufficient = signal<InsufficientStockItem[]>([]);
+  loadedOrderIds = signal<number[]>([]);
   creatingOrder = signal(false);
   selectedOperario = signal<string>('');   // email del operario asignado ('' = sin asignar)
   operarios = signal<Operario[]>([]);      // lista para el selector
@@ -202,6 +208,7 @@ export class SupervisorComponent implements OnInit, OnDestroy {
 
   private pollSub?: Subscription;
   private woPollSub?: Subscription;
+  private usersPollSub?: Subscription;
 
   constructor(
     private authService: AuthService,
@@ -235,11 +242,17 @@ export class SupervisorComponent implements OnInit, OnDestroy {
       startWith(0),
       switchMap(() => this.workOrdersService.getWorkOrders(this.woStatusFilter() || undefined))
     ).subscribe({ next: wos => this.workOrders.set(wos) });
+
+    // Poll usuarios conectados cada 10 s para reflejar conexiones/desconexiones sin recargar
+    this.usersPollSub = interval(10000).pipe(
+      switchMap(() => this.usersService.getUsers())
+    ).subscribe({ next: users => this.users.set(users) });
   }
 
   ngOnDestroy(): void {
     this.pollSub?.unsubscribe();
     this.woPollSub?.unsubscribe();
+    this.usersPollSub?.unsubscribe();
   }
 
   // ── Órdenes webhook ────────────────────────────────────────────────────────
@@ -253,6 +266,44 @@ export class SupervisorComponent implements OnInit, OnDestroy {
   }
 
   onStatusFilter(): void { this.loadOrders(); }
+
+  toggleOrderExpand(order: Order): void {
+    this.expandedOrderId.update(cur => cur === order.id ? null : order.id);
+  }
+
+  normalizeOrderStatusForSelect(status: string): 'received' | 'processing' | 'rejected' {
+    const s = (status || '').toLowerCase();
+    if (s === 'processing') return 'processing';
+    if (s === 'rejected') return 'rejected';
+    return 'received';
+  }
+
+  onOrderStatusChange(order: Order, event: Event): void {
+    const selectEl = event.target as HTMLSelectElement;
+    const newStatus = selectEl.value as 'received' | 'processing' | 'rejected';
+    const prevNormalized = this.normalizeOrderStatusForSelect(order.status);
+    if (!newStatus || newStatus === prevNormalized) return;
+
+    this.ordersService.updateOrderStatus(order.id, newStatus).subscribe({
+      next: updated => {
+        this.orders.update(list => list.map(o => o.id === updated.id ? updated : o));
+        this.snackBar.open(
+          `✅ Orden #${updated.id} (${updated.external_order_id}) actualizada a "${this.getOrderStatusLabel(updated.status)}"`,
+          'OK',
+          { duration: 3500 }
+        );
+      },
+      error: err => {
+        selectEl.value = prevNormalized;
+        const msg = err.error?.detail ?? 'No se pudo actualizar el estado de la orden.';
+        this.snackBar.open(`❌ ${msg}`, 'Cerrar', { duration: 4500 });
+      },
+    });
+  }
+
+  toggleProductQr(product: ProductInventory): void {
+    this.expandedProductQrId.update(cur => cur === product.id ? null : product.id);
+  }
 
   // ── Inventario ─────────────────────────────────────────────────────────────
   editingProduct = signal<ProductInventory | null>(null);
@@ -334,12 +385,27 @@ export class SupervisorComponent implements OnInit, OnDestroy {
   }
 
   // ── Usuarios ───────────────────────────────────────────────────────────────
+  visibleUsers = computed(() => {
+    const role = this.userRole();
+    const list = this.users();
+    if (role === 'admin') return list;
+    return list.filter(u => u.role !== 'admin');
+  });
+
   loadUsers(): void {
     this.usersLoading.set(true);
     this.usersService.getUsers().subscribe({
       next: users => { this.users.set(users); this.usersLoading.set(false); },
       error: () => this.usersLoading.set(false),
     });
+  }
+
+  getUserDisplayName(u: UserRecord): string {
+    return (u.full_name || '').trim() || u.username || u.email || 'Usuario';
+  }
+
+  getUserLastConnection(u: UserRecord): string | null {
+    return u.last_seen_at || u.last_login_at || null;
   }
 
   // ── Work Orders ────────────────────────────────────────────────────────────
@@ -358,12 +424,87 @@ export class SupervisorComponent implements OnInit, OnDestroy {
   openNewOrderForm(): void {
     this.orderLines.set([]);
     this.skuSearch.set('');
+    this.orderLookupRef.set('');
+    this.orderLookupError.set('');
+    this.orderLookupInsufficient.set([]);
+    this.loadedOrderIds.set([]);
     this.selectedOperario.set('');
     this.showNewOrderForm.set(true);
     // Actualizar inventario para tener stock disponible fresco
     this.loadInventory();
     // Cargar lista de operarios para el selector
     this.loadOperarios();
+  }
+
+  loadItemsFromOrder(): void {
+    const ref = this.orderLookupRef().trim();
+    if (!ref || this.loadingOrderLookup()) {
+      if (!ref) {
+        this.orderLookupError.set('Ingresa el número o ID de la orden que deseas cargar.');
+        this.orderLookupInsufficient.set([]);
+      }
+      return;
+    }
+
+    this.loadingOrderLookup.set(true);
+    this.orderLookupError.set('');
+    this.orderLookupInsufficient.set([]);
+
+    const existingQuantities: Record<string, number> = {};
+    for (const line of this.orderLines()) {
+      existingQuantities[line.sku] = line.quantity;
+    }
+
+    this.ordersService.prepareWorkOrder(ref, existingQuantities).subscribe({
+      next: res => {
+        this.loadingOrderLookup.set(false);
+        if (this.loadedOrderIds().includes(res.order_id)) {
+          this.orderLookupError.set(`La orden #${res.order_id} (${res.external_order_id}) ya fue cargada en este pedido.`);
+          return;
+        }
+        if (!res.ok) {
+          this.orderLookupInsufficient.set(res.insufficient_items || []);
+          this.orderLookupError.set(res.error_message || 'No se pudo completar pedido por falta de stock.');
+          return;
+        }
+
+        // Combinar con líneas existentes sin duplicar SKUs
+        this.orderLines.update(currentLines => {
+          const updated = [...currentLines];
+          for (const item of res.items) {
+            const idx = updated.findIndex(l => l.sku === item.sku);
+            if (idx >= 0) {
+              updated[idx] = {
+                ...updated[idx],
+                available_qty: item.available_qty,
+                quantity: updated[idx].quantity + item.quantity,
+              };
+            } else {
+              updated.push({
+                sku: item.sku,
+                product_name: item.product_name,
+                available_qty: item.available_qty,
+                quantity: item.quantity,
+              });
+            }
+          }
+          return updated;
+        });
+
+        this.loadedOrderIds.update(ids => [...ids, res.order_id]);
+        this.orderLookupRef.set('');
+        this.snackBar.open(
+          `✅ Productos de la orden #${res.order_id} (${res.external_order_id}) cargados correctamente`,
+          'OK',
+          { duration: 3500 }
+        );
+      },
+      error: err => {
+        this.loadingOrderLookup.set(false);
+        this.orderLookupInsufficient.set([]);
+        this.orderLookupError.set(err.error?.detail ?? `No se pudo consultar la orden "${ref}".`);
+      },
+    });
   }
 
   loadOperarios(): void {
@@ -429,6 +570,10 @@ export class SupervisorComponent implements OnInit, OnDestroy {
         this.showNewOrderForm.set(false);
         this.creatingOrder.set(false);
         this.orderLines.set([]);
+        this.orderLookupRef.set('');
+        this.orderLookupError.set('');
+        this.orderLookupInsufficient.set([]);
+        this.loadedOrderIds.set([]);
         this.selectedOperario.set('');
         this.snackBar.open(`✅ Pedido ${wo.order_number} creado (${this.getWoStatusLabel(wo.status)})`, 'OK', { duration: 4000 });
         // Recargar inventario para reflejar las nuevas reservas
@@ -722,10 +867,39 @@ export class SupervisorComponent implements OnInit, OnDestroy {
   // ── Helpers de UI ──────────────────────────────────────────────────────────
   getOrderStatusClass(status: string): string {
     const map: Record<string, string> = {
-      completed: 'chip-success', processing: 'chip-warning',
-      received: 'chip-info', failed: 'chip-danger', cancelled: 'chip-muted',
+      completed: 'chip-info',
+      received: 'chip-info',
+      processing: 'chip-warning',
+      rejected: 'chip-danger',
+      failed: 'chip-danger',
+      cancelled: 'chip-muted',
     };
-    return map[status] ?? 'chip-muted';
+    return map[(status || '').toLowerCase()] ?? 'chip-muted';
+  }
+
+  getOrderStatusLabel(status: string): string {
+    const map: Record<string, string> = {
+      received: 'Recibido',
+      completed: 'Recibido',
+      processing: 'En proceso',
+      rejected: 'Rechazado',
+      failed: 'Fallido',
+      cancelled: 'Cancelado',
+    };
+    return map[(status || '').toLowerCase()] ?? status;
+  }
+
+  isOrderPaid(order: Order): boolean {
+    const ps = (order.payment_status || '').toLowerCase().trim();
+    return ps === 'paid' || ps === 'pagado' || ps === 'confirmed';
+  }
+
+  getPaymentStatusLabel(order: Order): string {
+    return this.isOrderPaid(order) ? 'Pagado' : 'Pago pendiente';
+  }
+
+  getPaymentStatusClass(order: Order): string {
+    return this.isOrderPaid(order) ? 'chip-success' : 'chip-warning';
   }
 
   getWoStatusClass(status: string): string {
@@ -753,7 +927,7 @@ export class SupervisorComponent implements OnInit, OnDestroy {
       in_preparation: 'En preparación',
       in_progress: 'En proceso',
       dispatched: 'Despachado',
-      completed: 'Completado',
+      completed: 'Finalizado',
       cancelled: 'Cancelado',
       waiting_stock: 'Esperando stock',
     };

@@ -8,11 +8,15 @@ import { environment } from '../../../environments/environment';
 
 export interface UserRecord {
   id: number;
-  email: string;
+  email?: string;
+  username?: string;
   full_name: string | null;
   role: string;
   is_active: boolean;
-  created_at: string;
+  is_online?: boolean;
+  last_login_at?: string | null;
+  last_seen_at?: string | null;
+  created_at?: string;
 }
 
 @Injectable({ providedIn: 'root' })

@@ -8,9 +8,9 @@ Flujo atómico de process_order():
   1. Verificar que la orden no esté duplicada (idempotencia)
   2. Crear registro Order → flush (obtiene ID sin commit)
   3. Para cada ítem:
-     a. Buscar ProductInventory con SELECT FOR UPDATE (bloqueo a nivel de fila)
-     b. Verificar stock suficiente → raise StockInsuficienteError si no alcanza
-     c. Descontar stock → crear OrderItem
+     a. Verificar que el SKU exista en ProductInventory → raise ProductoNoEncontradoError si no existe
+     b. Crear OrderItem sin descontar stock_quantity (el stock físico solo se descuenta
+        cuando el Pedido de Bodega / WorkOrder asociado queda como 'dispatched')
   4. db.commit() → todo o nada
   5. En caso de error → rollback automático (SQLAlchemy revierte al salir del bloque)
 """
@@ -100,6 +100,9 @@ def process_order(payload: OrderWebhookPayload, db: Session) -> WebhookResponse:
     # ------------------------------------------------------------------
     # Paso 2: Crear cabecera de la Orden (sin commit aún)
     # ------------------------------------------------------------------
+    raw_pay = (payload.payment_status or "paid").strip().lower()
+    resolved_payment = "paid" if raw_pay in {"paid", "pagado", "confirmed"} else "pending"
+
     order = Order(
         external_order_id=payload.order_id,
         customer_id=payload.customer.id,
@@ -107,6 +110,7 @@ def process_order(payload: OrderWebhookPayload, db: Session) -> WebhookResponse:
         customer_email=payload.customer.email,
         total=payload.total,
         status="processing",
+        payment_status=resolved_payment,
         event_timestamp=payload.timestamp,
     )
     db.add(order)
@@ -118,48 +122,23 @@ def process_order(payload: OrderWebhookPayload, db: Session) -> WebhookResponse:
     )
 
     # ------------------------------------------------------------------
-    # Paso 3: Procesar cada ítem — validar y descontar stock
+    # Paso 3: Procesar cada ítem — validar existencia del SKU (NO descontar stock)
     # ------------------------------------------------------------------
+    # Regla de negocio: al registrar una orden, NO se descuenta stock_quantity.
+    # El stock se valida/reserva al crear el Pedido de Bodega (WorkOrder) y solo
+    # se descuenta físicamente cuando el Pedido queda en estado 'dispatched'.
     for item_data in payload.items:
-        # 3a: SELECT FOR UPDATE — bloqueo a nivel de fila para evitar race conditions
-        # (Nota: SQLite no soporta FOR UPDATE; en PostgreSQL sí funciona)
         inventory_item: ProductInventory | None = db.execute(
-            select(ProductInventory)
-            .where(ProductInventory.sku == item_data.sku)
-            .with_for_update()  # BLOQUEO DE FILA: solo un proceso modifica este SKU a la vez
+            select(ProductInventory).where(ProductInventory.sku == item_data.sku)
         ).scalar_one_or_none()
 
-        # 3b: Verificar que el producto existe
+        # Verificar que el producto existe
         if inventory_item is None:
             logger.error("SKU no encontrado en inventario: %s", item_data.sku)
             db.rollback()
             raise ProductoNoEncontradoError(item_data.sku)
 
-        # 3c: Verificar stock suficiente
-        if inventory_item.stock_quantity < item_data.quantity:
-            logger.error(
-                "Stock insuficiente para SKU=%s: solicitado=%d, disponible=%d",
-                item_data.sku, item_data.quantity, inventory_item.stock_quantity,
-            )
-            db.rollback()
-            raise StockInsuficienteError(
-                sku=item_data.sku,
-                requested=item_data.quantity,
-                available=inventory_item.stock_quantity,
-            )
-
-        # 3d: Descontar stock
-        inventory_item.stock_quantity -= item_data.quantity
-
-        if inventory_item.is_low_stock:
-            logger.warning(
-                "⚠️  STOCK BAJO — SKU=%s: %d unidades restantes (reorder_point=%d)",
-                item_data.sku,
-                inventory_item.stock_quantity,
-                inventory_item.reorder_point,
-            )
-
-        # 3e: Crear ítem de la orden
+        # Crear ítem de la orden sin modificar stock_quantity
         order_item = OrderItem(
             order_id=order.id,
             sku=item_data.sku,
@@ -170,19 +149,19 @@ def process_order(payload: OrderWebhookPayload, db: Session) -> WebhookResponse:
         db.add(order_item)
 
     # ------------------------------------------------------------------
-    # Paso 4: Marcar orden como completada y hacer COMMIT final
+    # Paso 4: Marcar orden como recibida/completada y hacer COMMIT final
     # ------------------------------------------------------------------
     order.status = "completed"
     db.commit()
     db.refresh(order)
 
     logger.info(
-        "✅ Orden procesada exitosamente: external_id=%s internal_id=%s",
+        "✅ Orden registrada exitosamente (sin descuento de stock): external_id=%s internal_id=%s",
         payload.order_id, order.id,
     )
 
     return WebhookResponse(
-        message="Orden procesada y stock actualizado correctamente.",
+        message="Orden registrada correctamente (el stock se descuenta al despachar el pedido).",
         order_id=payload.order_id,
         internal_id=order.id,
         status=order.status,

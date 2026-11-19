@@ -34,6 +34,7 @@ from jose import JWTError
 from sqlalchemy.orm import Session
 
 from app.core import mfa
+from app.core.presence import compute_user_online, mark_user_connected, touch_user_activity
 from app.core.security import (
     TOKEN_TYPE_ACCESS,
     TOKEN_TYPE_MFA_PENDING,
@@ -99,6 +100,7 @@ def get_current_user(
     user = db.query(User).filter(User.email == email).first()
     if user is None or not user.is_active:
         raise credentials_exc
+    touch_user_activity(user, db)
     return user
 
 
@@ -278,6 +280,8 @@ def login(
         )
 
     # Caso 3: MFA no requerido por política (compatibilidad hacia atrás)
+    mark_user_connected(user, is_login=True)
+    db.commit()
     final_token = create_access_token({"sub": user.email, "role": user.role})
     logger.info("Login completo directo (sin MFA) para %s (%s)", user.email, user.role)
     return TokenResponse(
@@ -387,6 +391,7 @@ def mfa_activate(
     user.mfa_enabled_at = datetime.now(timezone.utc)
     user.mfa_last_used_step = accepted_step
     mfa.register_success(user)
+    mark_user_connected(user, is_login=True)
     db.commit()
 
     logger.info("MFA activado con éxito para %s (rol: %s)", user.email, user.role)
@@ -454,6 +459,7 @@ def mfa_verify(
     # Éxito: registrar paso y limpiar intentos fallidos
     user.mfa_last_used_step = accepted_step
     mfa.register_success(user)
+    mark_user_connected(user, is_login=True)
     db.commit()
 
     logger.info("Segundo factor validado con éxito para %s (%s)", user.email, user.role)
@@ -512,6 +518,7 @@ def mfa_recover(
 
     user.mfa_recovery_codes = new_codes_json
     mfa.register_success(user)
+    mark_user_connected(user, is_login=True)
     db.commit()
 
     remaining = mfa.remaining_recovery_codes(new_codes_json)
@@ -568,4 +575,20 @@ def mfa_disable(
 )
 def me(current_user: User = Depends(get_current_user)):
     """Devuelve los datos del usuario dueño del JWT proporcionado."""
-    return current_user
+    out = UserOut.model_validate(current_user)
+    out.is_online = compute_user_online(current_user)
+    return out
+
+
+@router.post(
+    "/logout",
+    summary="Cerrar sesión y marcar usuario como desconectado",
+)
+def logout(
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Marca el estado de conexión del usuario como desconectado."""
+    current_user.is_connected = False
+    db.commit()
+    return {"status": "ok"}

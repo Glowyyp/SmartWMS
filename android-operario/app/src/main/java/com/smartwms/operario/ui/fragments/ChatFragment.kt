@@ -44,7 +44,7 @@ class ChatFragment : Fragment() {
         binding.rvChat.adapter = chatAdapter
 
         // Mensaje de bienvenida
-        addMessage("Hola! Soy el asistente de SmartWMS. Puedo ayudarte con inventario, ordenes y procedimientos.", isBot = true)
+        addMessage("¡Hola! Soy el **Copiloto IA de SmartWMS**. Puedo ayudarte con inventario, órdenes y procedimientos de bodega.", isBot = true)
 
         binding.btnSend.setOnClickListener { sendMessage() }
 

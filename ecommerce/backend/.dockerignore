@@ -1,0 +1,12 @@
+__pycache__/
+*.py[cod]
+*$py.class
+.env
+*.db
+*.db-shm
+*.db-wal
+test_*.py
+webhook_simulator.py
+db_viewer.py
+.venv/
+venv/

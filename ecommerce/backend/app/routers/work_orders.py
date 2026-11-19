@@ -586,11 +586,15 @@ def update_work_order(
                 http_status.HTTP_409_CONFLICT,
                 detail=f"Un pedido en estado '{wo.status}' no puede modificar sus ítems",
             )
-        if payload.status and payload.status.lower() not in ["dispatched", "cancelled", "completed"]:
-            raise HTTPException(
-                http_status.HTTP_409_CONFLICT,
-                detail=f"Un pedido en estado '{wo.status}' no puede reactivarse a '{payload.status}'",
-            )
+        if payload.status:
+            normalized_req = payload.status.strip().lower()
+            if normalized_req == "completed":
+                normalized_req = "dispatched"
+            if normalized_req != wo.status:
+                raise HTTPException(
+                    http_status.HTTP_409_CONFLICT,
+                    detail=f"Un pedido en estado '{wo.status}' no puede reactivarse a '{payload.status}'",
+                )
 
     # 1. Modificar Operario
     if payload.assigned_operario_id is not None or payload.assigned_operario_email is not None:
@@ -683,6 +687,11 @@ def update_work_order(
                 product_name=product.product_name,
                 quantity=item.quantity,
             ))
+        db.flush()
+        db.expire(wo, ["items"])
+
+    if wo.status == "dispatched" and old_status != "dispatched":
+        _apply_dispatch_stock_deduction(wo, current_user, db)
 
     if wo.status != old_status:
         _record_status_change(
@@ -763,6 +772,85 @@ def assign_work_order(
 # POST /api/v1/work-orders/{id}/dispatch
 # ─────────────────────────────────────────────────────────────────────────────
 
+def _apply_dispatch_stock_deduction(
+    wo: WorkOrder,
+    current_user: User,
+    db: Session,
+    payload: DispatchIn | None = None,
+) -> None:
+    """
+    Descuenta físicamente el stock_quantity de cada ítem del pedido con bloqueo
+    SELECT FOR UPDATE y completa los metadatos de despacho y bultos.
+    """
+    calc_total_weight = 0.0
+    calc_total_volume = 0.0
+
+    for item in wo.items:
+        inventory_row: ProductInventory | None = db.execute(
+            select(ProductInventory)
+            .where(ProductInventory.sku == item.sku)
+            .with_for_update()
+        ).scalar_one_or_none()
+
+        if inventory_row is None:
+            db.rollback()
+            raise HTTPException(
+                http_status.HTTP_422_UNPROCESSABLE_ENTITY,
+                detail=f"SKU '{item.sku}' ya no existe en inventario",
+            )
+
+        if inventory_row.stock_quantity < item.quantity:
+            db.rollback()
+            raise HTTPException(
+                http_status.HTTP_409_CONFLICT,
+                detail=(
+                    f"Stock insuficiente para '{item.sku}': "
+                    f"físico={inventory_row.stock_quantity}, requerido={item.quantity}"
+                ),
+            )
+
+        if inventory_row.weight:
+            calc_total_weight += float(inventory_row.weight) * item.quantity
+
+        if getattr(inventory_row, "estimated_volume", None):
+            calc_total_volume += float(inventory_row.estimated_volume) * item.quantity
+        elif inventory_row.length and inventory_row.width and inventory_row.height:
+            calc_total_volume += (float(inventory_row.length) * float(inventory_row.width) * float(inventory_row.height)) * item.quantity
+
+        inventory_row.stock_quantity -= item.quantity
+        logger.info("🚚 Despacho: SKU=%s qty=%d nuevo_stock=%d", item.sku, item.quantity, inventory_row.stock_quantity)
+
+    wo.status = "dispatched"
+    wo.dispatched_by_id = current_user.id
+    wo.dispatched_by_email = current_user.email
+    wo.dispatched_at = datetime.now(timezone.utc)
+
+    if payload and payload.packages:
+        wo.total_weight = payload.total_weight or calc_total_weight
+        wo.total_volume = payload.total_volume or calc_total_volume
+        wo.packages_count = len(payload.packages)
+        for pkg_in in payload.packages:
+            db.add(WorkOrderPackage(
+                work_order_id=wo.id,
+                length=pkg_in.length,
+                width=pkg_in.width,
+                height=pkg_in.height,
+                weight=pkg_in.weight,
+            ))
+    elif not wo.packages:
+        wo.total_weight = calc_total_weight
+        wo.total_volume = calc_total_volume
+        wo.packages_count = 1
+        estimated_side = round(math.pow(calc_total_volume, 1.0 / 3.0), 2) if calc_total_volume > 0 else 0.0
+        db.add(WorkOrderPackage(
+            work_order_id=wo.id,
+            length=estimated_side,
+            width=estimated_side,
+            height=estimated_side,
+            weight=calc_total_weight,
+        ))
+
+
 @router.post(
     "/{order_id}/dispatch",
     response_model=WorkOrderOut,
@@ -788,76 +876,9 @@ def dispatch_work_order(
         raise HTTPException(http_status.HTTP_409_CONFLICT, detail=f"El pedido está en estado {wo.status} y no puede despacharse")
 
     old_status = wo.status
-    calc_total_weight = 0.0
-    calc_total_volume = 0.0
 
     try:
-        for item in wo.items:
-            inventory_row: ProductInventory | None = db.execute(
-                select(ProductInventory)
-                .where(ProductInventory.sku == item.sku)
-                .with_for_update()
-            ).scalar_one_or_none()
-
-            if inventory_row is None:
-                db.rollback()
-                raise HTTPException(
-                    http_status.HTTP_422_UNPROCESSABLE_ENTITY,
-                    detail=f"SKU '{item.sku}' ya no existe en inventario",
-                )
-
-            if inventory_row.stock_quantity < item.quantity:
-                db.rollback()
-                raise HTTPException(
-                    http_status.HTTP_409_CONFLICT,
-                    detail=(
-                        f"Stock insuficiente para '{item.sku}': "
-                        f"físico={inventory_row.stock_quantity}, requerido={item.quantity}"
-                    ),
-                )
-
-            if inventory_row.weight:
-                calc_total_weight += float(inventory_row.weight) * item.quantity
-
-            if getattr(inventory_row, "estimated_volume", None):
-                calc_total_volume += float(inventory_row.estimated_volume) * item.quantity
-            elif inventory_row.length and inventory_row.width and inventory_row.height:
-                calc_total_volume += (float(inventory_row.length) * float(inventory_row.width) * float(inventory_row.height)) * item.quantity
-
-            inventory_row.stock_quantity -= item.quantity
-            logger.info("🚚 Despacho: SKU=%s qty=%d nuevo_stock=%d", item.sku, item.quantity, inventory_row.stock_quantity)
-
-        wo.status = "dispatched"
-        wo.dispatched_by_id = current_user.id
-        wo.dispatched_by_email = current_user.email
-        wo.dispatched_at = datetime.now(timezone.utc)
-
-        if payload and payload.packages:
-            wo.total_weight = payload.total_weight or calc_total_weight
-            wo.total_volume = payload.total_volume or calc_total_volume
-            wo.packages_count = len(payload.packages)
-            for pkg_in in payload.packages:
-                pkg = WorkOrderPackage(
-                    work_order_id=wo.id,
-                    length=pkg_in.length,
-                    width=pkg_in.width,
-                    height=pkg_in.height,
-                    weight=pkg_in.weight,
-                )
-                db.add(pkg)
-        else:
-            wo.total_weight = calc_total_weight
-            wo.total_volume = calc_total_volume
-            wo.packages_count = 1
-            estimated_side = round(math.pow(calc_total_volume, 1.0 / 3.0), 2) if calc_total_volume > 0 else 0.0
-            pkg = WorkOrderPackage(
-                work_order_id=wo.id,
-                length=estimated_side,
-                width=estimated_side,
-                height=estimated_side,
-                weight=calc_total_weight,
-            )
-            db.add(pkg)
+        _apply_dispatch_stock_deduction(wo, current_user, db, payload=payload)
 
         _record_status_change(
             wo, old_status, "dispatched", current_user, db,

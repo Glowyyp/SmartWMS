@@ -16,6 +16,7 @@ import com.smartwms.operario.data.api.Product
 import com.smartwms.operario.data.api.RetrofitClient
 import com.smartwms.operario.data.api.WorkOrder
 import com.smartwms.operario.data.local.TokenStore
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
@@ -208,8 +209,11 @@ class OrderViewModel(application: Application) : AndroidViewModel(application) {
      * Recarga pedidos cada 15 segundos para mantener sincronía con el Supervisor.
      * Si el Supervisor crea un pedido, aparece automáticamente en el Android.
      */
+    private var pollingJob: Job? = null
+
     private fun startPolling() {
-        viewModelScope.launch {
+        pollingJob?.cancel()
+        pollingJob = viewModelScope.launch {
             while (isActive) {
                 delay(15_000L)
                 try {
@@ -227,6 +231,11 @@ class OrderViewModel(application: Application) : AndroidViewModel(application) {
                 } catch (_: Exception) { /* Silencioso */ }
             }
         }
+    }
+
+    fun stopPolling() {
+        pollingJob?.cancel()
+        pollingJob = null
     }
 
     // ── SELECCIÓN Y DESPACHO ──────────────────────────────────────────────────

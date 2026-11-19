@@ -116,30 +116,46 @@ def create_tables() -> None:
 # Columnas agregadas después de la creación inicial de la tabla 'users'.
 # create_all() no altera tablas existentes, por eso se agregan aquí de forma
 # idempotente (solo ADD COLUMN; nunca se borran ni modifican datos).
-_USER_MFA_COLUMNS = {
-    "mfa_enabled":            "BOOLEAN NOT NULL DEFAULT 0",
-    "mfa_secret_enc":         "TEXT",
-    "mfa_pending_secret_enc": "TEXT",
-    "mfa_recovery_codes":     "TEXT",
-    "mfa_last_used_step":     "INTEGER",
-    "mfa_failed_attempts":    "INTEGER NOT NULL DEFAULT 0",
-    "mfa_locked_until":       "TIMESTAMP",
-    "mfa_enabled_at":         "TIMESTAMP",
+_SCHEMA_MIGRATIONS: dict[str, dict[str, str]] = {
+    "users": {
+        "mfa_enabled":            "BOOLEAN NOT NULL DEFAULT 0",
+        "mfa_secret_enc":         "TEXT",
+        "mfa_pending_secret_enc": "TEXT",
+        "mfa_recovery_codes":     "TEXT",
+        "mfa_last_used_step":     "INTEGER",
+        "mfa_failed_attempts":    "INTEGER NOT NULL DEFAULT 0",
+        "mfa_locked_until":       "TIMESTAMP",
+        "mfa_enabled_at":         "TIMESTAMP",
+        "is_connected":           "BOOLEAN NOT NULL DEFAULT 0",
+        "last_login_at":          "TIMESTAMP",
+        "last_seen_at":           "TIMESTAMP",
+    },
+    "product_inventory": {
+        "qr_code":                "TEXT",
+    },
+    "orders": {
+        "payment_status":         "VARCHAR(30) NOT NULL DEFAULT 'pending'",
+    },
 }
 
 
 def migrate_schema() -> list[str]:
-    """Agrega columnas faltantes. Devuelve la lista de columnas creadas."""
+    """Agrega columnas faltantes de forma idempotente. Devuelve la lista de columnas creadas."""
     added: list[str] = []
     insp = inspect(engine)
-    if "users" not in insp.get_table_names():
-        return added
-    existing = {c["name"] for c in insp.get_columns("users")}
+    existing_tables = set(insp.get_table_names())
+    is_pg = DATABASE_URL.startswith("postgresql")
+
     with engine.begin() as conn:
-        for name, ddl in _USER_MFA_COLUMNS.items():
-            if name not in existing:
-                if DATABASE_URL.startswith("postgresql"):
-                    ddl = ddl.replace("DEFAULT 0", "DEFAULT FALSE") if name == "mfa_enabled" else ddl
-                conn.execute(text(f"ALTER TABLE users ADD COLUMN {name} {ddl}"))
-                added.append(name)
+        for table_name, columns in _SCHEMA_MIGRATIONS.items():
+            if table_name not in existing_tables:
+                continue
+            existing_cols = {c["name"] for c in insp.get_columns(table_name)}
+            for name, ddl in columns.items():
+                if name not in existing_cols:
+                    applied_ddl = ddl
+                    if is_pg and "BOOLEAN NOT NULL DEFAULT 0" in applied_ddl:
+                        applied_ddl = applied_ddl.replace("DEFAULT 0", "DEFAULT FALSE")
+                    conn.execute(text(f"ALTER TABLE {table_name} ADD COLUMN {name} {applied_ddl}"))
+                    added.append(f"{table_name}.{name}")
     return added

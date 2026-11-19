@@ -65,29 +65,47 @@ except Exception as e:
 # ─── INVENTARIO EN TIEMPO REAL DESDE ECOMMERCE.DB ─────────────────────────────
 
 def get_live_inventory() -> tuple[str, list[dict]]:
-    """Consulta la BD real de ecommerce.db para obtener stock y alertas actualizadas."""
-    cur_dir = os.path.dirname(os.path.abspath(__file__))
-    db_candidates = [
-        os.path.join(os.path.dirname(cur_dir), "ecommerce.db"),
-        os.path.join(cur_dir, "ecommerce.db"),
-        os.path.join(os.getcwd(), "ecommerce.db"),
-    ]
-    db_path = next((p for p in db_candidates if os.path.exists(p)), None)
+    """Consulta la BD (PostgreSQL/Cloud SQL via DATABASE_URL o SQLite local ecommerce.db)."""
     products: list[dict] = []
+    database_url = os.getenv("DATABASE_URL", "").strip()
 
-    if db_path:
+    if database_url:
         try:
-            with sqlite3.connect(db_path) as conn:
-                conn.row_factory = sqlite3.Row
-                c = conn.cursor()
-                c.execute("""
-                    SELECT sku, product_name, stock_quantity, warehouse_location, reorder_point 
+            from sqlalchemy import create_engine, text
+            eng = create_engine(database_url, pool_pre_ping=True)
+            with eng.connect() as conn:
+                rows = conn.execute(text("""
+                    SELECT sku, product_name, stock_quantity, warehouse_location, reorder_point
                     FROM product_inventory
                     ORDER BY stock_quantity ASC
-                """)
-                products = [dict(row) for row in c.fetchall()]
+                """)).mappings().all()
+                products = [dict(r) for r in rows]
+            eng.dispose()
         except Exception as e:
-            logger.warning(f"Error al leer ecommerce.db: {e}")
+            logger.warning(f"Error al leer inventario desde DATABASE_URL: {e}")
+
+    if not products:
+        cur_dir = os.path.dirname(os.path.abspath(__file__))
+        db_candidates = [
+            os.path.join(os.path.dirname(cur_dir), "ecommerce.db"),
+            os.path.join(cur_dir, "ecommerce.db"),
+            os.path.join(os.getcwd(), "ecommerce.db"),
+        ]
+        db_path = next((p for p in db_candidates if os.path.exists(p)), None)
+
+        if db_path:
+            try:
+                with sqlite3.connect(db_path) as conn:
+                    conn.row_factory = sqlite3.Row
+                    c = conn.cursor()
+                    c.execute("""
+                        SELECT sku, product_name, stock_quantity, warehouse_location, reorder_point 
+                        FROM product_inventory
+                        ORDER BY stock_quantity ASC
+                    """)
+                    products = [dict(row) for row in c.fetchall()]
+            except Exception as e:
+                logger.warning(f"Error al leer ecommerce.db: {e}")
 
     if not products:
         products = [
@@ -126,10 +144,10 @@ def get_local_fallback_reply(text: str, products: list[dict]) -> dict:
             "text": (
                 "👋 ¡Hola! Soy el **Copiloto IA de SmartWMS**.\n\n"
                 "Estoy a tu disposición para ayudarte con operaciones de bodega en tiempo real:\n"
-                "• 📦 **Stock de productos:** Consulta cualquier SKU o nombre de producto.\n"
-                "• 🔍 **Picking:** Procedimientos de recolección y lectura QR.\n"
-                "• 📤 **Packing y Despacho:** Registro de bultos, pesaje y dimensiones.\n"
-                "• ⚠️ **Alertas:** Monitoreo de ítems con bajo stock.\n\n"
+                "- 📦 **Stock de productos:** Consulta cualquier SKU o nombre de producto.\n"
+                "- 🔍 **Picking:** Procedimientos de recolección y lectura QR.\n"
+                "- 📤 **Packing y Despacho:** Registro de bultos, pesaje y dimensiones.\n"
+                "- ⚠️ **Alertas:** Monitoreo de ítems con bajo stock.\n\n"
                 "¿En qué te puedo colaborar en este momento?"
             ),
             "buttons": [
@@ -143,12 +161,12 @@ def get_local_fallback_reply(text: str, products: list[dict]) -> dict:
     if any(k in tl for k in ["picking", "recoleccion", "recolectar", "recolección", "/picking"]):
         return {
             "text": (
-                "📋 *Guía de Picking (Recolección de Pedidos):*\n\n"
+                "### 📋 Guía de Picking (Recolección de Pedidos)\n\n"
                 "1. **Iniciar Picking:** Ingresa a la sección de Picking en tu aplicación y abre la orden asignada.\n"
-                "2. **Seguir la Ruta:** Dirígete a la ubicación física señalada respetando la secuencia de pasillos (A ➔ B ➔ C ➔ D).\n"
+                "2. **Seguir la Ruta:** Dirígete a la ubicación física señalada respetando la secuencia de pasillos (`A → B → C → D`).\n"
                 "3. **Validación QR:** Escanea el código de barras o QR de la etiqueta del producto para confirmar el SKU exacto.\n"
                 "4. **Conteo:** Verifica que la cantidad recolectada coincida con la solicitud.\n"
-                "5. **Finalizar:** Marca la orden como completada para trasladar los ítems a la mesa de empaque."
+                "5. **Finalizar:** Marca la orden como finalizada para trasladar los ítems a la mesa de empaque."
             ),
             "buttons": [{"label": "📦 Consultar Stock", "cmd": "/stock"}]
         }
@@ -157,10 +175,10 @@ def get_local_fallback_reply(text: str, products: list[dict]) -> dict:
     if any(k in tl for k in ["packing", "empaque", "embalaje", "despacho", "despachar", "paquete", "bulto"]):
         return {
             "text": (
-                "📦 *Procedimiento de Packing y Despacho:*\n\n"
+                "### 📦 Procedimiento de Packing y Despacho\n\n"
                 "1. **Revisión de Ítems:** Asegúrate de que todos los productos recolectados en picking estén presentes y en buen estado.\n"
                 "2. **Empaque Seguro:** Selecciona la caja adecuada según volumen y peso.\n"
-                "3. **Medidas y Peso:** Ingresa las dimensiones (largo x ancho x alto en cm) y el peso neto en kg en la pantalla de Despacho.\n"
+                "3. **Medidas y Peso:** Ingresa las dimensiones (`largo × ancho × alto` en cm) y el peso neto en kg en la pantalla de Despacho.\n"
                 "4. **Confirmar Despacho:** Al presionar **Confirmar**, se descontará el stock físico automáticamente y se generará el comprobante de salida."
             ),
             "buttons": [{"label": "📋 Volver a Picking", "cmd": "/picking"}]
@@ -170,18 +188,18 @@ def get_local_fallback_reply(text: str, products: list[dict]) -> dict:
     if any(k in tl for k in ["alerta", "alertas", "critico", "crítico", "agotado", "reorden", "bajo stock", "/alertas"]):
         criticos = [p for p in products if p.get("stock_quantity", 0) <= (p.get("reorder_point") or 10)]
         if not criticos:
-            return {"text": "✅ *Estado del Inventario:* Todos los SKUs se encuentran con niveles saludables de stock."}
+            return {"text": "✅ **Estado del Inventario:** Todos los SKUs se encuentran con niveles saludables de stock."}
         
         items_txt = []
         for p in criticos[:8]:
             loc = p.get('warehouse_location') or 'S/L'
-            items_txt.append(f"• **{p.get('sku')}** ({p.get('product_name')}): `{p.get('stock_quantity')} uds` en Zona {loc} (Punto reorden: {p.get('reorder_point', 10)})")
+            items_txt.append(f"- **{p.get('sku')}** ({p.get('product_name')}): `{p.get('stock_quantity')} uds` en Zona {loc} (Punto reorden: {p.get('reorder_point', 10)})")
 
         return {
             "text": (
-                f"⚠️ *Alertas de Stock Crítico ({len(criticos)} ítems detectados):*\n\n"
+                f"### ⚠️ Alertas de Stock Crítico ({len(criticos)} ítems detectados)\n\n"
                 + "\n".join(items_txt)
-                + "\n\nSe sugiere al Supervisor emitir orden de compra para reabastecimiento."
+                + "\n\n> Se sugiere al Supervisor emitir orden de compra para reabastecimiento."
             ),
             "buttons": [{"label": "📦 Ver Todo el Stock", "cmd": "/stock"}]
         }
@@ -213,12 +231,12 @@ def get_local_fallback_reply(text: str, products: list[dict]) -> dict:
         estado = "⚠️ En nivel crítico" if qty <= reorder else "✅ Nivel adecuado"
         return {
             "text": (
-                f"📦 *Información de Inventario:*\n\n"
-                f"• **Producto:** {found.get('product_name')}\n"
-                f"• **SKU:** `{found.get('sku')}`\n"
-                f"• **Stock Actual:** `{qty} unidades`\n"
-                f"• **Ubicación en Bodega:** `Zona {loc}`\n"
-                f"• **Punto de Reorden:** `{reorder} unidades` ({estado})\n"
+                f"### 📦 Información de Inventario\n\n"
+                f"- **Producto:** {found.get('product_name')}\n"
+                f"- **SKU:** `{found.get('sku')}`\n"
+                f"- **Stock Actual:** `{qty} unidades`\n"
+                f"- **Ubicación en Bodega:** `Zona {loc}`\n"
+                f"- **Punto de Reorden:** `{reorder} unidades` ({estado})\n"
             ),
             "buttons": [
                 {"label": "🔍 Proceder a Picking", "cmd": "/picking"},
@@ -228,15 +246,17 @@ def get_local_fallback_reply(text: str, products: list[dict]) -> dict:
 
     # 6. Resumen general de Stock (/stock)
     if any(k in tl for k in ["stock", "inventario", "/stock"]):
-        summary = []
-        for p in products[:6]:
+        rows = []
+        for p in products[:8]:
             loc = p.get('warehouse_location') or 'S/L'
-            summary.append(f"• `{p.get('sku')}` - {p.get('product_name')}: **{p.get('stock_quantity')} uds** (Zona {loc})")
+            rows.append(f"| `{p.get('sku')}` | {p.get('product_name')} | **{p.get('stock_quantity')}** | Zona {loc} |")
         return {
             "text": (
-                f"📦 *Resumen de Inventario en Bodega (Total: {len(products)} SKUs):*\n\n"
-                + "\n".join(summary)
-                + "\n\nPuedes consultar el stock detallado de cualquier producto escribiendo su nombre o SKU (ej: *'Stock SKU-00567'*)."
+                f"### 📦 Resumen de Inventario (Total: {len(products)} SKUs)\n\n"
+                "| SKU | Producto | Stock | Ubicación |\n"
+                "|---|---|---:|---|\n"
+                + "\n".join(rows)
+                + "\n\nPuedes consultar el stock detallado de cualquier producto escribiendo su nombre o SKU (ej: *Stock SKU-00567*)."
             ),
             "buttons": [
                 {"label": "⚠️ Ver Stock Crítico", "cmd": "/alertas"},
@@ -247,12 +267,12 @@ def get_local_fallback_reply(text: str, products: list[dict]) -> dict:
     # 7. Respuesta por defecto
     return {
         "text": (
-            "🤖 *Copiloto SmartWMS:*\n\n"
+            "### 🤖 Copiloto SmartWMS\n\n"
             "Puedo asistirte con cualquier tarea operativa de la bodega:\n"
-            "• Consulta de stock por producto o SKU (ej: *'Stock Teclado'*)\n"
-            "• Instrucciones de picking y lectura de QR\n"
-            "• Procedimiento de packing y despacho\n"
-            "• Revisión de alertas de reabastecimiento\n\n"
+            "- Consulta de stock por producto o SKU (ej: *Stock Teclado*)\n"
+            "- Instrucciones de picking y lectura de QR\n"
+            "- Procedimiento de packing y despacho\n"
+            "- Revisión de alertas de reabastecimiento\n\n"
             "¿Deseas consultar inventario o guías de operación?"
         ),
         "buttons": [
@@ -284,7 +304,7 @@ def get_bot_reply(text: str) -> dict:
             contexto = (
                 "Eres el Copiloto IA de SmartWMS, un asistente inteligente para operarios y supervisores de bodega.\n"
                 "Reglas obligatorias:\n"
-                "1. Responde de forma concisa, profesional y directa en español. Usa Markdown para destacar SKUs y ubicaciones.\n"
+                "1. Responde de forma concisa, profesional y directa en español. Puedes usar Markdown completo (encabezados #, ##, ###, negritas, cursivas, listas, tablas, citas, bloques de código y separadores) para presentar la información con claridad.\n"
                 "2. Si te preguntan algo no relacionado con bodega, logística o inventario, indica amablemente que solo atiendes temas de bodega.\n"
                 f"3. INVENTARIO REAL ACTUAL EN BODEGA:\n{context_str}\n"
                 "4. Si preguntan sobre picking: indicar que deben ir a la sección Picking de la app, seguir la ruta optimizada (pasillos A->B->C->D) y escanear el QR del producto.\n"
@@ -442,4 +462,4 @@ async def health_check():
 
 if __name__ == "__main__":
     import uvicorn
-    uvicorn.run(app, host="0.0.0.0", port=8000)
+    uvicorn.run(app, host="0.0.0.0", port=int(os.getenv("PORT") or os.getenv("BOT_PORT", "8000")))

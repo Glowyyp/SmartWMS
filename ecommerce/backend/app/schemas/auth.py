@@ -84,14 +84,31 @@ class MFAStatusResponse(BaseModel):
 
 
 class UserOut(BaseModel):
-    """Representación pública del usuario (sin datos sensibles)."""
+    """Representación completa de usuario para administradores (sin contraseñas ni secretos MFA)."""
     id: int
     email: EmailStr
     full_name: str | None
     role: str
     is_active: bool
+    is_online: bool = False
+    last_login_at: datetime | None = None
+    last_seen_at: datetime | None = None
     mfa_enabled: bool = False
     created_at: datetime
+
+    model_config = {"from_attributes": True}
+
+
+class SupervisorUserOut(BaseModel):
+    """Vista restringida para supervisores: solo supervisores y operarios, sin datos de admins."""
+    id: int
+    username: str
+    full_name: str | None = None
+    role: Literal["supervisor", "operario"]
+    is_active: bool
+    is_online: bool = False
+    last_login_at: datetime | None = None
+    last_seen_at: datetime | None = None
 
     model_config = {"from_attributes": True}
 

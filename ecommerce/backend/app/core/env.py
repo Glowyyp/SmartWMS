@@ -18,8 +18,10 @@ from pathlib import Path
 from dotenv import dotenv_values
 
 # app/core/env.py → parents: [0]=core [1]=app [2]=backend [3]=ecommerce [4]=raíz
-BACKEND_DIR = Path(__file__).resolve().parents[2]
-PROJECT_ROOT = Path(os.getenv("SMARTWMS_HOME") or Path(__file__).resolve().parents[4])
+_RESOLVED = Path(__file__).resolve()
+BACKEND_DIR = _RESOLVED.parents[2]
+_DEFAULT_ROOT = _RESOLVED.parents[4] if len(_RESOLVED.parents) > 4 else BACKEND_DIR
+PROJECT_ROOT = Path(os.getenv("SMARTWMS_HOME") or _DEFAULT_ROOT)
 ROOT_ENV_FILE = PROJECT_ROOT / ".env"
 
 _loaded = False

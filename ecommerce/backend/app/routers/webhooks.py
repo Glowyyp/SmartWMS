@@ -88,8 +88,9 @@ def verify_webhook_signature(
     summary="Recibir evento de orden creada",
     description=(
         "Endpoint receptor de webhooks de e-commerce. "
-        "Procesa eventos `order.created`, valida el stock y registra la orden "
-        "en la base de datos en una transacción atómica."
+        "Procesa eventos `order.created`, valida los SKUs y registra la orden "
+        "en la base de datos en una transacción atómica sin descontar stock "
+        "(el stock físico se descuenta al despachar el pedido correspondiente)."
     ),
 )
 async def receive_order_webhook(

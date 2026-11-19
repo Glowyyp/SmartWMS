@@ -232,8 +232,8 @@ def test_acid():
     assert saved_order is None, "FALLO DE ATOMICIDAD: La cabecera de la orden quedó registrada en la BD"
     print(f"  [OK] Atomicidad demostrada: Ningún ítem fue descontado y la orden fue revertida (Stock = {prod_check.stock_quantity}).")
 
-    # 2.3 CONSISTENCIA Y VALIDACIÓN DE NEGATIVOS
-    print("\n  [Prueba de Consistencia - Stock No Negativo]")
+    # 2.3 REGISTRO DE ORDEN SIN DESCUENTO DE STOCK (stock se descuenta solo al despachar el Pedido)
+    print("\n  [Prueba de Consistencia - Registro de Orden sin Descuento de Stock]")
     over_payload = OrderWebhookPayload(
         event_type="order.created",
         order_id=f"ACID-OVER-{int(time.time())}",
@@ -244,16 +244,14 @@ def test_acid():
         ],
         total=Decimal("49950.00")
     )
-    try:
-        process_order(over_payload, db)
-        assert False, "Debió rechazar por stock insuficiente"
-    except StockInsuficienteError:
-        print("  [OK] Consistencia respetada: Intento de sobreventa rechazado por validación de stock.")
+    over_res = process_order(over_payload, db)
+    assert over_res.status == "completed"
 
     prod_check = db.query(ProductInventory).filter_by(sku=sku_acid).first()
-    assert prod_check.stock_quantity == initial_stock, "El stock no debe cambiar"
+    assert prod_check.stock_quantity == initial_stock, "El stock no debe descontarse al registrar órdenes"
+    print("  [OK] Consistencia respetada: La orden se registra sin descontar stock.")
 
-    # 2.4 DURABILIDAD: Transacción exitosa persistida
+    # 2.4 DURABILIDAD: Transacción exitosa persistida sin modificar stock
     print("\n  [Prueba de Durabilidad]")
     ok_payload = OrderWebhookPayload(
         event_type="order.created",
@@ -271,11 +269,11 @@ def test_acid():
     # Abrir una conexión independiente para comprobar durabilidad en disco
     db2 = SessionLocal()
     persisted_prod = db2.query(ProductInventory).filter_by(sku=sku_acid).first()
-    assert persisted_prod.stock_quantity == (initial_stock - 4)
+    assert persisted_prod.stock_quantity == initial_stock
     persisted_order = db2.query(Order).filter_by(external_order_id=ok_payload.order_id).first()
     assert persisted_order is not None
     assert len(persisted_order.items) == 1
-    print(f"  [OK] Durabilidad demostrada: Orden {ok_payload.order_id} persistida en disco. Stock actualizado: {persisted_prod.stock_quantity}.")
+    print(f"  [OK] Durabilidad demostrada: Orden {ok_payload.order_id} persistida en disco sin descontar stock ({persisted_prod.stock_quantity}).")
 
     # Limpieza
     db2.close()

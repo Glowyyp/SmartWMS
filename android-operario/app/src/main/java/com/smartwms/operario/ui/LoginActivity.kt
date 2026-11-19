@@ -18,6 +18,7 @@ import android.widget.Toast
 import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
 import androidx.lifecycle.lifecycleScope
+import com.smartwms.operario.BuildConfig
 import com.smartwms.operario.data.api.MfaActivateRequest
 import com.smartwms.operario.data.api.MfaRecoverRequest
 import com.smartwms.operario.data.api.MfaVerifyRequest
@@ -66,13 +67,13 @@ class LoginActivity : AppCompatActivity() {
         val currentUrl = RetrofitClient.getServerAddress(this)
         val input = EditText(this).apply {
             setText(currentUrl)
-            hint = "http://192.168.1.5:8001"
+            hint = BuildConfig.API_BASE_URL
             setPadding(48, 32, 48, 32)
         }
 
         AlertDialog.Builder(this)
             .setTitle("Dirección del Servidor")
-            .setMessage("Ingresa la URL o IP del servidor SmartWMS (Backend puerto 8001):")
+            .setMessage("Ingresa la URL del servidor SmartWMS (Cloud Run HTTPS o IP local):")
             .setView(input)
             .setPositiveButton("Guardar") { _, _ ->
                 val newUrl = input.text.toString().trim()
