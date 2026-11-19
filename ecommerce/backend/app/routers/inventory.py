@@ -64,8 +64,9 @@ def list_products(
 
     dirty_qr = False
     for p in products:
-        if not p.qr_code:
-            p.qr_code = generate_sku_qr_data_uri(p.sku)
+        expected_qr = generate_sku_qr_data_uri(p.sku)
+        if p.qr_code != expected_qr:
+            p.qr_code = expected_qr
             dirty_qr = True
     if dirty_qr:
         db.commit()
@@ -152,6 +153,10 @@ def update_product(
     h = getattr(product, "height", None)
     if l and w and h and ("estimated_volume" not in update_data or getattr(product, "estimated_volume", None) is None):
         product.estimated_volume = l * w * h
+
+    expected_qr = generate_sku_qr_data_uri(product.sku)
+    if product.qr_code != expected_qr:
+        product.qr_code = expected_qr
 
     db.commit()
     db.refresh(product)

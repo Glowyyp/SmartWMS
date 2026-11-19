@@ -26,6 +26,7 @@ import { OrdersService, Order, InsufficientStockItem } from '../../core/services
 import { InventoryService, ProductInventory, PendingReception } from '../../core/services/inventory.service';
 import { UsersService, UserRecord } from '../../core/services/users.service';
 import { WorkOrdersService, WorkOrder, WorkOrderItemIn, WorkOrderUpdate, Operario } from '../../core/services/work-orders.service';
+import { generateCode128SvgDataUri } from '../../core/utils/barcode.util';
 import { ChatbotComponent } from '../../shared/chatbot/chatbot.component';
 import { Subscription, interval } from 'rxjs';
 import { switchMap, startWith } from 'rxjs/operators';
@@ -301,8 +302,29 @@ export class SupervisorComponent implements OnInit, OnDestroy {
     });
   }
 
+  productCodeModeMap = signal<Record<number, 'qr' | 'barcode'>>({});
+  private barcodeCache = new Map<string, string>();
+
   toggleProductQr(product: ProductInventory): void {
     this.expandedProductQrId.update(cur => cur === product.id ? null : product.id);
+  }
+
+  getProductCodeMode(productId: number): 'qr' | 'barcode' {
+    return this.productCodeModeMap()[productId] ?? 'qr';
+  }
+
+  toggleProductCodeMode(productId: number): void {
+    const nextMode = this.getProductCodeMode(productId) === 'qr' ? 'barcode' : 'qr';
+    this.productCodeModeMap.update(prev => ({ ...prev, [productId]: nextMode }));
+  }
+
+  getBarcodeDataUri(sku: string): string {
+    const clean = (sku || '').trim();
+    const cached = this.barcodeCache.get(clean);
+    if (cached) return cached;
+    const uri = generateCode128SvgDataUri(clean);
+    this.barcodeCache.set(clean, uri);
+    return uri;
   }
 
   // ── Inventario ─────────────────────────────────────────────────────────────

@@ -765,16 +765,39 @@
                     <td colspan="7" class="expanded-detail-cell">
                       <div class="product-qr-panel" [id]="'qr-panel-' + p.id">
                         <div class="qr-card-box">
-                          @if (p.qr_code) {
-                            <img [src]="p.qr_code" [alt]="'Código QR ' + p.sku" class="product-qr-img" />
+                          @if (getProductCodeMode(p.id) === 'qr') {
+                            @if (p.qr_code) {
+                              <img [src]="p.qr_code" [alt]="'Código QR ' + p.sku" class="product-qr-img" />
+                            } @else {
+                              <p class="text-muted">QR no disponible</p>
+                            }
                           } @else {
-                            <p class="text-muted">QR no disponible</p>
+                            <img [src]="getBarcodeDataUri(p.sku)" [alt]="'Código de barras ' + p.sku" class="product-barcode-img" />
                           }
                           <code class="qr-sku-caption">{{ p.sku }}</code>
+                          <button type="button" class="qr-mode-toggle-btn" (click)="toggleProductCodeMode(p.id)" [id]="'toggle-code-mode-' + p.id">
+                            @if (getProductCodeMode(p.id) === 'qr') {
+                              <svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true">
+                                <rect x="1" y="2" width="1.5" height="12"/>
+                                <rect x="4" y="2" width="1" height="12"/>
+                                <rect x="6.5" y="2" width="2" height="12"/>
+                                <rect x="10" y="2" width="1" height="12"/>
+                                <rect x="12.5" y="2" width="2.5" height="12"/>
+                              </svg>
+                              <span>Código de barras</span>
+                            } @else {
+                              <mat-icon>qr_code_2</mat-icon>
+                              <span>Código QR</span>
+                            }
+                          </button>
                         </div>
                         <div class="qr-meta-info">
                           <p class="qr-product-name">{{ p.product_name }}</p>
-                          <p class="qr-hint">Escanea este código QR desde la app de operario para identificar el producto por su SKU.</p>
+                          <p class="qr-hint">
+                            {{ getProductCodeMode(p.id) === 'qr'
+                              ? 'Escanea este código QR desde la app de operario para identificar el producto por su SKU.'
+                              : 'Escanea este código de barras (Code 128) desde la app de operario para identificar el producto por su SKU.' }}
+                          </p>
                         </div>
                       </div>
                     </td>

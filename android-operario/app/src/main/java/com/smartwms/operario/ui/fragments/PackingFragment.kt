@@ -16,6 +16,7 @@ import androidx.navigation.fragment.findNavController
 import com.smartwms.operario.R
 import com.smartwms.operario.databinding.FragmentPackingBinding
 import com.smartwms.operario.ui.OrderViewModel
+import com.smartwms.operario.ui.SmartCaptureActivity
 import com.journeyapps.barcodescanner.ScanContract
 import com.journeyapps.barcodescanner.ScanOptions
 import com.journeyapps.barcodescanner.ScanIntentResult
@@ -97,15 +98,9 @@ class PackingFragment : Fragment() {
         binding.btnClosePacking.setOnClickListener {
             val order = orderVm.selectedOrder.value
             if (order != null && (order.status == "pending" || order.status == "assigned")) {
-                val options = ScanOptions().apply {
-                    setDesiredBarcodeFormats(ScanOptions.ALL_CODE_TYPES)
-                    setPrompt("Escanea el código de la Mesa (QR o Barras)")
-                    setCameraId(0)
-                    setBeepEnabled(true)
-                    setBarcodeImageEnabled(false)
-                    setOrientationLocked(false)
-                }
-                qrLauncher.launch(options)
+                qrLauncher.launch(
+                    SmartCaptureActivity.buildScanOptions("Escanea el código de la Mesa (QR o Barras)")
+                )
             } else if (order != null && order.status == "dispatched") {
                 navigateBackSafely()
             } else {

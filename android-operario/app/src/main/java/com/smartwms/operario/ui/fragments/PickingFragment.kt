@@ -17,6 +17,7 @@ import com.smartwms.operario.data.api.PickingItem
 import com.smartwms.operario.data.api.WorkOrder
 import com.smartwms.operario.databinding.FragmentPickingBinding
 import com.smartwms.operario.ui.OrderViewModel
+import com.smartwms.operario.ui.SmartCaptureActivity
 import com.smartwms.operario.ui.adapters.PickingAdapter
 import com.smartwms.operario.ui.adapters.WorkOrderAdapter
 import com.journeyapps.barcodescanner.ScanContract
@@ -88,15 +89,9 @@ class PickingFragment : Fragment() {
 
         // Escanear código de pedido (QR o Barras)
         binding.btnScanOrder.setOnClickListener {
-            val options = ScanOptions().apply {
-                setDesiredBarcodeFormats(ScanOptions.ALL_CODE_TYPES)
-                setPrompt("Escanea el código del pedido (QR o Barras)")
-                setCameraId(0)
-                setBeepEnabled(true)
-                setBarcodeImageEnabled(false)
-                setOrientationLocked(false)
-            }
-            orderScanLauncher.launch(options)
+            orderScanLauncher.launch(
+                SmartCaptureActivity.buildScanOptions("Escanea el código del pedido (QR o Barras)")
+            )
         }
 
         // Ingreso manual de código de pedido
@@ -120,15 +115,9 @@ class PickingFragment : Fragment() {
 
         // Botón Escáner de producto (compatible con QR y Código de barras 1D)
         binding.btnScanQr.setOnClickListener {
-            val options = ScanOptions().apply {
-                setDesiredBarcodeFormats(ScanOptions.ALL_CODE_TYPES)
-                setPrompt("Escanea el código del producto (QR o Barras)")
-                setCameraId(0)
-                setBeepEnabled(true)
-                setBarcodeImageEnabled(false)
-                setOrientationLocked(false)
-            }
-            qrLauncher.launch(options)
+            qrLauncher.launch(
+                SmartCaptureActivity.buildScanOptions("Escanea el código del producto (QR o Barras)")
+            )
         }
 
         // Botón Ingreso manual de código de producto

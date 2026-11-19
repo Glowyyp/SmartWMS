@@ -9,9 +9,13 @@ import segno
 
 def generate_sku_qr_data_uri(sku: str) -> str:
     """
-    Genera un código QR determinista y escaneable vinculado al SKU del producto.
-    El contenido del QR es el SKU limpio para compatibilidad directa con el escáner móvil.
+    Genera un código QR estándar (no Micro QR) determinista y escaneable
+    vinculado al SKU del producto.
+    El contenido del QR es el SKU limpio para compatibilidad directa con ZXing y
+    cualquier lector móvil estándar.
     """
     clean_sku = sku.strip()
-    qr = segno.make(clean_sku, error="M")
-    return qr.svg_data_uri(scale=6, border=2, dark="#0f172a", light="#ffffff")
+    # make_qr fuerza QR estándar (micro=False) en vez de Micro QR, ya que ZXing y
+    # la mayoría de lectores móviles no decodifican Micro QR en SKUs cortos.
+    qr = segno.make_qr(clean_sku, error="M")
+    return qr.svg_data_uri(scale=6, border=4, dark="#000000", light="#ffffff")
