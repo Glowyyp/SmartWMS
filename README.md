@@ -1,11 +1,27 @@
-# SmartWMS - Sistema de Gestión de Almacén y Logística
+# SmartWMS — Sistema Integral de Gestión de Bodega y Logística
 
-SmartWMS es una plataforma integral de gestión de bodega y despachos compuesta por:
-1. **Backend API (FastAPI - Puerto 8001):** Motor central con autenticación JWT, WebSockets en tiempo real (`/ws/orders`), auditoría inmutable de pedidos y control de inventario.
-2. **Bot IA y Copiloto (FastAPI - Puerto 8000):** Servicio de asistencia inteligente para consultas operativas y automatización de procesos.
-3. **Frontend Web (Angular 18+ - Puerto 4200):** Aplicación web reactiva con portales dedicados para **Supervisor** (`/supervisor`) y **Operario** (`/operario`).
-4. **App Móvil Android (Kotlin Nativo):** Aplicación de picking y despacho para dispositivos móviles y terminales de mano con escáner de códigos de barras.
-5. **Base de Datos Centralizada (SQLite / `ecommerce.db`):** Fuente única de verdad persistente para todas las aplicaciones.
+SmartWMS es una plataforma WMS full-stack para gestión de inventario, recepción de órdenes, armado y despacho de pedidos, layout físico de almacén y asistencia operativa con IA, desplegada en **Google Cloud Platform (Cloud Run + Cloud SQL PostgreSQL)** con CI/CD automático desde GitHub.
+
+## Arquitectura y Servicios en Producción (GCP — `smartwms-prd` / `southamerica-west1`)
+
+| Componente | Tecnología | URL / Ubicación | Descripción |
+| :--- | :--- | :--- | :--- |
+| **Frontend Web** | Angular 22 (Zoneless + Nginx) | https://smartwms-frontend-523602689123.southamerica-west1.run.app | Paneles de Supervisor y Operario, Layout interactivo, QR/Code 128, Pedidos, Recepciones y Copiloto IA con Markdown |
+| **Backend API** | FastAPI + SQLAlchemy | https://smartwms-backend-523602689123.southamerica-west1.run.app/docs | API REST, JWT + MFA TOTP, Webhooks de órdenes, control de stock atómico y endpoints de Layout/Putaway |
+| **Bot IA** | FastAPI + Gemini API | https://smartwms-bot-523602689123.southamerica-west1.run.app | Copiloto inteligente para consultas operativas con soporte completo de Markdown |
+| **Base de Datos** | Cloud SQL (`POSTGRES_18`) | Instancia `smartwms-bd-qa` | Fuente única de verdad persistente para inventario, órdenes, pedidos, recepciones y ubicaciones |
+| **App Móvil Android** | Kotlin Nativo (`android-operario`) | Flavor `production` | App de picking, packing, escáner QR/Barras (`Code 128`) y módulo Putaway en tiempo real |
+
+## Funcionalidades Principales Implementadas
+
+- **Autenticación y Seguridad:** JWT + MFA obligatorio (TOTP) con recuperación, control de presencia en línea de operarios y aislamiento de visibilidad de usuarios por rol.
+- **Órdenes y Pedidos de Bodega:** Recepción de órdenes pagadas via webhook (`POST /api/v1/webhooks/orders`) sin descuento anticipado de stock; carga directa de productos a pedido validando stock disponible real; reserva en pedidos y descuento físico atómico (`SELECT FOR UPDATE`) únicamente al despachar; gestión de estados confirmables (`Recibido`, `En proceso`, `Completado`, `Rechazado`).
+- **Inventario, Códigos QR / Barras y Recepciones:** Generación determinista de QR estándar (`segno`) y código de barras **Code 128** por SKU; gestión de recepciones esperadas con entrega parcial, edición de cantidades reales/dañadas, cierre por faltante y cancelación.
+- **Layout Dinámico y Módulo Putaway (Supervisor + APK):**
+  - 4 mesas predeterminadas (`M-01`..`M-04`) más administración completa de mesas, zonas y estanterías.
+  - Consulta en vivo del contenido y fecha de almacenamiento de cada ubicación.
+  - Putaway en APK Android con autocompletado de SKUs, escáner QR/Barras, almacenamiento inicial o traslado entre ubicaciones sin duplicar stock y trazabilidad de movimientos.
+- **Despliegue Automático (CI/CD):** Cada `git push` a `main` dispara Cloud Build ([deploy/gcp/cloudbuild.yaml](deploy/gcp/cloudbuild.yaml)) para compilar y actualizar automáticamente los 3 servicios en Cloud Run.
 
 ---
 
