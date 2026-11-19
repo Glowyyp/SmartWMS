@@ -629,7 +629,7 @@
                   (input)="updateNewProduct('product_name', $any($event.target).value)" />
               </div>
               <div class="form-field">
-                <label class="form-label">Stock Físico Inicial</label>
+                <label class="form-label">{{ editingProduct() ? 'Stock Físico' : 'Stock Físico Inicial' }}</label>
                 <input class="form-input" id="new-stock" type="number" min="0" placeholder="0"
                   [value]="editingProduct() ? editingProduct()?.stock_quantity : newProduct().stock_quantity"
                   (input)="updateNewProduct('stock_quantity', +$any($event.target).value)" />
