@@ -53,6 +53,16 @@ class ProductUpdate(BaseModel):
 
 # ─── Salida ───────────────────────────────────────────────────────────────────
 
+class ProductLocationBreakdown(BaseModel):
+    location_id: int
+    location_code: str
+    location_name: str
+    location_type: str
+    zone_code: str | None = None
+    quantity: int
+    stored_at: datetime
+
+
 class ProductOut(BaseModel):
     """
     Representación completa de un producto del inventario.
@@ -85,6 +95,8 @@ class ProductOut(BaseModel):
     # Campos calculados dinámicamente por el router (no están en el ORM)
     reserved_qty: int = 0
     available_qty: int = 0
+    unlocated_qty: int = 0
+    location_stocks: list[ProductLocationBreakdown] = []
 
     model_config = {"from_attributes": True}
 
@@ -131,6 +143,8 @@ class PutawayRequest(BaseModel):
     sku: str = Field(min_length=1, max_length=100)
     quantity: int = Field(gt=0)
     location: str = Field(min_length=1, max_length=50)
+    source_location: str | None = Field(default=None, max_length=50)
+    notes: str | None = None
 
 
 class PutawayResponse(BaseModel):
@@ -139,7 +153,11 @@ class PutawayResponse(BaseModel):
     product_name: str
     quantity: int
     previous_location: str | None = None
+    source_location: str | None = None
     new_location: str
+    location_total_quantity: int
     stock_quantity: int
     reserved_qty: int
     available_qty: int
+    unlocated_qty: int
+    location_stocks: list[ProductLocationBreakdown] = []

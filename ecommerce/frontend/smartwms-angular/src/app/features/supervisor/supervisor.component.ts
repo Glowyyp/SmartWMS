@@ -26,6 +26,9 @@ import { OrdersService, Order, InsufficientStockItem } from '../../core/services
 import { InventoryService, ProductInventory, PendingReception } from '../../core/services/inventory.service';
 import { UsersService, UserRecord } from '../../core/services/users.service';
 import { WorkOrdersService, WorkOrder, WorkOrderItemIn, WorkOrderUpdate, Operario } from '../../core/services/work-orders.service';
+import {
+  LayoutService, LayoutLocation, LayoutZone, PutawayMovement, LocationItemDetail
+} from '../../core/services/layout.service';
 import { generateCode128SvgDataUri } from '../../core/utils/barcode.util';
 import { ChatbotComponent } from '../../shared/chatbot/chatbot.component';
 import { Subscription, interval, forkJoin } from 'rxjs';
@@ -212,6 +215,49 @@ export class SupervisorComponent implements OnInit, OnDestroy {
     this.receptionSkuSearch.set('');
   }
 
+  // ── Layout del Almacén (Mesas, Zonas y Estanterías dinámicas) ──────────────
+  layoutTables = signal<LayoutLocation[]>([]);
+  layoutZones = signal<LayoutZone[]>([]);
+  layoutMovements = signal<PutawayMovement[]>([]);
+  layoutLoading = signal(false);
+  selectedLocationId = signal<number | null>(null);
+
+  allLayoutLocations = computed(() => [
+    ...this.layoutTables(),
+    ...this.layoutZones().flatMap(z => z.racks),
+  ]);
+
+  selectedLocation = computed<LayoutLocation | null>(() => {
+    const id = this.selectedLocationId();
+    if (!id) return null;
+    return this.allLayoutLocations().find(l => l.id === id) ?? null;
+  });
+
+  // Formularios de administración del Layout
+  showTableForm = signal(false);
+  editingTable = signal<LayoutLocation | null>(null);
+  tableFormCode = signal('');
+  tableFormName = signal('');
+
+  showZoneForm = signal(false);
+  editingZone = signal<LayoutZone | null>(null);
+  zoneFormCode = signal('');
+  zoneFormName = signal('');
+  zoneFormColor = signal('#6366f1');
+  zoneFormRacks = signal('');
+
+  rackTargetZone = signal<LayoutZone | null>(null);
+  editingRack = signal<LayoutLocation | null>(null);
+  rackFormCode = signal('');
+  rackFormName = signal('');
+  savingLayout = signal(false);
+
+  // Reubicación rápida dentro del detalle de ubicación
+  movingItem = signal<LocationItemDetail | null>(null);
+  moveDestCode = signal('');
+  moveQty = signal(1);
+  savingMove = signal(false);
+
   // ── IoT simulado ───────────────────────────────────────────────────────────
   iotData = signal({
     temperature: 18.4,
@@ -227,6 +273,7 @@ export class SupervisorComponent implements OnInit, OnDestroy {
   private pollSub?: Subscription;
   private woPollSub?: Subscription;
   private usersPollSub?: Subscription;
+  private layoutPollSub?: Subscription;
 
   constructor(
     private authService: AuthService,
@@ -234,6 +281,7 @@ export class SupervisorComponent implements OnInit, OnDestroy {
     private inventoryService: InventoryService,
     private usersService: UsersService,
     private workOrdersService: WorkOrdersService,
+    private layoutService: LayoutService,
     private snackBar: MatSnackBar,
   ) {}
 
@@ -247,6 +295,7 @@ export class SupervisorComponent implements OnInit, OnDestroy {
     this.loadWorkOrders();
     this.loadReceptions();
     this.loadOperarios();
+    this.loadLayout();
     this.startIoTSimulation();
 
     // Poll órdenes webhook cada 30 s
@@ -265,12 +314,24 @@ export class SupervisorComponent implements OnInit, OnDestroy {
     this.usersPollSub = interval(10000).pipe(
       switchMap(() => this.usersService.getUsers())
     ).subscribe({ next: users => this.users.set(users) });
+
+    // Poll layout cada 15 s para reflejar movimientos Putaway de la APK en tiempo real
+    this.layoutPollSub = interval(15000).pipe(
+      switchMap(() => this.layoutService.getLayout())
+    ).subscribe({
+      next: data => {
+        this.layoutTables.set(data.tables);
+        this.layoutZones.set(data.zones);
+        this.layoutMovements.set(data.movements);
+      },
+    });
   }
 
   ngOnDestroy(): void {
     this.pollSub?.unsubscribe();
     this.woPollSub?.unsubscribe();
     this.usersPollSub?.unsubscribe();
+    this.layoutPollSub?.unsubscribe();
   }
 
   // ── Órdenes webhook ────────────────────────────────────────────────────────
@@ -1213,6 +1274,309 @@ export class SupervisorComponent implements OnInit, OnDestroy {
       admin: 'role-admin', supervisor: 'role-supervisor', operario: 'role-operario',
     };
     return map[role] ?? '';
+  }
+
+  // ── Gestión de Layout (Mesas, Zonas, Estanterías y Reubicación) ────────────
+  loadLayout(): void {
+    this.layoutLoading.set(true);
+    this.layoutService.getLayout().subscribe({
+      next: data => {
+        this.layoutTables.set(data.tables);
+        this.layoutZones.set(data.zones);
+        this.layoutMovements.set(data.movements);
+        this.layoutLoading.set(false);
+      },
+      error: () => {
+        this.layoutLoading.set(false);
+        this.snackBar.open('No se pudo cargar el layout de bodega.', 'Cerrar', { duration: 4000 });
+      },
+    });
+  }
+
+  selectLayoutLocation(loc: LayoutLocation): void {
+    this.movingItem.set(null);
+    this.selectedLocationId.update(cur => cur === loc.id ? null : loc.id);
+  }
+
+  openNewTableForm(): void {
+    this.showZoneForm.set(false);
+    this.rackTargetZone.set(null);
+    this.editingRack.set(null);
+    this.editingTable.set(null);
+    this.tableFormCode.set('');
+    this.tableFormName.set('');
+    this.showTableForm.set(true);
+  }
+
+  openEditTableForm(table: LayoutLocation, event: Event): void {
+    event.stopPropagation();
+    this.showZoneForm.set(false);
+    this.rackTargetZone.set(null);
+    this.editingRack.set(null);
+    this.editingTable.set(table);
+    this.tableFormCode.set(table.code);
+    this.tableFormName.set(table.name);
+    this.showTableForm.set(true);
+  }
+
+  saveTableForm(): void {
+    const code = this.tableFormCode().trim().toUpperCase();
+    const name = this.tableFormName().trim();
+    if (!code) {
+      this.snackBar.open('Ingresa el código de la mesa (ej: M-05).', 'Cerrar', { duration: 3000 });
+      return;
+    }
+    this.savingLayout.set(true);
+    const editing = this.editingTable();
+    const obs$ = editing
+      ? this.layoutService.updateTable(editing.id, { code, name: name || code })
+      : this.layoutService.createTable({ code, name: name || `Mesa ${code}` });
+
+    obs$.subscribe({
+      next: () => {
+        this.savingLayout.set(false);
+        this.showTableForm.set(false);
+        this.editingTable.set(null);
+        this.snackBar.open(editing ? `✅ Mesa ${code} actualizada` : `✅ Mesa ${code} creada`, 'OK', { duration: 3000 });
+        this.loadLayout();
+        this.loadInventory();
+      },
+      error: err => {
+        this.savingLayout.set(false);
+        this.snackBar.open(`❌ ${err.error?.detail ?? 'Error al guardar la mesa'}`, 'Cerrar', { duration: 4500 });
+      },
+    });
+  }
+
+  deleteTable(table: LayoutLocation, event: Event): void {
+    event.stopPropagation();
+    if (table.is_occupied) {
+      this.selectedLocationId.set(table.id);
+      this.snackBar.open(
+        `⚠️ La mesa ${table.code} tiene ${table.total_units} unidad(es). Reubícalas primero desde el detalle.`,
+        'OK',
+        { duration: 5000 }
+      );
+      return;
+    }
+    if (!confirm(`¿Eliminar la mesa ${table.code} (${table.name})?`)) return;
+    this.layoutService.deleteTable(table.id).subscribe({
+      next: () => {
+        if (this.selectedLocationId() === table.id) this.selectedLocationId.set(null);
+        this.snackBar.open(`Mesa ${table.code} eliminada`, 'OK', { duration: 3000 });
+        this.loadLayout();
+      },
+      error: err => this.snackBar.open(`❌ ${err.error?.detail ?? 'No se pudo eliminar la mesa'}`, 'Cerrar', { duration: 4500 }),
+    });
+  }
+
+  openNewZoneForm(): void {
+    this.showTableForm.set(false);
+    this.rackTargetZone.set(null);
+    this.editingRack.set(null);
+    this.editingZone.set(null);
+    this.zoneFormCode.set('');
+    this.zoneFormName.set('');
+    this.zoneFormColor.set('#6366f1');
+    this.zoneFormRacks.set('');
+    this.showZoneForm.set(true);
+  }
+
+  openEditZoneForm(zone: LayoutZone): void {
+    this.showTableForm.set(false);
+    this.rackTargetZone.set(null);
+    this.editingRack.set(null);
+    this.editingZone.set(zone);
+    this.zoneFormCode.set(zone.code);
+    this.zoneFormName.set(zone.name);
+    this.zoneFormColor.set(zone.color);
+    this.zoneFormRacks.set('');
+    this.showZoneForm.set(true);
+  }
+
+  saveZoneForm(): void {
+    const code = this.zoneFormCode().trim().toUpperCase();
+    const name = this.zoneFormName().trim();
+    const color = this.zoneFormColor().trim() || '#6366f1';
+    if (!code || !name) {
+      this.snackBar.open('Código y nombre de zona son requeridos.', 'Cerrar', { duration: 3000 });
+      return;
+    }
+    this.savingLayout.set(true);
+    const editing = this.editingZone();
+    if (editing) {
+      this.layoutService.updateZone(editing.id, { code, name, color }).subscribe({
+        next: () => {
+          this.savingLayout.set(false);
+          this.showZoneForm.set(false);
+          this.editingZone.set(null);
+          this.snackBar.open(`✅ Zona ${code} actualizada`, 'OK', { duration: 3000 });
+          this.loadLayout();
+        },
+        error: err => {
+          this.savingLayout.set(false);
+          this.snackBar.open(`❌ ${err.error?.detail ?? 'Error al actualizar zona'}`, 'Cerrar', { duration: 4500 });
+        },
+      });
+    } else {
+      const racks = this.zoneFormRacks()
+        .split(',')
+        .map(r => r.trim().toUpperCase())
+        .filter(Boolean);
+      this.layoutService.createZone({ code, name, color, racks }).subscribe({
+        next: () => {
+          this.savingLayout.set(false);
+          this.showZoneForm.set(false);
+          this.snackBar.open(`✅ Zona ${code} creada`, 'OK', { duration: 3000 });
+          this.loadLayout();
+        },
+        error: err => {
+          this.savingLayout.set(false);
+          this.snackBar.open(`❌ ${err.error?.detail ?? 'Error al crear zona'}`, 'Cerrar', { duration: 4500 });
+        },
+      });
+    }
+  }
+
+  deleteZone(zone: LayoutZone): void {
+    if (zone.occupied_racks_count > 0) {
+      this.snackBar.open(
+        `⚠️ La zona ${zone.code} tiene ${zone.occupied_racks_count} estantería(s) ocupadas. Reubica los productos primero.`,
+        'OK',
+        { duration: 5000 }
+      );
+      return;
+    }
+    if (!confirm(`¿Eliminar la zona ${zone.code} (${zone.name}) y sus estanterías vacías?`)) return;
+    this.layoutService.deleteZone(zone.id).subscribe({
+      next: () => {
+        if (this.selectedLocation()?.zone_id === zone.id) this.selectedLocationId.set(null);
+        this.snackBar.open(`Zona ${zone.code} eliminada`, 'OK', { duration: 3000 });
+        this.loadLayout();
+      },
+      error: err => this.snackBar.open(`❌ ${err.error?.detail ?? 'Error al eliminar zona'}`, 'Cerrar', { duration: 4500 }),
+    });
+  }
+
+  openNewRackForm(zone: LayoutZone): void {
+    this.showTableForm.set(false);
+    this.showZoneForm.set(false);
+    this.editingRack.set(null);
+    this.rackTargetZone.set(zone);
+    this.rackFormCode.set(`${zone.code}-`);
+    this.rackFormName.set('');
+  }
+
+  openEditRackForm(rack: LayoutLocation, event: Event): void {
+    event.stopPropagation();
+    this.showTableForm.set(false);
+    this.showZoneForm.set(false);
+    this.rackTargetZone.set(null);
+    this.editingRack.set(rack);
+    this.rackFormCode.set(rack.code);
+    this.rackFormName.set(rack.name);
+  }
+
+  cancelRackForm(): void {
+    this.rackTargetZone.set(null);
+    this.editingRack.set(null);
+  }
+
+  saveRackForm(): void {
+    const code = this.rackFormCode().trim().toUpperCase();
+    const name = this.rackFormName().trim();
+    if (!code) {
+      this.snackBar.open('Ingresa el código de la estantería (ej: E-01).', 'Cerrar', { duration: 3000 });
+      return;
+    }
+    this.savingLayout.set(true);
+    const editing = this.editingRack();
+    const targetZone = this.rackTargetZone();
+
+    const obs$ = editing
+      ? this.layoutService.updateRack(editing.id, { code, name: name || `Estantería ${code}` })
+      : this.layoutService.createRack(targetZone!.id, { code, name: name || `Estantería ${code}` });
+
+    obs$.subscribe({
+      next: () => {
+        this.savingLayout.set(false);
+        this.cancelRackForm();
+        this.snackBar.open(editing ? `✅ Estantería ${code} actualizada` : `✅ Estantería ${code} agregada`, 'OK', { duration: 3000 });
+        this.loadLayout();
+        this.loadInventory();
+      },
+      error: err => {
+        this.savingLayout.set(false);
+        this.snackBar.open(`❌ ${err.error?.detail ?? 'Error al guardar estantería'}`, 'Cerrar', { duration: 4500 });
+      },
+    });
+  }
+
+  deleteRack(rack: LayoutLocation, event: Event): void {
+    event.stopPropagation();
+    if (rack.is_occupied) {
+      this.selectedLocationId.set(rack.id);
+      this.snackBar.open(
+        `⚠️ La estantería ${rack.code} tiene ${rack.total_units} unidad(es). Reubícalas antes de eliminarla.`,
+        'OK',
+        { duration: 5000 }
+      );
+      return;
+    }
+    if (!confirm(`¿Eliminar la estantería vacía ${rack.code}?`)) return;
+    this.layoutService.deleteRack(rack.id).subscribe({
+      next: () => {
+        if (this.selectedLocationId() === rack.id) this.selectedLocationId.set(null);
+        this.snackBar.open(`Estantería ${rack.code} eliminada`, 'OK', { duration: 3000 });
+        this.loadLayout();
+      },
+      error: err => this.snackBar.open(`❌ ${err.error?.detail ?? 'No se pudo eliminar la estantería'}`, 'Cerrar', { duration: 4500 }),
+    });
+  }
+
+  openMoveItemForm(loc: LayoutLocation, item: LocationItemDetail): void {
+    this.movingItem.set(item);
+    this.moveQty.set(item.quantity);
+    const other = this.allLayoutLocations().find(l => l.id !== loc.id);
+    this.moveDestCode.set(other ? other.code : '');
+  }
+
+  submitMoveItem(): void {
+    const sourceLoc = this.selectedLocation();
+    const item = this.movingItem();
+    if (!sourceLoc || !item) return;
+
+    const dest = this.moveDestCode().trim().toUpperCase();
+    const qty = Number(this.moveQty());
+    if (!dest) {
+      this.snackBar.open('Selecciona una ubicación de destino.', 'Cerrar', { duration: 3000 });
+      return;
+    }
+    if (isNaN(qty) || qty < 1 || qty > item.quantity) {
+      this.snackBar.open(`Cantidad inválida (1 a ${item.quantity}).`, 'Cerrar', { duration: 3000 });
+      return;
+    }
+
+    this.savingMove.set(true);
+    this.inventoryService.registerPutaway({
+      sku: item.sku,
+      quantity: qty,
+      location: dest,
+      source_location: sourceLoc.code,
+      notes: `Reubicación desde Supervisor (${sourceLoc.code} → ${dest})`,
+    }).subscribe({
+      next: () => {
+        this.savingMove.set(false);
+        this.movingItem.set(null);
+        this.snackBar.open(`✅ Movido ${item.sku} x${qty}: ${sourceLoc.code} → ${dest}`, 'OK', { duration: 3500 });
+        this.loadLayout();
+        this.loadInventory();
+      },
+      error: err => {
+        this.savingMove.set(false);
+        this.snackBar.open(`❌ ${err.error?.detail ?? 'Error al mover producto'}`, 'Cerrar', { duration: 4500 });
+      },
+    });
   }
 
   private startIoTSimulation(): void {

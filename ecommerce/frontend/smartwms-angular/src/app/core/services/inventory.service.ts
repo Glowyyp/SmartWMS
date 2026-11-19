@@ -6,6 +6,16 @@ import { HttpClient } from '@angular/common/http';
 import { Observable } from 'rxjs';
 import { environment } from '../../../environments/environment';
 
+export interface ProductLocationBreakdown {
+  location_id: number;
+  location_code: string;
+  location_name: string;
+  location_type: 'table' | 'rack';
+  zone_code: string | null;
+  quantity: number;
+  stored_at: string;
+}
+
 export interface ProductInventory {
   id: number;
   sku: string;
@@ -28,6 +38,8 @@ export interface ProductInventory {
   updated_at: string;
   reserved_qty: number;     // Unidades reservadas en pedidos pendientes
   available_qty: number;    // stock_quantity - reserved_qty
+  unlocated_qty?: number;
+  location_stocks?: ProductLocationBreakdown[];
 }
 
 export interface PendingReception {
@@ -102,5 +114,15 @@ export class InventoryService {
 
   cancelReception(id: number): Observable<PendingReception> {
     return this.http.post<PendingReception>(`${this.baseUrl}/receptions/${id}/cancel`, {});
+  }
+
+  registerPutaway(payload: {
+    sku: string;
+    quantity: number;
+    location: string;
+    source_location?: string | null;
+    notes?: string | null;
+  }): Observable<any> {
+    return this.http.post(`${this.baseUrl}/putaway`, payload);
   }
 }

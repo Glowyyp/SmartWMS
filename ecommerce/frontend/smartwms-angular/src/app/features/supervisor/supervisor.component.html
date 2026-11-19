@@ -32,7 +32,7 @@
       <button class="nav-item" [class.active]="activeTab() === 2" (click)="activeTab.set(2)">
         <mat-icon>group</mat-icon><span>Usuarios</span>
       </button>
-      <button class="nav-item" [class.active]="activeTab() === 3" (click)="activeTab.set(3)">
+      <button class="nav-item" [class.active]="activeTab() === 3" (click)="activeTab.set(3); loadLayout()">
         <mat-icon>map</mat-icon><span>Layout</span>
       </button>
       <button class="nav-item" [class.active]="activeTab() === 4" (click)="activeTab.set(4)">
@@ -884,32 +884,370 @@
     @if (activeTab() === 3) {
       <section class="panel-section">
         <div class="section-header">
-          <h1 class="section-title">Layout Físico del Almacén</h1>
-          <p class="section-subtitle">Zonas, pasillos y racks — US-WEB-01</p>
+          <div>
+            <h1 class="section-title">Layout Físico del Almacén</h1>
+            <p class="section-subtitle">
+              {{ layoutTables().length }} mesa(s) · {{ layoutZones().length }} zona(s) configurables — Sincronizado con Inventario y Putaway APK
+            </p>
+          </div>
+          <div class="header-actions">
+            <button mat-stroked-button id="btn-refresh-layout" (click)="loadLayout()">
+              <mat-icon>refresh</mat-icon> Actualizar
+            </button>
+            <button mat-stroked-button id="btn-new-table" (click)="openNewTableForm()">
+              <mat-icon>table_restaurant</mat-icon> + Nueva Mesa
+            </button>
+            <button mat-flat-button color="primary" id="btn-new-zone" (click)="openNewZoneForm()">
+              <mat-icon>add_business</mat-icon> + Nueva Zona
+            </button>
+          </div>
         </div>
-        <div class="warehouse-layout">
-          @for (zone of [
-            {id:'A', label:'Zona A — Insumos', color:'#6366f1', racks:['A-01','A-02','A-03']},
-            {id:'B', label:'Zona B — Electrónica', color:'#8b5cf6', racks:['B-01','B-02','B-03','B-04']},
-            {id:'C', label:'Zona C — Periféricos', color:'#06b6d4', racks:['C-01','C-02','C-03']},
-            {id:'D', label:'Zona D — Cuarentena', color:'#f59e0b', racks:['D-01','D-02']},
-          ]; track zone.id) {
-            <div class="zone-card" [style.border-color]="zone.color">
-              <div class="zone-header" [style.background]="zone.color + '22'">
-                <mat-icon [style.color]="zone.color">shelves</mat-icon>
-                <span [style.color]="zone.color">{{ zone.label }}</span>
+
+        @if (layoutLoading()) { <mat-progress-bar mode="indeterminate"></mat-progress-bar> }
+
+        <!-- Formulario Mesa (Crear / Editar) -->
+        @if (showTableForm()) {
+          <div class="add-product-form" id="table-form-card">
+            <h2 class="form-title">
+              <mat-icon>table_restaurant</mat-icon>
+              {{ editingTable() ? 'Editar Mesa ' + editingTable()!.code : 'Nueva Mesa de Bodega' }}
+            </h2>
+            <div class="form-grid">
+              <div class="form-field">
+                <label class="form-label">Identificador / Código *</label>
+                <input class="form-input" id="table-code-input" type="text" placeholder="Ej: M-05"
+                  [ngModel]="tableFormCode()" (ngModelChange)="tableFormCode.set($event)" />
               </div>
-              <div class="racks-grid">
-                @for (rack of zone.racks; track rack) {
-                  <div class="rack-item" [id]="'rack-' + rack">
-                    <mat-icon class="rack-icon">view_column</mat-icon>
-                    <span>{{ rack }}</span>
-                  </div>
-                }
+              <div class="form-field">
+                <label class="form-label">Nombre / Descripción</label>
+                <input class="form-input" id="table-name-input" type="text" placeholder="Ej: Mesa de Recepción 5"
+                  [ngModel]="tableFormName()" (ngModelChange)="tableFormName.set($event)" />
               </div>
             </div>
-          }
+            <div class="form-actions">
+              <button mat-stroked-button type="button" (click)="showTableForm.set(false)" [disabled]="savingLayout()">Cancelar</button>
+              <button mat-flat-button color="primary" type="button" id="save-table-btn" (click)="saveTableForm()" [disabled]="savingLayout()">
+                <mat-icon>save</mat-icon> {{ editingTable() ? 'Guardar Cambios' : 'Crear Mesa' }}
+              </button>
+            </div>
+          </div>
+        }
+
+        <!-- Formulario Zona (Crear / Editar) -->
+        @if (showZoneForm()) {
+          <div class="add-product-form" id="zone-form-card">
+            <h2 class="form-title">
+              <mat-icon>shelves</mat-icon>
+              {{ editingZone() ? 'Editar Zona ' + editingZone()!.code : 'Nueva Zona de Almacenamiento' }}
+            </h2>
+            <div class="form-grid">
+              <div class="form-field">
+                <label class="form-label">Código de Zona *</label>
+                <input class="form-input" id="zone-code-input" type="text" placeholder="Ej: E"
+                  [ngModel]="zoneFormCode()" (ngModelChange)="zoneFormCode.set($event)" />
+              </div>
+              <div class="form-field">
+                <label class="form-label">Nombre de Zona *</label>
+                <input class="form-input" id="zone-name-input" type="text" placeholder="Ej: Zona E — Refrigerados"
+                  [ngModel]="zoneFormName()" (ngModelChange)="zoneFormName.set($event)" />
+              </div>
+              <div class="form-field">
+                <label class="form-label">Color identificador</label>
+                <input class="form-input" id="zone-color-input" type="color" style="height:42px; padding:4px;"
+                  [ngModel]="zoneFormColor()" (ngModelChange)="zoneFormColor.set($event)" />
+              </div>
+              @if (!editingZone()) {
+                <div class="form-field">
+                  <label class="form-label">Estanterías iniciales (separadas por coma)</label>
+                  <input class="form-input" id="zone-racks-input" type="text" placeholder="Ej: E-01, E-02, E-03"
+                    [ngModel]="zoneFormRacks()" (ngModelChange)="zoneFormRacks.set($event)" />
+                </div>
+              }
+            </div>
+            <div class="form-actions">
+              <button mat-stroked-button type="button" (click)="showZoneForm.set(false)" [disabled]="savingLayout()">Cancelar</button>
+              <button mat-flat-button color="primary" type="button" id="save-zone-btn" (click)="saveZoneForm()" [disabled]="savingLayout()">
+                <mat-icon>save</mat-icon> {{ editingZone() ? 'Guardar Cambios' : 'Crear Zona' }}
+              </button>
+            </div>
+          </div>
+        }
+
+        <!-- Formulario Estantería (Crear / Editar) -->
+        @if (rackTargetZone() || editingRack()) {
+          <div class="add-product-form" id="rack-form-card">
+            <h2 class="form-title">
+              <mat-icon>view_column</mat-icon>
+              {{ editingRack() ? 'Editar Estantería ' + editingRack()!.code : 'Nueva Estantería en ' + rackTargetZone()!.name }}
+            </h2>
+            <div class="form-grid">
+              <div class="form-field">
+                <label class="form-label">Identificador de Estantería *</label>
+                <input class="form-input" id="rack-code-input" type="text" placeholder="Ej: A-04"
+                  [ngModel]="rackFormCode()" (ngModelChange)="rackFormCode.set($event)" />
+              </div>
+              <div class="form-field">
+                <label class="form-label">Nombre / Referencia</label>
+                <input class="form-input" id="rack-name-input" type="text" placeholder="Ej: Estantería A-04"
+                  [ngModel]="rackFormName()" (ngModelChange)="rackFormName.set($event)" />
+              </div>
+            </div>
+            <div class="form-actions">
+              <button mat-stroked-button type="button" (click)="cancelRackForm()" [disabled]="savingLayout()">Cancelar</button>
+              <button mat-flat-button color="primary" type="button" id="save-rack-btn" (click)="saveRackForm()" [disabled]="savingLayout()">
+                <mat-icon>save</mat-icon> {{ editingRack() ? 'Guardar Cambios' : 'Agregar Estantería' }}
+              </button>
+            </div>
+          </div>
+        }
+
+        <!-- SECCIÓN MESAS PREDETERMINADAS / ADMINISTRABLES -->
+        <div class="layout-section-block">
+          <div class="layout-block-header">
+            <h2 class="subsection-title"><mat-icon>table_restaurant</mat-icon> Mesas de Bodega</h2>
+            <span class="text-muted">Haz clic en una mesa para inspeccionar sus productos o reubicarlos</span>
+          </div>
+          <div class="tables-grid">
+            @for (t of layoutTables(); track t.id) {
+              <div class="mesa-card"
+                   [class.mesa-card--occupied]="t.is_occupied"
+                   [class.mesa-card--selected]="selectedLocationId() === t.id"
+                   (click)="selectLayoutLocation(t)"
+                   [id]="'mesa-' + t.code">
+                <div class="mesa-card-top">
+                  <div class="mesa-title-wrap">
+                    <mat-icon class="mesa-icon">table_restaurant</mat-icon>
+                    <div>
+                      <div class="mesa-code">{{ t.code }}</div>
+                      <div class="mesa-name">{{ t.name }}</div>
+                    </div>
+                  </div>
+                  <div class="mesa-actions">
+                    <button mat-icon-button type="button" (click)="openEditTableForm(t, $event)"
+                      matTooltip="Editar mesa" matTooltipClass="wms-tooltip" [id]="'edit-mesa-' + t.code">
+                      <mat-icon>edit</mat-icon>
+                    </button>
+                    <button mat-icon-button color="warn" type="button" (click)="deleteTable(t, $event)"
+                      matTooltip="Eliminar mesa" matTooltipClass="wms-tooltip" [id]="'del-mesa-' + t.code">
+                      <mat-icon>delete_outline</mat-icon>
+                    </button>
+                  </div>
+                </div>
+                <div class="mesa-card-bottom">
+                  <span class="loc-status-pill" [class.occupied]="t.is_occupied">
+                    {{ t.is_occupied ? 'Ocupada' : 'Vacía' }}
+                  </span>
+                  <span class="loc-qty-text">
+                    {{ t.is_occupied ? (t.total_units + ' uds · ' + t.occupied_skus_count + ' SKU(s)') : 'Disponible' }}
+                  </span>
+                </div>
+              </div>
+            }
+          </div>
         </div>
+
+        <!-- PANEL DE DETALLE DE UBICACIÓN SELECCIONADA (MESA O ESTANTERÍA) -->
+        @if (selectedLocation(); as loc) {
+          <div class="location-detail-card" id="selected-location-detail">
+            <div class="location-detail-header">
+              <div>
+                <h2 class="location-detail-title">
+                  <mat-icon>{{ loc.location_type === 'table' ? 'table_restaurant' : 'view_column' }}</mat-icon>
+                  {{ loc.code }} — {{ loc.name }}
+                  <span class="loc-status-pill" [class.occupied]="loc.is_occupied" style="margin-left: 8px;">
+                    {{ loc.is_occupied ? 'Ocupada (' + loc.total_units + ' uds)' : 'Vacía' }}
+                  </span>
+                </h2>
+                <p class="text-muted" style="margin-top: 4px; font-size: 12.5px;">
+                  {{ loc.location_type === 'table' ? 'Mesa de bodega' : ('Zona: ' + (loc.zone_name || loc.zone_code || 'General')) }}
+                </p>
+              </div>
+              <button mat-icon-button type="button" (click)="selectedLocationId.set(null)"
+                matTooltip="Cerrar detalle" matTooltipClass="wms-tooltip">
+                <mat-icon>close</mat-icon>
+              </button>
+            </div>
+
+            @if (movingItem(); as mItem) {
+              <div class="move-inline-box" id="move-item-box">
+                <div class="move-inline-title">
+                  <mat-icon>swap_horiz</mat-icon>
+                  Reubicar <strong>{{ mItem.sku }}</strong> ({{ mItem.product_name }}) desde <code>{{ loc.code }}</code>
+                </div>
+                <div class="move-inline-controls">
+                  <div class="form-field">
+                    <label class="form-label">Cantidad (máx {{ mItem.quantity }})</label>
+                    <input class="form-input" id="move-qty-input" type="number" min="1" [max]="mItem.quantity"
+                      [ngModel]="moveQty()" (ngModelChange)="moveQty.set($event)" />
+                  </div>
+                  <div class="form-field">
+                    <label class="form-label">Ubicación de destino</label>
+                    <select class="form-input" id="move-dest-select"
+                      [ngModel]="moveDestCode()" (ngModelChange)="moveDestCode.set($event)">
+                      @for (dest of allLayoutLocations(); track dest.id) {
+                        @if (dest.id !== loc.id) {
+                          <option [value]="dest.code">{{ dest.code }} — {{ dest.name }}</option>
+                        }
+                      }
+                    </select>
+                  </div>
+                  <div class="move-inline-btns">
+                    <button mat-stroked-button type="button" (click)="movingItem.set(null)" [disabled]="savingMove()">Cancelar</button>
+                    <button mat-flat-button color="primary" type="button" id="confirm-move-btn"
+                      (click)="submitMoveItem()" [disabled]="savingMove()">
+                      <mat-icon>check</mat-icon> Confirmar Movimiento
+                    </button>
+                  </div>
+                </div>
+              </div>
+            }
+
+            @if (loc.items.length > 0) {
+              <table class="order-items-subtable">
+                <thead>
+                  <tr>
+                    <th>SKU</th>
+                    <th>Producto</th>
+                    <th style="text-align: right;">Cant. en ubicación</th>
+                    <th style="text-align: right;">Stock Total / Disp.</th>
+                    <th>Fecha almacenamiento</th>
+                    <th style="text-align: right;">Acción</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  @for (item of loc.items; track item.sku) {
+                    <tr>
+                      <td><code class="mono">{{ item.sku }}</code></td>
+                      <td>{{ item.product_name }}</td>
+                      <td style="text-align: right;"><strong>{{ item.quantity }} uds</strong></td>
+                      <td style="text-align: right;">{{ item.stock_quantity }} / {{ item.available_qty }}</td>
+                      <td>{{ item.stored_at | date:'dd/MM/yyyy HH:mm' }}</td>
+                      <td style="text-align: right;">
+                        <button mat-stroked-button type="button" class="mini-move-btn"
+                          (click)="openMoveItemForm(loc, item)" [id]="'move-btn-' + item.sku">
+                          <mat-icon>swap_horiz</mat-icon> Mover
+                        </button>
+                      </td>
+                    </tr>
+                  }
+                </tbody>
+              </table>
+            } @else {
+              <div class="empty-location-box">
+                <mat-icon>inbox</mat-icon>
+                <p>Esta ubicación se encuentra vacía. Usa Putaway desde la app Operario (o mueve stock desde otra ubicación) para almacenar productos en <strong>{{ loc.code }}</strong>.</p>
+              </div>
+            }
+          </div>
+        }
+
+        <!-- SECCIÓN ZONAS Y ESTANTERÍAS CONFIGURABLES -->
+        <div class="layout-section-block">
+          <div class="layout-block-header">
+            <h2 class="subsection-title"><mat-icon>shelves</mat-icon> Zonas y Estanterías</h2>
+            <span class="text-muted">Selecciona cualquier estantería para ver su inventario almacenado</span>
+          </div>
+          <div class="warehouse-layout">
+            @for (zone of layoutZones(); track zone.id) {
+              <div class="zone-card" [style.border-color]="zone.color" [id]="'zone-card-' + zone.code">
+                <div class="zone-header zone-header--actions" [style.background]="zone.color + '22'">
+                  <div class="zone-title-group">
+                    <mat-icon [style.color]="zone.color">shelves</mat-icon>
+                    <div>
+                      <div [style.color]="zone.color" style="font-weight: 700;">{{ zone.name }}</div>
+                      <div class="zone-meta-sub">{{ zone.racks.length }} estantería(s) · {{ zone.total_units }} uds</div>
+                    </div>
+                  </div>
+                  <div class="zone-actions">
+                    <button mat-icon-button type="button" (click)="openNewRackForm(zone)"
+                      matTooltip="Agregar estantería" matTooltipClass="wms-tooltip" [id]="'add-rack-' + zone.code">
+                      <mat-icon>add_box</mat-icon>
+                    </button>
+                    <button mat-icon-button type="button" (click)="openEditZoneForm(zone)"
+                      matTooltip="Editar zona" matTooltipClass="wms-tooltip" [id]="'edit-zone-' + zone.code">
+                      <mat-icon>edit</mat-icon>
+                    </button>
+                    <button mat-icon-button color="warn" type="button" (click)="deleteZone(zone)"
+                      matTooltip="Eliminar zona" matTooltipClass="wms-tooltip" [id]="'del-zone-' + zone.code">
+                      <mat-icon>delete_outline</mat-icon>
+                    </button>
+                  </div>
+                </div>
+                <div class="racks-grid racks-grid--interactive">
+                  @for (rack of zone.racks; track rack.id) {
+                    <div class="rack-item rack-item--interactive"
+                         [class.rack-item--occupied]="rack.is_occupied"
+                         [class.rack-item--selected]="selectedLocationId() === rack.id"
+                         (click)="selectLayoutLocation(rack)"
+                         [id]="'rack-' + rack.code">
+                      <div class="rack-top-bar">
+                        <span class="rack-dot" [class.occupied]="rack.is_occupied"></span>
+                        <div class="rack-actions">
+                          <button type="button" class="rack-mini-btn" (click)="openEditRackForm(rack, $event)"
+                            matTooltip="Editar estantería" matTooltipClass="wms-tooltip" [id]="'edit-rack-' + rack.code">
+                            <mat-icon>edit</mat-icon>
+                          </button>
+                          <button type="button" class="rack-mini-btn danger" (click)="deleteRack(rack, $event)"
+                            matTooltip="Eliminar estantería" matTooltipClass="wms-tooltip" [id]="'del-rack-' + rack.code">
+                            <mat-icon>close</mat-icon>
+                          </button>
+                        </div>
+                      </div>
+                      <mat-icon class="rack-icon">view_column</mat-icon>
+                      <strong class="rack-code">{{ rack.code }}</strong>
+                      <span class="rack-qty-badge" [class.occupied]="rack.is_occupied">
+                        {{ rack.is_occupied ? (rack.total_units + ' uds') : 'Vacía' }}
+                      </span>
+                    </div>
+                  }
+                  @if (zone.racks.length === 0) {
+                    <p class="text-muted" style="grid-column: 1 / -1; font-size: 12px; padding: 8px 0;">
+                      Sin estanterías. Usa el botón + para agregar una.
+                    </p>
+                  }
+                </div>
+              </div>
+            }
+          </div>
+        </div>
+
+        <!-- TRAZABILIDAD DE MOVIMIENTOS PUTAWAY -->
+        @if (layoutMovements().length > 0) {
+          <div class="layout-section-block" style="margin-top: 28px;">
+            <div class="layout-block-header">
+              <h2 class="subsection-title"><mat-icon>history</mat-icon> Trazabilidad Reciente (Putaway y Movimientos)</h2>
+            </div>
+            <div class="table-card">
+              <table class="wms-table native-table">
+                <thead>
+                  <tr>
+                    <th>Fecha</th>
+                    <th>SKU</th>
+                    <th>Producto</th>
+                    <th>Cantidad</th>
+                    <th>Origen → Destino</th>
+                    <th>Usuario</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  @for (mv of layoutMovements(); track mv.id) {
+                    <tr class="table-row">
+                      <td>{{ mv.created_at | date:'dd/MM HH:mm' }}</td>
+                      <td><code class="mono">{{ mv.sku }}</code></td>
+                      <td>{{ mv.product_name }}</td>
+                      <td><strong>{{ mv.quantity }} uds</strong></td>
+                      <td>
+                        <span class="text-muted">{{ mv.source_location_code || 'Sin ubicar' }}</span>
+                        → <strong>{{ mv.destination_location_code }}</strong>
+                      </td>
+                      <td>{{ mv.performed_by_email || 'Sistema' }}</td>
+                    </tr>
+                  }
+                </tbody>
+              </table>
+            </div>
+          </div>
+        }
       </section>
     }
 

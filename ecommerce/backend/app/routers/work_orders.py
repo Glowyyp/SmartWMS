@@ -37,6 +37,7 @@ from app.models.inventory import ProductInventory
 from app.models.user import User
 from app.models.work_order import WorkOrder, WorkOrderItem, WorkOrderPackage, WorkOrderStatusHistory
 from app.routers.auth import get_current_user, require_supervisor_or_admin
+from app.services.layout_service import reconcile_location_stocks_after_dispatch
 
 logger = logging.getLogger(__name__)
 
@@ -818,6 +819,7 @@ def _apply_dispatch_stock_deduction(
             calc_total_volume += (float(inventory_row.length) * float(inventory_row.width) * float(inventory_row.height)) * item.quantity
 
         inventory_row.stock_quantity -= item.quantity
+        reconcile_location_stocks_after_dispatch(inventory_row, db)
         logger.info("🚚 Despacho: SKU=%s qty=%d nuevo_stock=%d", item.sku, item.quantity, inventory_row.stock_quantity)
 
     wo.status = "dispatched"

@@ -349,6 +349,8 @@ class OrderViewModel(application: Application) : AndroidViewModel(application) {
         sku: String,
         quantity: Int,
         location: String,
+        sourceLocation: String? = null,
+        notes: String? = null,
         onSuccess: (PutawayResponse) -> Unit,
         onError: (String) -> Unit
     ) {
@@ -358,11 +360,18 @@ class OrderViewModel(application: Application) : AndroidViewModel(application) {
                 val token = tokenStore.bearerToken()
                 val resp = api.registerPutaway(
                     token = token,
-                    request = PutawayRequest(sku = sku, quantity = quantity, location = location)
+                    request = PutawayRequest(
+                        sku = sku,
+                        quantity = quantity,
+                        location = location,
+                        sourceLocation = sourceLocation,
+                        notes = notes
+                    )
                 )
                 if (resp.isSuccessful && resp.body() != null) {
                     val result = resp.body()!!
                     loadInventory()
+                    loadWarehouseLocations()
                     onSuccess(result)
                 } else {
                     val raw = resp.errorBody()?.string().orEmpty()

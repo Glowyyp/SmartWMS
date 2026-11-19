@@ -119,6 +119,30 @@
                 android:textSize="12.5sp" />
         </LinearLayout>
 
+        <!-- Origen del stock (Sin ubicar o traslado desde ubicación existente) -->
+        <LinearLayout
+            android:id="@+id/container_source_location"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical"
+            android:visibility="gone"
+            android:layout_marginBottom="16dp">
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Origen del Stock *"
+                android:textSize="12sp"
+                android:textColor="@color/text_muted"
+                android:layout_marginBottom="4dp"/>
+
+            <Spinner
+                android:id="@+id/spinner_source_location"
+                android:layout_width="match_parent"
+                android:layout_height="52dp"
+                android:background="@drawable/bg_spinner"/>
+        </LinearLayout>
+
         <!-- Cantidad a almacenar -->
         <com.google.android.material.textfield.TextInputLayout
             android:id="@+id/til_quantity"

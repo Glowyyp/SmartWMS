@@ -1,6 +1,6 @@
 // ui/fragments/PutawayFragment.kt
-// Módulo Putaway conectado al inventario real: autocompletado de SKU, escáner,
-// validación de existencia/stock/ubicación y persistencia en backend.
+// Módulo Putaway conectado en tiempo real al Layout del Supervisor e Inventario:
+// autocompletado de SKU, escáner, almacenamiento inicial o traslado entre ubicaciones.
 
 package com.smartwms.operario.ui.fragments
 
@@ -11,6 +11,7 @@ import android.text.TextWatcher
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
+import android.widget.AdapterView
 import android.widget.ArrayAdapter
 import android.widget.Toast
 import androidx.core.content.ContextCompat
@@ -28,6 +29,12 @@ import com.smartwms.operario.ui.adapters.SkuAutocompleteAdapter
 
 class PutawayFragment : Fragment() {
 
+    private data class SourceOption(
+        val code: String?, // null = Stock sin ubicar
+        val label: String,
+        val maxQuantity: Int
+    )
+
     private var _binding: FragmentPutawayBinding? = null
     private val binding get() = _binding!!
 
@@ -36,22 +43,8 @@ class PutawayFragment : Fragment() {
     private lateinit var skuAdapter: SkuAutocompleteAdapter
     private var inventoryBySku: Map<String, Product> = emptyMap()
     private var selectedProduct: Product? = null
-
-    private val defaultLocations = listOf(
-        WarehouseLocationItem("A-01", "A", "Zona A — Insumos (Rack A-01)"),
-        WarehouseLocationItem("A-02", "A", "Zona A — Insumos (Rack A-02)"),
-        WarehouseLocationItem("A-03", "A", "Zona A — Insumos (Rack A-03)"),
-        WarehouseLocationItem("B-01", "B", "Zona B — Electrónica (Rack B-01)"),
-        WarehouseLocationItem("B-02", "B", "Zona B — Electrónica (Rack B-02)"),
-        WarehouseLocationItem("B-03", "B", "Zona B — Electrónica (Rack B-03)"),
-        WarehouseLocationItem("B-04", "B", "Zona B — Electrónica (Rack B-04)"),
-        WarehouseLocationItem("C-01", "C", "Zona C — Periféricos (Rack C-01)"),
-        WarehouseLocationItem("C-02", "C", "Zona C — Periféricos (Rack C-02)"),
-        WarehouseLocationItem("C-03", "C", "Zona C — Periféricos (Rack C-03)"),
-        WarehouseLocationItem("D-01", "D", "Zona D — Cuarentena (Rack D-01)"),
-        WarehouseLocationItem("D-02", "D", "Zona D — Cuarentena (Rack D-02)")
-    )
-    private var locationItems: List<WarehouseLocationItem> = defaultLocations
+    private var locationItems: List<WarehouseLocationItem> = emptyList()
+    private var sourceOptions: List<SourceOption> = emptyList()
 
     private val scanSkuLauncher = registerForActivityResult(ScanContract()) { result: ScanIntentResult ->
         val scanned = result.contents?.trim()
@@ -73,7 +66,7 @@ class PutawayFragment : Fragment() {
         super.onViewCreated(view, savedInstanceState)
 
         setupSkuAutocomplete()
-        setupLocationsSpinner(defaultLocations)
+        setupSourceSpinnerListener()
         observeViewModel()
         orderVm.refreshInventory()
 
@@ -88,12 +81,17 @@ class PutawayFragment : Fragment() {
         }
     }
 
+    override fun onResume() {
+        super.onResume()
+        // Garantiza que ubicaciones creadas/eliminadas en Supervisor aparezcan al volver
+        orderVm.refreshInventory()
+    }
+
     private fun setupSkuAutocomplete() {
         skuAdapter = SkuAutocompleteAdapter(requireContext(), emptyList())
         binding.actvSku.setAdapter(skuAdapter)
         binding.actvSku.threshold = 0
 
-        // Mostrar desplegable inmediatamente al tocar o enfocar el campo SKU
         binding.actvSku.setOnClickListener {
             skuAdapter.filter.filter(binding.actvSku.text) {
                 if (_binding != null) binding.actvSku.showDropDown()
@@ -127,10 +125,27 @@ class PutawayFragment : Fragment() {
                     onProductSelected(match, updateText = false)
                 } else {
                     selectedProduct = null
+                    sourceOptions = emptyList()
                     binding.cardSelectedProduct.visibility = View.GONE
+                    binding.containerSourceLocation.visibility = View.GONE
                 }
             }
         })
+    }
+
+    private fun setupSourceSpinnerListener() {
+        binding.spinnerSourceLocation.onItemSelectedListener = object : AdapterView.OnItemSelectedListener {
+            override fun onItemSelected(parent: AdapterView<*>?, view: View?, position: Int, id: Long) {
+                val opt = sourceOptions.getOrNull(position) ?: return
+                binding.tilQuantity.error = null
+                binding.tilQuantity.hint = "Cantidad a almacenar (máx ${opt.maxQuantity}) *"
+                if (opt.maxQuantity > 0 && binding.etQuantity.text.isNullOrBlank()) {
+                    binding.etQuantity.setText(opt.maxQuantity.toString())
+                }
+            }
+
+            override fun onNothingSelected(parent: AdapterView<*>?) {}
+        }
     }
 
     private fun observeViewModel() {
@@ -144,9 +159,7 @@ class PutawayFragment : Fragment() {
         }
 
         orderVm.warehouseLocations.observe(viewLifecycleOwner) { locs ->
-            if (!locs.isNullOrEmpty()) {
-                setupLocationsSpinner(locs)
-            }
+            setupLocationsSpinner(locs ?: emptyList())
         }
 
         orderVm.isLoading.observe(viewLifecycleOwner) { loading ->
@@ -157,11 +170,17 @@ class PutawayFragment : Fragment() {
 
     private fun setupLocationsSpinner(items: List<WarehouseLocationItem>) {
         locationItems = items
-        val labels = items.map { "${it.code} · ${it.label}" }
+        val labels = if (items.isEmpty()) {
+            listOf("Cargando ubicaciones del Layout...")
+        } else {
+            items.map { item ->
+                val occ = if (item.isOccupied) " [${item.totalUnits} uds]" else " [Vacía]"
+                "${item.code} · ${item.label}$occ"
+            }
+        }
         val adapter = ArrayAdapter(requireContext(), android.R.layout.simple_spinner_item, labels)
         adapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item)
         binding.spinnerLocation.adapter = adapter
-        selectedProduct?.let { selectCurrentLocationInSpinner(it.warehouseLocation) }
     }
 
     private fun findProductBySku(rawSku: String): Product? {
@@ -208,21 +227,50 @@ class PutawayFragment : Fragment() {
             )
         )
 
-        val currentLoc = product.warehouseLocation?.takeIf { it.isNotBlank() } ?: "Sin asignar"
-        binding.tvSelectedCurrentLoc.text = "Ubicación actual: $currentLoc"
-
-        selectCurrentLocationInSpinner(product.warehouseLocation)
-
-        if (hasStock && binding.etQuantity.text.isNullOrBlank()) {
-            binding.etQuantity.setText(product.stockQuantity.toString())
+        val locDesc = if (product.locationStocks.isNotEmpty()) {
+            val parts = product.locationStocks.joinToString(", ") { "${it.locationCode}: ${it.quantity} uds" }
+            if (product.unlocatedQty > 0) "$parts · Sin ubicar: ${product.unlocatedQty} uds" else parts
+        } else {
+            "Sin ubicar (${product.unlocatedQty} uds disponibles para almacenar)"
         }
+        binding.tvSelectedCurrentLoc.text = "Distribución actual: $locDesc"
+
+        populateSourceOptions(product)
     }
 
-    private fun selectCurrentLocationInSpinner(currentLocation: String?) {
-        if (currentLocation.isNullOrBlank()) return
-        val idx = locationItems.indexOfFirst { it.code.equals(currentLocation.trim(), ignoreCase = true) }
-        if (idx >= 0) {
-            binding.spinnerLocation.setSelection(idx)
+    private fun populateSourceOptions(product: Product) {
+        val opts = mutableListOf<SourceOption>()
+        if (product.unlocatedQty > 0) {
+            opts.add(
+                SourceOption(
+                    code = null,
+                    label = "Stock sin ubicar (${product.unlocatedQty} uds disponibles)",
+                    maxQuantity = product.unlocatedQty
+                )
+            )
+        }
+        for (loc in product.locationStocks) {
+            if (loc.quantity > 0) {
+                opts.add(
+                    SourceOption(
+                        code = loc.locationCode,
+                        label = "Mover desde ${loc.locationCode} — ${loc.locationName} (${loc.quantity} uds)",
+                        maxQuantity = loc.quantity
+                    )
+                )
+            }
+        }
+        sourceOptions = opts
+
+        if (opts.isEmpty()) {
+            binding.containerSourceLocation.visibility = View.GONE
+            binding.tilQuantity.hint = "Cantidad a almacenar *"
+        } else {
+            binding.containerSourceLocation.visibility = View.VISIBLE
+            val adapter = ArrayAdapter(requireContext(), android.R.layout.simple_spinner_item, opts.map { it.label })
+            adapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item)
+            binding.spinnerSourceLocation.adapter = adapter
+            binding.etQuantity.setText(opts.first().maxQuantity.toString())
         }
     }
 
@@ -244,16 +292,21 @@ class PutawayFragment : Fragment() {
             return
         }
 
-        if (product.stockQuantity <= 0) {
-            binding.tilQuantity.error = "Sin stock físico en bodega"
+        if (product.stockQuantity <= 0 || sourceOptions.isEmpty()) {
+            binding.tilQuantity.error = "Sin stock disponible para ubicar"
             AlertDialog.Builder(requireContext())
-                .setTitle("⚠️ Sin stock físico")
+                .setTitle("⚠️ Sin stock físico disponible")
                 .setMessage(
-                    "El producto ${product.sku} (${product.productName}) tiene stock físico = 0.\n\n" +
-                    "Solo se puede hacer Putaway de productos con stock recibido en bodega."
+                    "El producto ${product.sku} (${product.productName}) no tiene stock físico disponible para ubicar."
                 )
                 .setPositiveButton("OK", null)
                 .show()
+            return
+        }
+
+        val sourceOpt = sourceOptions.getOrNull(binding.spinnerSourceLocation.selectedItemPosition)
+        if (sourceOpt == null) {
+            Toast.makeText(requireContext(), "Selecciona el origen del stock", Toast.LENGTH_SHORT).show()
             return
         }
 
@@ -263,12 +316,12 @@ class PutawayFragment : Fragment() {
             binding.tilQuantity.error = "Ingresa una cantidad mayor a 0"
             return
         }
-        if (qty > product.stockQuantity) {
-            binding.tilQuantity.error = "Máximo permitido: ${product.stockQuantity} uds"
+        if (qty > sourceOpt.maxQuantity) {
+            binding.tilQuantity.error = "Máximo permitido desde este origen: ${sourceOpt.maxQuantity} uds"
             AlertDialog.Builder(requireContext())
-                .setTitle("⚠️ Cantidad supera el stock")
+                .setTitle("⚠️ Cantidad supera disponibilidad")
                 .setMessage(
-                    "Intentas ubicar $qty unidades de ${product.sku}, pero solo hay ${product.stockQuantity} unidades físicas en bodega."
+                    "Intentas ubicar $qty unidades de ${product.sku}, pero el origen seleccionado solo dispone de ${sourceOpt.maxQuantity} unidades."
                 )
                 .setPositiveButton("OK", null)
                 .show()
@@ -276,10 +329,19 @@ class PutawayFragment : Fragment() {
         }
         binding.tilQuantity.error = null
 
-        val pos = binding.spinnerLocation.selectedItemPosition
-        val targetLoc = locationItems.getOrNull(pos)
+        val targetLoc = locationItems.getOrNull(binding.spinnerLocation.selectedItemPosition)
         if (targetLoc == null) {
-            Toast.makeText(requireContext(), "Selecciona una ubicación válida", Toast.LENGTH_SHORT).show()
+            Toast.makeText(requireContext(), "No hay ubicaciones cargadas desde el Layout", Toast.LENGTH_SHORT).show()
+            orderVm.refreshInventory()
+            return
+        }
+
+        if (sourceOpt.code != null && sourceOpt.code.equals(targetLoc.code, ignoreCase = true)) {
+            AlertDialog.Builder(requireContext())
+                .setTitle("⚠️ Ubicación repetida")
+                .setMessage("El producto ya está en ${targetLoc.code}. Selecciona una ubicación de destino diferente para trasladarlo.")
+                .setPositiveButton("OK", null)
+                .show()
             return
         }
 
@@ -287,16 +349,19 @@ class PutawayFragment : Fragment() {
             sku = product.sku,
             quantity = qty,
             location = targetLoc.code,
+            sourceLocation = sourceOpt.code,
+            notes = null,
             onSuccess = { res ->
                 if (_binding == null) return@registerPutaway
-                val prev = res.previousLocation?.takeIf { it.isNotBlank() } ?: "Sin asignar"
+                val origenText = res.sourceLocation ?: "Stock sin ubicar"
                 AlertDialog.Builder(requireContext())
                     .setTitle("✅ Almacenamiento Registrado")
                     .setMessage(
                         "Producto: ${res.productName} (${res.sku})\n" +
-                        "Cantidad ubicada: ${res.quantity} uds\n" +
-                        "Ubicación: $prev → ${res.newLocation}\n" +
-                        "Stock físico actual: ${res.stockQuantity} uds"
+                        "Cantidad: ${res.quantity} uds\n" +
+                        "Movimiento: $origenText → ${res.newLocation}\n" +
+                        "Total en ${res.newLocation}: ${res.locationTotalQuantity} uds\n" +
+                        "Stock físico total: ${res.stockQuantity} uds"
                     )
                     .setPositiveButton("Aceptar", null)
                     .show()
@@ -315,12 +380,17 @@ class PutawayFragment : Fragment() {
 
     private fun resetForm() {
         selectedProduct = null
+        sourceOptions = emptyList()
         binding.actvSku.setText("", false)
         binding.etQuantity.text?.clear()
         binding.tilSku.error = null
         binding.tilQuantity.error = null
+        binding.tilQuantity.hint = "Cantidad a almacenar *"
         binding.cardSelectedProduct.visibility = View.GONE
-        binding.spinnerLocation.setSelection(0)
+        binding.containerSourceLocation.visibility = View.GONE
+        if (locationItems.isNotEmpty()) {
+            binding.spinnerLocation.setSelection(0)
+        }
     }
 
     override fun onDestroyView() {

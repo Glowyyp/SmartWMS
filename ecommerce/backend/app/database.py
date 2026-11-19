@@ -108,7 +108,7 @@ def get_db():
 def create_tables() -> None:
     """Crea todas las tablas definidas en los modelos ORM. Llamar al startup."""
     # Importar modelos para que Base los registre antes de create_all
-    from app.models import order, order_item, inventory, user, work_order  # noqa: F401
+    from app.models import order, order_item, inventory, user, work_order, warehouse  # noqa: F401
     Base.metadata.create_all(bind=engine)
     migrate_schema()
 

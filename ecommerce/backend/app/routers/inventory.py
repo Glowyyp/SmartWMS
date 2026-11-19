@@ -20,11 +20,22 @@ from sqlalchemy.orm import Session
 from app.core.qr import generate_sku_qr_data_uri
 from app.database import get_db
 from app.models.inventory import ProductInventory
+from app.models.warehouse import (
+    ProductLocationStock,
+    PutawayMovement,
+    WarehouseLocation,
+    WarehouseZone,
+)
 from app.models.work_order import WorkOrder, WorkOrderItem
 from app.models.pending_reception import PendingReception
 from app.routers.auth import get_current_user, require_admin, require_supervisor_or_admin
+from app.services.layout_service import (
+    ensure_default_layout,
+    get_located_qty_by_sku,
+    sync_product_warehouse_location_summary,
+)
 from app.schemas.inventory import (
-    ProductCreate, ProductOut, ProductUpdate,
+    ProductCreate, ProductOut, ProductUpdate, ProductLocationBreakdown,
     PendingReceptionCreate, PendingReceptionOut, PendingReceptionConfirm, PendingReceptionUpdate,
     PutawayRequest, PutawayResponse,
 )
@@ -43,22 +54,6 @@ ACTIVE_RESERVED_STATUSES = [
     "in_progress",
 ]
 
-WAREHOUSE_LAYOUT_RACKS = [
-    {"code": "A-01", "zone": "A", "label": "Zona A — Insumos (Rack A-01)"},
-    {"code": "A-02", "zone": "A", "label": "Zona A — Insumos (Rack A-02)"},
-    {"code": "A-03", "zone": "A", "label": "Zona A — Insumos (Rack A-03)"},
-    {"code": "B-01", "zone": "B", "label": "Zona B — Electrónica (Rack B-01)"},
-    {"code": "B-02", "zone": "B", "label": "Zona B — Electrónica (Rack B-02)"},
-    {"code": "B-03", "zone": "B", "label": "Zona B — Electrónica (Rack B-03)"},
-    {"code": "B-04", "zone": "B", "label": "Zona B — Electrónica (Rack B-04)"},
-    {"code": "C-01", "zone": "C", "label": "Zona C — Periféricos (Rack C-01)"},
-    {"code": "C-02", "zone": "C", "label": "Zona C — Periféricos (Rack C-02)"},
-    {"code": "C-03", "zone": "C", "label": "Zona C — Periféricos (Rack C-03)"},
-    {"code": "D-01", "zone": "D", "label": "Zona D — Cuarentena (Rack D-01)"},
-    {"code": "D-02", "zone": "D", "label": "Zona D — Cuarentena (Rack D-02)"},
-]
-VALID_LOCATION_PATTERN = re.compile(r"^[ABCD](?:-\d{2}(?:-[A-Z0-9]+)?)?$")
-
 
 # ─── GET /api/v1/inventory ────────────────────────────────────────────────────
 
@@ -73,9 +68,10 @@ def list_products(
 ):
     """
     Devuelve todos los productos del inventario ordenados por SKU.
-    Incluye reserved_qty (suma de pedidos pendientes) y available_qty calculados
-    con una sola consulta GROUP BY — sin N+1 queries.
+    Incluye reserved_qty (suma de pedidos pendientes), available_qty y
+    el desglose real por ubicación (location_stocks / unlocated_qty).
     """
+    ensure_default_layout(db)
     products = db.query(ProductInventory).order_by(ProductInventory.sku).all()
 
     # Una sola query para obtener el total reservado por SKU
@@ -83,11 +79,13 @@ def list_products(
     rows = db.execute(
         select(WorkOrderItem.sku, func.sum(WorkOrderItem.quantity).label("reserved"))
         .join(WorkOrder, WorkOrder.id == WorkOrderItem.work_order_id)
-        .where(WorkOrder.status.in_(["pending", "waiting_stock", "por_asignar", "assigned", "in_preparation", "in_progress"]))
+        .where(WorkOrder.status.in_(ACTIVE_RESERVED_STATUSES))
         .group_by(WorkOrderItem.sku)
     ).all()
     for row in rows:
         reserved_by_sku[row.sku] = int(row.reserved)
+
+    location_stocks_by_sku = get_located_qty_by_sku(db)
 
     dirty_qr = False
     for p in products:
@@ -101,9 +99,13 @@ def list_products(
     result = []
     for p in products:
         reserved = reserved_by_sku.get(p.sku, 0)
+        loc_list = location_stocks_by_sku.get(p.sku, [])
+        located_total = sum(x["quantity"] for x in loc_list)
         out = ProductOut.model_validate(p)
-        out.reserved_qty  = reserved
+        out.reserved_qty = reserved
         out.available_qty = max(0, p.stock_quantity - reserved)
+        out.location_stocks = [ProductLocationBreakdown(**x) for x in loc_list]
+        out.unlocated_qty = max(0, p.stock_quantity - located_total)
         if out.estimated_volume is None and p.length and p.width and p.height:
             out.estimated_volume = p.length * p.width * p.height
         result.append(out)
@@ -466,19 +468,61 @@ def cancel_pending_reception(
 
 @router.get(
     "/locations",
-    summary="Listar ubicaciones válidas del layout físico del almacén",
+    summary="Listar ubicaciones dinámicas (zonas/estanterías y mesas) registradas en el Layout",
 )
 def list_warehouse_locations(
+    db: Session = Depends(get_db),
     _: object = Depends(get_current_user),
 ):
-    """Retorna los racks del layout físico del almacén para asignación de Putaway."""
-    return WAREHOUSE_LAYOUT_RACKS
+    """
+    Retorna todas las ubicaciones activas configuradas en el Layout del Supervisor
+    (estanterías de cada zona y mesas de bodega) con su ocupación actual.
+    """
+    ensure_default_layout(db)
+    locs = (
+        db.query(WarehouseLocation, WarehouseZone)
+        .outerjoin(WarehouseZone, WarehouseZone.id == WarehouseLocation.zone_id)
+        .order_by(WarehouseLocation.location_type.asc(), WarehouseLocation.code.asc())
+        .all()
+    )
+    totals_rows = (
+        db.query(
+            ProductLocationStock.location_id,
+            func.coalesce(func.sum(ProductLocationStock.quantity), 0).label("units"),
+        )
+        .filter(ProductLocationStock.quantity > 0)
+        .group_by(ProductLocationStock.location_id)
+        .all()
+    )
+    units_by_loc = {r.location_id: int(r.units) for r in totals_rows}
+
+    result = []
+    for loc, zone in locs:
+        total_units = units_by_loc.get(loc.id, 0)
+        if loc.location_type == "table":
+            label = f"Mesa {loc.code} — {loc.name}"
+        else:
+            zone_label = zone.name if zone else (loc.name or loc.code)
+            label = f"{zone_label} ({loc.code})"
+        result.append({
+            "id": loc.id,
+            "code": loc.code,
+            "name": loc.name,
+            "location_type": loc.location_type,
+            "zone_code": zone.code if zone else None,
+            "zone_name": zone.name if zone else None,
+            "zone": zone.code if zone else "MESA",
+            "label": label,
+            "total_units": total_units,
+            "is_occupied": total_units > 0,
+        })
+    return result
 
 
 @router.post(
     "/putaway",
     response_model=PutawayResponse,
-    summary="Registrar almacenamiento (Putaway) y asignar ubicación a un producto",
+    summary="Registrar almacenamiento o traslado (Putaway) conectado al Layout real",
 )
 def register_putaway(
     payload: PutawayRequest,
@@ -486,22 +530,30 @@ def register_putaway(
     current_user: object = Depends(get_current_user),
 ):
     """
-    Registra el almacenamiento físico (Putaway) de un SKU existente en una
-    ubicación válida del almacén, actualizando su warehouse_location real.
-    Valida existencia del SKU, formato de ubicación y stock físico suficiente.
+    Almacena stock sin ubicar o traslada stock desde una ubicación origen hacia
+    una ubicación destino válida registrada en el Layout (mesa o estantería),
+    sin duplicar ni alterar el stock_quantity total del producto.
     """
+    ensure_default_layout(db)
+
     clean_sku = payload.sku.strip()
-    clean_location = payload.location.strip().upper()
+    clean_dest = payload.location.strip().upper()
+    clean_source = (payload.source_location or "").strip().upper() or None
 
     if not clean_sku:
         raise HTTPException(status_code=422, detail="El SKU es obligatorio.")
 
-    if not VALID_LOCATION_PATTERN.match(clean_location):
+    dest_loc = (
+        db.query(WarehouseLocation)
+        .filter(func.lower(WarehouseLocation.code) == clean_dest.lower())
+        .first()
+    )
+    if not dest_loc:
         raise HTTPException(
-            status_code=422,
+            status_code=404,
             detail=(
-                f"Ubicación '{payload.location}' inválida. Usa una zona o rack del layout "
-                "(ej: A-01, B-02, C-03, D-01)."
+                f"La ubicación de destino '{payload.location}' no existe en el Layout "
+                "o fue eliminada por el supervisor."
             ),
         )
 
@@ -526,14 +578,114 @@ def register_putaway(
             ),
         )
 
-    if payload.quantity > product.stock_quantity:
-        raise HTTPException(
-            status_code=409,
-            detail=(
-                f"La cantidad a almacenar ({payload.quantity}) supera el stock físico "
-                f"actual en bodega ({product.stock_quantity}) para {product.sku}."
-            ),
+    previous_location_summary = product.warehouse_location
+
+    if clean_source:
+        if clean_source == dest_loc.code.upper():
+            raise HTTPException(
+                status_code=422,
+                detail=f"La ubicación origen y destino no pueden ser iguales ({dest_loc.code}).",
+            )
+        source_loc = (
+            db.query(WarehouseLocation)
+            .filter(func.lower(WarehouseLocation.code) == clean_source.lower())
+            .first()
         )
+        if not source_loc:
+            raise HTTPException(
+                status_code=404,
+                detail=f"La ubicación de origen '{clean_source}' no existe en el Layout.",
+            )
+        source_stock = db.execute(
+            select(ProductLocationStock)
+            .where(
+                ProductLocationStock.sku == product.sku,
+                ProductLocationStock.location_id == source_loc.id,
+            )
+            .with_for_update()
+        ).scalar_one_or_none()
+
+        available_at_source = source_stock.quantity if source_stock else 0
+        if payload.quantity > available_at_source:
+            raise HTTPException(
+                status_code=409,
+                detail=(
+                    f"Stock insuficiente en {source_loc.code}: intentas mover {payload.quantity} uds "
+                    f"de {product.sku}, pero solo hay {available_at_source} uds en esa ubicación."
+                ),
+            )
+
+        source_stock.quantity -= payload.quantity
+        if source_stock.quantity == 0:
+            db.delete(source_stock)
+        effective_source_code = source_loc.code
+    else:
+        located_total = int(
+            db.execute(
+                select(func.coalesce(func.sum(ProductLocationStock.quantity), 0))
+                .where(ProductLocationStock.sku == product.sku)
+            ).scalar()
+            or 0
+        )
+        unlocated_qty = max(0, product.stock_quantity - located_total)
+        if payload.quantity > unlocated_qty:
+            existing_rows = get_located_qty_by_sku(db, [product.sku]).get(product.sku, [])
+            if existing_rows:
+                locs_desc = ", ".join(f"{r['location_code']} ({r['quantity']})" for r in existing_rows)
+                raise HTTPException(
+                    status_code=409,
+                    detail=(
+                        f"Solo quedan {unlocated_qty} unidad(es) sin ubicar de {product.sku} "
+                        f"(stock físico total: {product.stock_quantity}; ubicadas en: {locs_desc}). "
+                        "Selecciona una ubicación de origen para mover stock sin duplicarlo."
+                    ),
+                )
+            raise HTTPException(
+                status_code=409,
+                detail=(
+                    f"La cantidad a almacenar ({payload.quantity}) supera el stock físico "
+                    f"disponible ({product.stock_quantity}) para {product.sku}."
+                ),
+            )
+        effective_source_code = None
+
+    dest_stock = db.execute(
+        select(ProductLocationStock)
+        .where(
+            ProductLocationStock.sku == product.sku,
+            ProductLocationStock.location_id == dest_loc.id,
+        )
+        .with_for_update()
+    ).scalar_one_or_none()
+
+    if dest_stock is None:
+        dest_stock = ProductLocationStock(
+            product_id=product.id,
+            sku=product.sku,
+            location_id=dest_loc.id,
+            quantity=payload.quantity,
+        )
+        db.add(dest_stock)
+    else:
+        dest_stock.quantity += payload.quantity
+
+    db.flush()
+    sync_product_warehouse_location_summary(product, db)
+
+    user_id = getattr(current_user, "id", None)
+    user_email = getattr(current_user, "email", "usuario")
+    db.add(
+        PutawayMovement(
+            sku=product.sku,
+            product_name=product.product_name,
+            quantity=payload.quantity,
+            source_location_code=effective_source_code,
+            destination_location_code=dest_loc.code,
+            performed_by_id=user_id,
+            performed_by_email=user_email,
+            notes=(payload.notes or "").strip() or None,
+        )
+    )
 
     reserved = db.execute(
         select(func.sum(WorkOrderItem.quantity))
@@ -546,26 +698,32 @@ def register_putaway(
     reserved_int = int(reserved)
     available_int = max(0, product.stock_quantity - reserved_int)
 
-    previous_location = product.warehouse_location
-    product.warehouse_location = clean_location
-
     db.commit()
     db.refresh(product)
+    db.refresh(dest_stock)
 
-    user_email = getattr(current_user, "email", "usuario")
+    loc_breakdown = get_located_qty_by_sku(db, [product.sku]).get(product.sku, [])
+    located_after = sum(x["quantity"] for x in loc_breakdown)
+    unlocated_after = max(0, product.stock_quantity - located_after)
+
     logger.info(
-        "📥 Putaway registrado por %s: SKU=%s qty=%d ubicacion %s -> %s",
-        user_email, product.sku, payload.quantity, previous_location, clean_location,
+        "📥 Putaway registrado por %s: SKU=%s qty=%d %s -> %s",
+        user_email, product.sku, payload.quantity, effective_source_code or "Sin ubicar", dest_loc.code,
     )
 
+    action_label = f"Movido desde {effective_source_code} hacia {dest_loc.code}" if effective_source_code else f"Almacenado en {dest_loc.code}"
     return PutawayResponse(
-        message=f"Putaway confirmado: {product.sku} x{payload.quantity} almacenado en {clean_location}.",
+        message=f"Putaway confirmado: {product.sku} x{payload.quantity} ({action_label}).",
         sku=product.sku,
         product_name=product.product_name,
         quantity=payload.quantity,
-        previous_location=previous_location,
-        new_location=clean_location,
+        previous_location=previous_location_summary,
+        source_location=effective_source_code,
+        new_location=dest_loc.code,
+        location_total_quantity=dest_stock.quantity,
         stock_quantity=product.stock_quantity,
         reserved_qty=reserved_int,
         available_qty=available_int,
+        unlocated_qty=unlocated_after,
+        location_stocks=[ProductLocationBreakdown(**x) for x in loc_breakdown],
     )

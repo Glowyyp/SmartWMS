@@ -55,6 +55,16 @@ data class MfaStatusResponse(
 
 // ─── Inventario ───────────────────────────────────────────────────────────────
 
+data class ProductLocationItem(
+    @SerializedName("location_id")   val locationId: Int,
+    @SerializedName("location_code") val locationCode: String,
+    @SerializedName("location_name") val locationName: String,
+    @SerializedName("location_type") val locationType: String,
+    @SerializedName("zone_code")     val zoneCode: String? = null,
+    val quantity: Int,
+    @SerializedName("stored_at")     val storedAt: String? = null
+)
+
 data class Product(
     val id: Int,
     val sku: String,
@@ -66,6 +76,8 @@ data class Product(
     @SerializedName("warehouse_location") val warehouseLocation: String?,  // Zona física (A, B, C, D)
     @SerializedName("reserved_qty")       val reservedQty: Int = 0,
     @SerializedName("available_qty")      val availableQty: Int = 0,
+    @SerializedName("unlocated_qty")      val unlocatedQty: Int = 0,
+    @SerializedName("location_stocks")    val locationStocks: List<ProductLocationItem> = emptyList(),
     val length: Double? = null,
     val width: Double? = null,
     val height: Double? = null,
@@ -147,27 +159,40 @@ data class DispatchIn(
 // ─── Putaway ──────────────────────────────────────────────────────────────────
 
 data class WarehouseLocationItem(
+    val id: Int = 0,
     val code: String,
-    val zone: String,
-    val label: String
+    val name: String = "",
+    @SerializedName("location_type") val locationType: String = "rack",
+    @SerializedName("zone_code")     val zoneCode: String? = null,
+    @SerializedName("zone_name")     val zoneName: String? = null,
+    val zone: String = "",
+    val label: String,
+    @SerializedName("total_units")   val totalUnits: Int = 0,
+    @SerializedName("is_occupied")   val isOccupied: Boolean = false
 )
 
 data class PutawayRequest(
     val sku: String,
     val quantity: Int,
-    val location: String
+    val location: String,
+    @SerializedName("source_location") val sourceLocation: String? = null,
+    val notes: String? = null
 )
 
 data class PutawayResponse(
     val message: String,
     val sku: String,
-    @SerializedName("product_name")      val productName: String,
+    @SerializedName("product_name")            val productName: String,
     val quantity: Int,
-    @SerializedName("previous_location") val previousLocation: String? = null,
-    @SerializedName("new_location")      val newLocation: String,
-    @SerializedName("stock_quantity")    val stockQuantity: Int,
-    @SerializedName("reserved_qty")      val reservedQty: Int,
-    @SerializedName("available_qty")     val availableQty: Int
+    @SerializedName("previous_location")       val previousLocation: String? = null,
+    @SerializedName("source_location")         val sourceLocation: String? = null,
+    @SerializedName("new_location")            val newLocation: String,
+    @SerializedName("location_total_quantity") val locationTotalQuantity: Int = 0,
+    @SerializedName("stock_quantity")          val stockQuantity: Int,
+    @SerializedName("reserved_qty")            val reservedQty: Int,
+    @SerializedName("available_qty")           val availableQty: Int,
+    @SerializedName("unlocated_qty")           val unlocatedQty: Int = 0,
+    @SerializedName("location_stocks")         val locationStocks: List<ProductLocationItem> = emptyList()
 )
 
 // ─── Picking (local, sin endpoint real aun) ───────────────────────────────────

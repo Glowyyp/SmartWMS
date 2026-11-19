@@ -67,8 +67,14 @@ class SkuAutocompleteAdapter(
             )
         )
 
-        val currentLoc = product.warehouseLocation?.takeIf { it.isNotBlank() } ?: "Sin asignar"
-        tvLocation.text = "Ubicación actual: $currentLoc"
+        val locsBreakdown = if (product.locationStocks.isNotEmpty()) {
+            val parts = product.locationStocks.joinToString(", ") { "${it.locationCode} (${it.quantity})" }
+            if (product.unlocatedQty > 0) "$parts · Sin ubicar: ${product.unlocatedQty}" else parts
+        } else {
+            val currentLoc = product.warehouseLocation?.takeIf { it.isNotBlank() } ?: "Sin ubicar"
+            if (product.unlocatedQty > 0) "$currentLoc · Sin ubicar: ${product.unlocatedQty}" else currentLoc
+        }
+        tvLocation.text = "Ubicaciones: $locsBreakdown"
 
         return view
     }
