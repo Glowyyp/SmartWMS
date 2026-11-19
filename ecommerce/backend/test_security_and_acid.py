@@ -245,7 +245,7 @@ def test_acid():
         total=Decimal("49950.00")
     )
     over_res = process_order(over_payload, db)
-    assert over_res.status == "completed"
+    assert over_res.status == "received"
 
     prod_check = db.query(ProductInventory).filter_by(sku=sku_acid).first()
     assert prod_check.stock_quantity == initial_stock, "El stock no debe descontarse al registrar órdenes"
@@ -264,7 +264,7 @@ def test_acid():
         total=Decimal("200.00")
     )
     res = process_order(ok_payload, db)
-    assert res.status == "completed"
+    assert res.status == "received"
 
     # Abrir una conexión independiente para comprobar durabilidad en disco
     db2 = SessionLocal()

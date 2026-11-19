@@ -149,9 +149,9 @@ def process_order(payload: OrderWebhookPayload, db: Session) -> WebhookResponse:
         db.add(order_item)
 
     # ------------------------------------------------------------------
-    # Paso 4: Marcar orden como recibida/completada y hacer COMMIT final
+    # Paso 4: Marcar orden como recibida y hacer COMMIT final
     # ------------------------------------------------------------------
-    order.status = "completed"
+    order.status = "received"
     db.commit()
     db.refresh(order)
 

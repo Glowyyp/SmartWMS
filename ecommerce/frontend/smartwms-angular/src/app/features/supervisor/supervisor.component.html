@@ -75,8 +75,15 @@
               <option value="">Todos los estados</option>
               <option value="received">Recibido</option>
               <option value="processing">En proceso</option>
+              <option value="completed">Completado</option>
               <option value="rejected">Rechazado</option>
             </select>
+            <button mat-flat-button color="primary" id="confirm-all-orders-btn"
+              [disabled]="pendingOrderStatusCount() === 0 || savingOrderStatuses()"
+              (click)="confirmAllOrderStatuses()">
+              <mat-icon>check_circle</mat-icon>
+              Confirmar estados{{ pendingOrderStatusCount() > 0 ? ' (' + pendingOrderStatusCount() + ')' : '' }}
+            </button>
             <button mat-stroked-button (click)="loadOrders()">
               <mat-icon>refresh</mat-icon> Actualizar
             </button>
@@ -117,16 +124,35 @@
                   <td>{{ o.customer_name }}</td>
                   <td class="amount">${{ o.total | number:'1.2-2' }}</td>
                   <td>
-                    <select class="status-select order-status-select"
-                      [ngClass]="getOrderStatusClass(o.status)"
-                      [ngModel]="normalizeOrderStatusForSelect(o.status)"
-                      (change)="onOrderStatusChange(o, $event)"
-                      (click)="$event.stopPropagation()"
-                      [id]="'order-status-select-' + o.id">
-                      <option value="received">Recibido</option>
-                      <option value="processing">En proceso</option>
-                      <option value="rejected">Rechazado</option>
-                    </select>
+                    <div class="order-status-cell" (click)="$event.stopPropagation()">
+                      <select class="status-select order-status-select"
+                        [ngClass]="getOrderStatusClass(getDraftOrderStatus(o))"
+                        [class.pending-change]="hasPendingOrderStatus(o)"
+                        [ngModel]="getDraftOrderStatus(o)"
+                        (change)="onOrderStatusChange(o, $event)"
+                        [id]="'order-status-select-' + o.id">
+                        <option value="received">Recibido</option>
+                        <option value="processing">En proceso</option>
+                        <option value="completed">Completado</option>
+                        <option value="rejected">Rechazado</option>
+                      </select>
+                      @if (hasPendingOrderStatus(o)) {
+                        <button type="button" class="inline-confirm-btn"
+                          [disabled]="savingOrderStatuses()"
+                          (click)="confirmSingleOrderStatus(o)"
+                          [id]="'confirm-order-status-' + o.id"
+                          matTooltip="Confirmar estado" matTooltipPosition="above" matTooltipClass="wms-tooltip">
+                          <mat-icon>check</mat-icon>
+                          <span>Confirmar</span>
+                        </button>
+                        <button type="button" class="inline-discard-btn"
+                          [disabled]="savingOrderStatuses()"
+                          (click)="discardOrderStatusChange(o)"
+                          matTooltip="Descartar cambio" matTooltipPosition="above" matTooltipClass="wms-tooltip">
+                          <mat-icon>close</mat-icon>
+                        </button>
+                      }
+                    </div>
                   </td>
                   <td>{{ o.received_at | date:'dd/MM HH:mm' }}</td>
                 </tr>
@@ -1059,6 +1085,79 @@
           </div>
         }
 
+        @if (confirmingReception(); as rec) {
+          <div class="add-product-form" id="confirm-reception-form">
+            <h2 class="form-title">
+              <mat-icon>inventory</mat-icon>
+              Confirmar Llegada — Recepción #{{ rec.id }} ({{ rec.sku }})
+            </h2>
+            <p class="section-subtitle" style="margin-bottom: 12px;">
+              Esperada: <strong>{{ rec.expected_quantity }}</strong> · Ya recibida: <strong>{{ rec.received_quantity }}</strong> · Faltante: <strong>{{ rec.expected_quantity - rec.received_quantity > 0 ? rec.expected_quantity - rec.received_quantity : 0 }}</strong>
+            </p>
+            <div class="form-grid">
+              <div class="form-field">
+                <label class="form-label">Cantidad recibida en buen estado *</label>
+                <input class="form-input" id="confirm-rec-qty" type="number" min="0"
+                  [ngModel]="confirmQty()" (ngModelChange)="confirmQty.set($event)" />
+              </div>
+              <div class="form-field">
+                <label class="form-label">Notas / Observaciones (ej: unidades dañadas)</label>
+                <input class="form-input" id="confirm-rec-notes" type="text" placeholder="Ej: 5 rotas en tránsito"
+                  [ngModel]="confirmNotes()" (ngModelChange)="confirmNotes.set($event)" />
+              </div>
+            </div>
+            <label class="checkbox-row" for="confirm-rec-close">
+              <input id="confirm-rec-close" type="checkbox"
+                [ngModel]="confirmCloseShortage()" (ngModelChange)="confirmCloseShortage.set($event)" />
+              <span>Cerrar recepción con esta entrega (si faltaron o se dañaron unidades y no llegarán después, limpia "por llegar" en inventario)</span>
+            </label>
+            <div class="form-actions">
+              <button mat-stroked-button type="button" (click)="cancelConfirmReception()" [disabled]="savingReceptionAction()">
+                Cancelar
+              </button>
+              <button mat-flat-button color="primary" type="button" id="submit-confirm-rec-btn"
+                (click)="submitConfirmReception()" [disabled]="savingReceptionAction()">
+                <mat-icon>check</mat-icon> Confirmar Llegada
+              </button>
+            </div>
+          </div>
+        }
+
+        @if (editingReception(); as rec) {
+          <div class="add-product-form" id="edit-reception-form">
+            <h2 class="form-title">
+              <mat-icon>edit</mat-icon>
+              Editar Recepción #{{ rec.id }} ({{ rec.sku }})
+            </h2>
+            <div class="form-grid">
+              <div class="form-field">
+                <label class="form-label">Cantidad Esperada *</label>
+                <input class="form-input" id="edit-rec-expected" type="number" min="1"
+                  [ngModel]="editReceptionExpected()" (ngModelChange)="editReceptionExpected.set($event)" />
+              </div>
+              <div class="form-field">
+                <label class="form-label">Cantidad Recibida Real *</label>
+                <input class="form-input" id="edit-rec-received" type="number" min="0"
+                  [ngModel]="editReceptionReceived()" (ngModelChange)="editReceptionReceived.set($event)" />
+              </div>
+              <div class="form-field">
+                <label class="form-label">Notas / Observaciones</label>
+                <input class="form-input" id="edit-rec-notes" type="text" placeholder="Ej: 5 dañadas en camino"
+                  [ngModel]="editReceptionNotes()" (ngModelChange)="editReceptionNotes.set($event)" />
+              </div>
+            </div>
+            <div class="form-actions">
+              <button mat-stroked-button type="button" (click)="cancelEditReception()" [disabled]="savingReceptionAction()">
+                Cancelar
+              </button>
+              <button mat-flat-button color="primary" type="button" id="submit-edit-rec-btn"
+                (click)="submitEditReception()" [disabled]="savingReceptionAction()">
+                <mat-icon>save</mat-icon> Guardar Cambios
+              </button>
+            </div>
+          </div>
+        }
+
         @if (receptionsLoading()) { <mat-progress-bar mode="indeterminate"></mat-progress-bar> }
         <div class="table-card">
           <table mat-table [dataSource]="receptions()" class="wms-table">
@@ -1090,7 +1189,13 @@
                   'chip-success': r.status === 'completed',
                   'chip-info': r.status === 'partial',
                   'chip-muted': r.status === 'cancelled'
-                }">{{ r.status }}</span>
+                }">{{ getReceptionStatusLabel(r.status) }}</span>
+              </td>
+            </ng-container>
+            <ng-container matColumnDef="notes">
+              <th mat-header-cell *matHeaderCellDef>Notas</th>
+              <td mat-cell *matCellDef="let r">
+                <span class="notes-preview">{{ r.notes || '—' }}</span>
               </td>
             </ng-container>
             <ng-container matColumnDef="created_at">
@@ -1098,13 +1203,29 @@
               <td mat-cell *matCellDef="let r">{{ r.created_at | date:'dd/MM HH:mm' }}</td>
             </ng-container>
             <ng-container matColumnDef="actions">
-              <th mat-header-cell *matHeaderCellDef></th>
+              <th mat-header-cell *matHeaderCellDef>Acciones</th>
               <td mat-cell *matCellDef="let r">
-                @if (r.status === 'pending' || r.status === 'partial') {
-                  <button mat-stroked-button color="primary" (click)="confirmReceptionArrival(r)">
-                    <mat-icon>check</mat-icon> Confirmar
-                  </button>
-                }
+                <div class="reception-actions-row">
+                  @if (r.status === 'pending' || r.status === 'partial') {
+                    <button mat-stroked-button color="primary" (click)="confirmReceptionArrival(r)" [id]="'confirm-rec-' + r.id">
+                      <mat-icon>check</mat-icon> Confirmar
+                    </button>
+                  }
+                  @if (r.status !== 'cancelled') {
+                    <button mat-icon-button color="primary"
+                      matTooltip="Editar recepción" matTooltipPosition="above" matTooltipClass="wms-tooltip"
+                      (click)="openEditReception(r)" [id]="'edit-rec-' + r.id">
+                      <mat-icon>edit</mat-icon>
+                    </button>
+                  }
+                  @if (r.status === 'pending' || r.status === 'partial') {
+                    <button mat-icon-button color="warn"
+                      matTooltip="Cancelar recepción" matTooltipPosition="above" matTooltipClass="wms-tooltip"
+                      (click)="cancelReception(r)" [id]="'cancel-rec-' + r.id">
+                      <mat-icon>cancel</mat-icon>
+                    </button>
+                  }
+                </div>
               </td>
             </ng-container>
             <tr mat-header-row *matHeaderRowDef="receptionColumns; sticky: true"></tr>

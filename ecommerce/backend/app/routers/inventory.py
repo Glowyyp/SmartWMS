@@ -24,7 +24,7 @@ from app.models.pending_reception import PendingReception
 from app.routers.auth import get_current_user, require_admin, require_supervisor_or_admin
 from app.schemas.inventory import (
     ProductCreate, ProductOut, ProductUpdate,
-    PendingReceptionCreate, PendingReceptionOut, PendingReceptionConfirm
+    PendingReceptionCreate, PendingReceptionOut, PendingReceptionConfirm, PendingReceptionUpdate
 )
 from datetime import datetime, timezone
 
@@ -232,6 +232,40 @@ def create_pending_reception(
     return reception
 
 
+def _unlock_waiting_work_orders(db: Session) -> None:
+    """Pasa pedidos 'waiting_stock' a 'pending'/'por_asignar' en orden FIFO si ya hay stock disponible."""
+    waiting_orders = (
+        db.query(WorkOrder)
+        .filter(WorkOrder.status == "waiting_stock")
+        .order_by(WorkOrder.created_at)
+        .all()
+    )
+
+    for wo in waiting_orders:
+        can_fulfill = True
+        for item in wo.items:
+            prod = db.query(ProductInventory).filter(ProductInventory.sku == item.sku).first()
+            if not prod:
+                can_fulfill = False
+                break
+
+            already_reserved_despachable = db.execute(
+                select(func.sum(WorkOrderItem.quantity))
+                .join(WorkOrder, WorkOrder.id == WorkOrderItem.work_order_id)
+                .where(
+                    WorkOrder.status.in_(["pending", "por_asignar", "in_preparation", "in_progress"]),
+                    WorkOrderItem.sku == prod.sku,
+                )
+            ).scalar() or 0
+
+            if (prod.stock_quantity - already_reserved_despachable) < item.quantity:
+                can_fulfill = False
+                break
+
+        if can_fulfill:
+            wo.status = "pending" if (wo.assigned_operario_id is not None or wo.assigned_operario_email) else "por_asignar"
+
+
 @router.post(
     "/receptions/{reception_id}/confirm",
     response_model=PendingReceptionOut,
@@ -248,65 +282,126 @@ def confirm_pending_reception(
         raise HTTPException(status_code=404, detail="Recepción no encontrada")
     if reception.status in ["completed", "cancelled"]:
         raise HTTPException(status_code=400, detail=f"La recepción ya está {reception.status}")
-    
+
     product = db.query(ProductInventory).filter(ProductInventory.sku == reception.sku).first()
     if not product:
         raise HTTPException(status_code=404, detail="Producto no encontrado (pudo haber sido borrado)")
-    
-    # Restamos lo que estaba pendiente originalmente para esta recepción y 
-    # si es parcial, dejamos la diferencia como pendiente? 
-    # El usuario dijo: "Si se recibe una cantidad inferior a la esperada... mantener pendiente la diferencia"
-    # Entonces: 
+
     added_to_received = confirm_in.received_quantity
-    
-    if (reception.received_quantity + added_to_received) >= reception.expected_quantity:
-        reception.status = "completed"
-    else:
-        reception.status = "partial"
-        
+    remaining_before = max(0, reception.expected_quantity - reception.received_quantity)
+
     reception.received_quantity += added_to_received
     reception.received_by_id = current_user.id
     reception.received_at = datetime.now(timezone.utc)
-    
-    # Actualizar inventario físico
+    if confirm_in.notes is not None:
+        reception.notes = confirm_in.notes.strip() or None
+
+    if confirm_in.close_shortage or reception.received_quantity >= reception.expected_quantity:
+        reception.status = "completed"
+        # Libera toda la cantidad pendiente restante (ej. unidades dañadas o faltantes cerradas)
+        pending_delta = remaining_before
+    else:
+        reception.status = "partial" if reception.received_quantity > 0 else "pending"
+        pending_delta = min(remaining_before, added_to_received)
+
+    # Actualizar inventario físico y por llegar
     product.stock_quantity += added_to_received
-    product.pending_quantity = max(0, product.pending_quantity - added_to_received)
-    
+    product.pending_quantity = max(0, product.pending_quantity - pending_delta)
+
     db.commit()
-    
-    # Revisar pedidos que están esperando stock (esperando_stock = "waiting_stock")
-    # Los pasamos a "pending" (ready_for_dispatch) si todos sus ítems tienen suficiente stock_quantity
-    # Ordenamos por los más viejos primero (FIFO)
-    waiting_orders = db.query(WorkOrder).filter(WorkOrder.status == "waiting_stock").order_by(WorkOrder.created_at).all()
-    
-    for wo in waiting_orders:
-        can_fulfill = True
-        for item in wo.items:
-            prod = db.query(ProductInventory).filter(ProductInventory.sku == item.sku).first()
-            # En un entorno real, restaríamos el inventario virtualmente aquí para múltiples órdenes,
-            # pero dado que el reserved_qty ya protege el stock, si sumamos el requerimiento
-            # de órdenes más antiguas, podemos validar:
-            # Aquí lo hacemos simple verificando si hay stock_quantity suficiente para el item.
-            # Nota: Esto asume que reserved_qty protege a las órdenes 'pending' y 'waiting_stock'.
-            # Para mayor rigor, calculamos si product.stock_quantity >= suma(pedidos pending) + este item
-            if not prod:
-                can_fulfill = False
-                break
-            
-            # Cantidad reservada SOLO en órdenes despachables o activas
-            already_reserved_despachable = db.execute(
-                select(func.sum(WorkOrderItem.quantity))
-                .join(WorkOrder, WorkOrder.id == WorkOrderItem.work_order_id)
-                .where(WorkOrder.status.in_(["pending", "por_asignar", "in_preparation", "in_progress"]), WorkOrderItem.sku == prod.sku)
-            ).scalar() or 0
-            
-            if (prod.stock_quantity - already_reserved_despachable) < item.quantity:
-                can_fulfill = False
-                break
-                
-        if can_fulfill:
-            wo.status = "pending" if (wo.assigned_operario_id is not None or wo.assigned_operario_email) else "por_asignar"
-            
+    _unlock_waiting_work_orders(db)
+    db.commit()
+    db.refresh(reception)
+    return reception
+
+
+@router.put(
+    "/receptions/{reception_id}",
+    response_model=PendingReceptionOut,
+    summary="Editar cantidades o notas de una recepción (Supervisor/Admin)",
+)
+def update_pending_reception(
+    reception_id: int,
+    payload: PendingReceptionUpdate,
+    db: Session = Depends(get_db),
+    _: object = Depends(require_supervisor_or_admin),
+):
+    """Permite corregir la cantidad esperada, cantidad recibida real y notas de una recepción."""
+    reception = db.query(PendingReception).filter(PendingReception.id == reception_id).first()
+    if not reception:
+        raise HTTPException(status_code=404, detail="Recepción no encontrada")
+    if reception.status == "cancelled":
+        raise HTTPException(status_code=400, detail="No se puede editar una recepción cancelada")
+
+    product = db.query(ProductInventory).filter(ProductInventory.sku == reception.sku).first()
+    if not product:
+        raise HTTPException(status_code=404, detail="Producto no encontrado")
+
+    old_expected = reception.expected_quantity
+    old_received = reception.received_quantity
+    old_remaining = 0 if reception.status in ["completed", "cancelled"] else max(0, old_expected - old_received)
+
+    new_expected = payload.expected_quantity if payload.expected_quantity is not None else old_expected
+    new_received = payload.received_quantity if payload.received_quantity is not None else old_received
+    delta_received = new_received - old_received
+
+    if product.stock_quantity + delta_received < 0:
+        raise HTTPException(
+            status_code=409,
+            detail="No se puede reducir la cantidad recibida porque el stock físico quedaría negativo",
+        )
+
+    reception.expected_quantity = new_expected
+    reception.received_quantity = new_received
+    if payload.notes is not None:
+        reception.notes = payload.notes.strip() or None
+
+    if new_received >= new_expected:
+        reception.status = "completed"
+    elif new_received > 0:
+        reception.status = "partial"
+    else:
+        reception.status = "pending"
+
+    new_remaining = 0 if reception.status == "completed" else max(0, new_expected - new_received)
+
+    product.stock_quantity += delta_received
+    product.pending_quantity = max(0, product.pending_quantity + (new_remaining - old_remaining))
+
+    db.commit()
+    if delta_received > 0:
+        _unlock_waiting_work_orders(db)
+        db.commit()
+    db.refresh(reception)
+    return reception
+
+
+@router.post(
+    "/receptions/{reception_id}/cancel",
+    response_model=PendingReceptionOut,
+    summary="Cancelar una recepción pendiente o parcial (Supervisor/Admin)",
+)
+def cancel_pending_reception(
+    reception_id: int,
+    db: Session = Depends(get_db),
+    _: object = Depends(require_supervisor_or_admin),
+):
+    """Cancela la recepción y libera de pending_quantity las unidades que aún no habían llegado."""
+    reception = db.query(PendingReception).filter(PendingReception.id == reception_id).first()
+    if not reception:
+        raise HTTPException(status_code=404, detail="Recepción no encontrada")
+    if reception.status == "completed":
+        raise HTTPException(status_code=400, detail="No se puede cancelar una recepción ya completada")
+    if reception.status == "cancelled":
+        raise HTTPException(status_code=400, detail="La recepción ya se encuentra cancelada")
+
+    product = db.query(ProductInventory).filter(ProductInventory.sku == reception.sku).first()
+    remaining_pending = max(0, reception.expected_quantity - reception.received_quantity)
+    reception.status = "cancelled"
+
+    if product:
+        product.pending_quantity = max(0, product.pending_quantity - remaining_pending)
+
     db.commit()
     db.refresh(reception)
     return reception

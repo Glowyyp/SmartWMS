@@ -79,7 +79,28 @@ export class InventoryService {
     return this.http.post<PendingReception>(`${this.baseUrl}/receptions`, data);
   }
 
-  confirmReception(id: number, received_quantity: number): Observable<PendingReception> {
-    return this.http.post<PendingReception>(`${this.baseUrl}/receptions/${id}/confirm`, { received_quantity });
+  confirmReception(
+    id: number,
+    received_quantity: number,
+    close_shortage = false,
+    notes?: string | null
+  ): Observable<PendingReception> {
+    const body: { received_quantity: number; close_shortage: boolean; notes?: string } = {
+      received_quantity,
+      close_shortage,
+    };
+    if (notes !== undefined && notes !== null) body.notes = notes;
+    return this.http.post<PendingReception>(`${this.baseUrl}/receptions/${id}/confirm`, body);
+  }
+
+  updateReception(
+    id: number,
+    payload: { expected_quantity?: number; received_quantity?: number; notes?: string | null }
+  ): Observable<PendingReception> {
+    return this.http.put<PendingReception>(`${this.baseUrl}/receptions/${id}`, payload);
+  }
+
+  cancelReception(id: number): Observable<PendingReception> {
+    return this.http.post<PendingReception>(`${this.baseUrl}/receptions/${id}/cancel`, {});
   }
 }

@@ -62,7 +62,7 @@ class OrderOut(BaseModel):
 
 
 class OrderStatusUpdate(BaseModel):
-    status: Literal["received", "processing", "rejected"]
+    status: Literal["received", "processing", "completed", "rejected"]
 
 
 class PrepareWorkOrderRequest(BaseModel):
@@ -136,10 +136,7 @@ def list_orders(
     """
     query = db.query(Order)
     if status:
-        if status == "received":
-            query = query.filter(Order.status.in_(["received", "completed"]))
-        else:
-            query = query.filter(Order.status == status)
+        query = query.filter(Order.status == status)
     orders = query.order_by(Order.received_at.desc()).limit(limit).all()
     return _serialize_orders_with_names(orders, db)
 
@@ -277,7 +274,7 @@ def update_order_status(
     db: Session = Depends(get_db),
     current_user: User = Depends(require_supervisor_or_admin),
 ):
-    """Persiste el nuevo estado de la orden ('received' | 'processing' | 'rejected') en BD."""
+    """Persiste el nuevo estado de la orden ('received' | 'processing' | 'completed' | 'rejected') en BD."""
     order = db.query(Order).filter(Order.id == order_id).first()
     if not order:
         raise HTTPException(

@@ -74,7 +74,7 @@ export class OrdersService {
     return this.http.get<Order>(`${this.baseUrl}/${id}`);
   }
 
-  updateOrderStatus(id: number, status: 'received' | 'processing' | 'rejected'): Observable<Order> {
+  updateOrderStatus(id: number, status: 'received' | 'processing' | 'completed' | 'rejected'): Observable<Order> {
     return this.http.patch<Order>(`${this.baseUrl}/${id}/status`, { status });
   }
 

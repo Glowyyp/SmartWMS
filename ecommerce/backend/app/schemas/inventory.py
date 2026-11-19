@@ -99,6 +99,14 @@ class PendingReceptionCreate(BaseModel):
 
 class PendingReceptionConfirm(BaseModel):
     received_quantity: int = Field(ge=0)
+    close_shortage: bool = False
+    notes: str | None = None
+
+
+class PendingReceptionUpdate(BaseModel):
+    expected_quantity: int | None = Field(default=None, gt=0)
+    received_quantity: int | None = Field(default=None, ge=0)
+    notes: str | None = None
 
 class PendingReceptionOut(BaseModel):
     id: int

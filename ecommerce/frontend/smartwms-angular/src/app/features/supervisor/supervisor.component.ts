@@ -28,8 +28,10 @@ import { UsersService, UserRecord } from '../../core/services/users.service';
 import { WorkOrdersService, WorkOrder, WorkOrderItemIn, WorkOrderUpdate, Operario } from '../../core/services/work-orders.service';
 import { generateCode128SvgDataUri } from '../../core/utils/barcode.util';
 import { ChatbotComponent } from '../../shared/chatbot/chatbot.component';
-import { Subscription, interval } from 'rxjs';
+import { Subscription, interval, forkJoin } from 'rxjs';
 import { switchMap, startWith } from 'rxjs/operators';
+
+type OrderStatusOption = 'received' | 'processing' | 'completed' | 'rejected';
 
 interface NewOrderLine {
   sku: string;
@@ -132,12 +134,26 @@ export class SupervisorComponent implements OnInit, OnDestroy {
     this.workOrders().filter(wo => wo.status === 'pending' || wo.status === 'por_asignar').length
   );
 
+  // ── Órdenes webhook ────────────────────────────────────────────────────────
+  pendingOrderStatuses = signal<Record<number, OrderStatusOption>>({});
+  savingOrderStatuses = signal(false);
+  pendingOrderStatusCount = computed(() => Object.keys(this.pendingOrderStatuses()).length);
+
   // ── Recepciones Pendientes ────────────────────────────────────────────────
   receptions = signal<PendingReception[]>([]);
   receptionsLoading = signal(false);
-  receptionColumns = ['id', 'sku', 'expected_quantity', 'received_quantity', 'status', 'created_at', 'actions'];
+  receptionColumns = ['id', 'sku', 'expected_quantity', 'received_quantity', 'status', 'notes', 'created_at', 'actions'];
   showNewReceptionForm = signal(false);
   newReception = signal({ sku: '', expected_quantity: 0, notes: '' });
+  confirmingReception = signal<PendingReception | null>(null);
+  confirmQty = signal<number>(0);
+  confirmCloseShortage = signal<boolean>(false);
+  confirmNotes = signal<string>('');
+  editingReception = signal<PendingReception | null>(null);
+  editReceptionExpected = signal<number>(1);
+  editReceptionReceived = signal<number>(0);
+  editReceptionNotes = signal<string>('');
+  savingReceptionAction = signal<boolean>(false);
 
   // ── Formulario de nuevo pedido ─────────────────────────────────────────────
   showNewOrderForm = signal(false);
@@ -272,31 +288,107 @@ export class SupervisorComponent implements OnInit, OnDestroy {
     this.expandedOrderId.update(cur => cur === order.id ? null : order.id);
   }
 
-  normalizeOrderStatusForSelect(status: string): 'received' | 'processing' | 'rejected' {
+  normalizeOrderStatusForSelect(status: string): OrderStatusOption {
     const s = (status || '').toLowerCase();
     if (s === 'processing') return 'processing';
+    if (s === 'completed') return 'completed';
     if (s === 'rejected') return 'rejected';
     return 'received';
   }
 
+  getDraftOrderStatus(order: Order): OrderStatusOption {
+    return this.pendingOrderStatuses()[order.id] ?? this.normalizeOrderStatusForSelect(order.status);
+  }
+
+  hasPendingOrderStatus(order: Order): boolean {
+    const draft = this.pendingOrderStatuses()[order.id];
+    return !!draft && draft !== this.normalizeOrderStatusForSelect(order.status);
+  }
+
   onOrderStatusChange(order: Order, event: Event): void {
     const selectEl = event.target as HTMLSelectElement;
-    const newStatus = selectEl.value as 'received' | 'processing' | 'rejected';
-    const prevNormalized = this.normalizeOrderStatusForSelect(order.status);
-    if (!newStatus || newStatus === prevNormalized) return;
+    const newStatus = selectEl.value as OrderStatusOption;
+    const current = this.normalizeOrderStatusForSelect(order.status);
 
+    this.pendingOrderStatuses.update(map => {
+      const next = { ...map };
+      if (!newStatus || newStatus === current) {
+        delete next[order.id];
+      } else {
+        next[order.id] = newStatus;
+      }
+      return next;
+    });
+  }
+
+  discardOrderStatusChange(order: Order): void {
+    this.pendingOrderStatuses.update(map => {
+      const next = { ...map };
+      delete next[order.id];
+      return next;
+    });
+  }
+
+  confirmSingleOrderStatus(order: Order): void {
+    const newStatus = this.pendingOrderStatuses()[order.id];
+    if (!newStatus || newStatus === this.normalizeOrderStatusForSelect(order.status)) return;
+
+    this.savingOrderStatuses.set(true);
     this.ordersService.updateOrderStatus(order.id, newStatus).subscribe({
       next: updated => {
         this.orders.update(list => list.map(o => o.id === updated.id ? updated : o));
+        this.discardOrderStatusChange(order);
+        this.savingOrderStatuses.set(false);
         this.snackBar.open(
-          `✅ Orden #${updated.id} (${updated.external_order_id}) actualizada a "${this.getOrderStatusLabel(updated.status)}"`,
+          `✅ Orden #${updated.id} (${updated.external_order_id}) confirmada como "${this.getOrderStatusLabel(updated.status)}"`,
           'OK',
           { duration: 3500 }
         );
       },
       error: err => {
-        selectEl.value = prevNormalized;
+        this.savingOrderStatuses.set(false);
         const msg = err.error?.detail ?? 'No se pudo actualizar el estado de la orden.';
+        this.snackBar.open(`❌ ${msg}`, 'Cerrar', { duration: 4500 });
+      },
+    });
+  }
+
+  confirmAllOrderStatuses(): void {
+    const drafts = this.pendingOrderStatuses();
+    const entries = Object.entries(drafts);
+    if (entries.length === 0) {
+      this.snackBar.open('No hay cambios de estado pendientes por confirmar.', 'OK', { duration: 2500 });
+      return;
+    }
+
+    const calls = entries
+      .map(([idStr, status]) => ({ id: Number(idStr), status }))
+      .filter(({ id, status }) => {
+        const order = this.orders().find(o => o.id === id);
+        return order && status !== this.normalizeOrderStatusForSelect(order.status);
+      });
+
+    if (calls.length === 0) {
+      this.pendingOrderStatuses.set({});
+      return;
+    }
+
+    this.savingOrderStatuses.set(true);
+    forkJoin(calls.map(c => this.ordersService.updateOrderStatus(c.id, c.status))).subscribe({
+      next: updatedList => {
+        const updatedMap = new Map(updatedList.map(u => [u.id, u]));
+        this.orders.update(list => list.map(o => updatedMap.get(o.id) ?? o));
+        this.pendingOrderStatuses.set({});
+        this.savingOrderStatuses.set(false);
+        this.snackBar.open(
+          `✅ ${updatedList.length} estado(s) de orden confirmados correctamente`,
+          'OK',
+          { duration: 3500 }
+        );
+      },
+      error: err => {
+        this.savingOrderStatuses.set(false);
+        const msg = err.error?.detail ?? 'Error al confirmar los estados de las órdenes.';
         this.snackBar.open(`❌ ${msg}`, 'Cerrar', { duration: 4500 });
       },
     });
@@ -868,28 +960,142 @@ export class SupervisorComponent implements OnInit, OnDestroy {
   }
 
   confirmReceptionArrival(rec: PendingReception): void {
-    const qty = prompt(`Cantidad recibida para ${rec.sku} (Esperada: ${rec.expected_quantity - rec.received_quantity}):`);
-    if (qty === null) return;
-    const qtyNum = parseInt(qty, 10);
+    this.editingReception.set(null);
+    this.showNewReceptionForm.set(false);
+    this.confirmingReception.set(rec);
+    const remaining = Math.max(0, rec.expected_quantity - rec.received_quantity);
+    this.confirmQty.set(remaining);
+    this.confirmCloseShortage.set(false);
+    this.confirmNotes.set(rec.notes ?? '');
+  }
+
+  cancelConfirmReception(): void {
+    this.confirmingReception.set(null);
+  }
+
+  submitConfirmReception(): void {
+    const rec = this.confirmingReception();
+    if (!rec) return;
+    const qtyNum = Number(this.confirmQty());
     if (isNaN(qtyNum) || qtyNum < 0) {
-      this.snackBar.open('Cantidad inválida', '', { duration: 2000 });
+      this.snackBar.open('Ingresa una cantidad recibida válida (>= 0).', 'Cerrar', { duration: 3000 });
       return;
     }
-    this.inventoryService.confirmReception(rec.id, qtyNum).subscribe({
+
+    this.savingReceptionAction.set(true);
+    this.inventoryService
+      .confirmReception(rec.id, qtyNum, this.confirmCloseShortage(), this.confirmNotes())
+      .subscribe({
+        next: updated => {
+          this.receptions.update(list => list.map(r => r.id === updated.id ? updated : r));
+          this.confirmingReception.set(null);
+          this.savingReceptionAction.set(false);
+          this.snackBar.open(
+            updated.status === 'completed'
+              ? `✅ Recepción #${updated.id} completada (${updated.received_quantity}/${updated.expected_quantity})`
+              : `📦 Llegada parcial registrada para ${updated.sku} (${updated.received_quantity}/${updated.expected_quantity})`,
+            'OK',
+            { duration: 3500 }
+          );
+          this.loadInventory();
+          this.loadWorkOrders();
+        },
+        error: err => {
+          this.savingReceptionAction.set(false);
+          this.snackBar.open(err.error?.detail ?? 'Error al confirmar recepción', 'Cerrar', { duration: 4000 });
+        },
+      });
+  }
+
+  openEditReception(rec: PendingReception): void {
+    this.confirmingReception.set(null);
+    this.showNewReceptionForm.set(false);
+    this.editingReception.set(rec);
+    this.editReceptionExpected.set(rec.expected_quantity);
+    this.editReceptionReceived.set(rec.received_quantity);
+    this.editReceptionNotes.set(rec.notes ?? '');
+  }
+
+  cancelEditReception(): void {
+    this.editingReception.set(null);
+  }
+
+  submitEditReception(): void {
+    const rec = this.editingReception();
+    if (!rec) return;
+    const expected = Number(this.editReceptionExpected());
+    const received = Number(this.editReceptionReceived());
+    if (isNaN(expected) || expected <= 0) {
+      this.snackBar.open('La cantidad esperada debe ser mayor a 0.', 'Cerrar', { duration: 3000 });
+      return;
+    }
+    if (isNaN(received) || received < 0) {
+      this.snackBar.open('La cantidad recibida debe ser 0 o mayor.', 'Cerrar', { duration: 3000 });
+      return;
+    }
+
+    this.savingReceptionAction.set(true);
+    this.inventoryService
+      .updateReception(rec.id, {
+        expected_quantity: expected,
+        received_quantity: received,
+        notes: this.editReceptionNotes(),
+      })
+      .subscribe({
+        next: updated => {
+          this.receptions.update(list => list.map(r => r.id === updated.id ? updated : r));
+          this.editingReception.set(null);
+          this.savingReceptionAction.set(false);
+          this.snackBar.open(`✅ Recepción #${updated.id} actualizada`, 'OK', { duration: 3500 });
+          this.loadInventory();
+          this.loadWorkOrders();
+        },
+        error: err => {
+          this.savingReceptionAction.set(false);
+          this.snackBar.open(err.error?.detail ?? 'Error al editar recepción', 'Cerrar', { duration: 4000 });
+        },
+      });
+  }
+
+  cancelReception(rec: PendingReception): void {
+    const remaining = Math.max(0, rec.expected_quantity - rec.received_quantity);
+    const ok = confirm(
+      `¿Cancelar la recepción #${rec.id} (${rec.sku})?\n\n` +
+      `Se liberarán ${remaining} unidad(es) de "por llegar" en el inventario.`
+    );
+    if (!ok) return;
+
+    this.savingReceptionAction.set(true);
+    this.inventoryService.cancelReception(rec.id).subscribe({
       next: updated => {
         this.receptions.update(list => list.map(r => r.id === updated.id ? updated : r));
-        this.snackBar.open('Llegada confirmada', 'OK', { duration: 3000 });
+        if (this.editingReception()?.id === rec.id) this.editingReception.set(null);
+        if (this.confirmingReception()?.id === rec.id) this.confirmingReception.set(null);
+        this.savingReceptionAction.set(false);
+        this.snackBar.open(`❌ Recepción #${updated.id} cancelada`, 'OK', { duration: 3500 });
         this.loadInventory();
-        this.loadWorkOrders();
       },
-      error: err => this.snackBar.open(err.error?.detail ?? 'Error al confirmar', 'Cerrar', { duration: 4000 })
+      error: err => {
+        this.savingReceptionAction.set(false);
+        this.snackBar.open(err.error?.detail ?? 'Error al cancelar recepción', 'Cerrar', { duration: 4000 });
+      },
     });
+  }
+
+  getReceptionStatusLabel(status: string): string {
+    const map: Record<string, string> = {
+      pending: 'Pendiente',
+      partial: 'Parcial',
+      completed: 'Completada',
+      cancelled: 'Cancelada',
+    };
+    return map[(status || '').toLowerCase()] ?? status;
   }
 
   // ── Helpers de UI ──────────────────────────────────────────────────────────
   getOrderStatusClass(status: string): string {
     const map: Record<string, string> = {
-      completed: 'chip-info',
+      completed: 'chip-success',
       received: 'chip-info',
       processing: 'chip-warning',
       rejected: 'chip-danger',
@@ -902,8 +1108,8 @@ export class SupervisorComponent implements OnInit, OnDestroy {
   getOrderStatusLabel(status: string): string {
     const map: Record<string, string> = {
       received: 'Recibido',
-      completed: 'Recibido',
       processing: 'En proceso',
+      completed: 'Completado',
       rejected: 'Rechazado',
       failed: 'Fallido',
       cancelled: 'Cancelado',
