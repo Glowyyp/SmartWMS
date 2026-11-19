@@ -2,14 +2,14 @@
 
 SmartWMS es una plataforma WMS full-stack para gestión de inventario, recepción de órdenes, armado y despacho de pedidos, layout físico de almacén y asistencia operativa con IA, desplegada en **Google Cloud Platform (Cloud Run + Cloud SQL PostgreSQL)** con CI/CD automático desde GitHub.
 
-## Arquitectura y Servicios en Producción (GCP — `smartwms-prd` / `southamerica-west1`)
+## Arquitectura y Servicios en Producción (GCP — Cloud Run + Cloud SQL)
 
-| Componente | Tecnología | URL / Ubicación | Descripción |
+| Componente | Tecnología | Entorno / Servicio | Descripción |
 | :--- | :--- | :--- | :--- |
-| **Frontend Web** | Angular 22 (Zoneless + Nginx) | https://smartwms-frontend-523602689123.southamerica-west1.run.app | Paneles de Supervisor y Operario, Layout interactivo, QR/Code 128, Pedidos, Recepciones y Copiloto IA con Markdown |
-| **Backend API** | FastAPI + SQLAlchemy | https://smartwms-backend-523602689123.southamerica-west1.run.app/docs | API REST, JWT + MFA TOTP, Webhooks de órdenes, control de stock atómico y endpoints de Layout/Putaway |
-| **Bot IA** | FastAPI + Gemini API | https://smartwms-bot-523602689123.southamerica-west1.run.app/docs | Copiloto inteligente para consultas operativas con soporte completo de Markdown |
-| **Base de Datos** | Cloud SQL (`POSTGRES_18`) | Instancia `smartwms-bd-qa` | Fuente única de verdad persistente para inventario, órdenes, pedidos, recepciones y ubicaciones |
+| **Frontend Web** | Angular 22 (Zoneless + Nginx) | Cloud Run (`smartwms-frontend`) | Paneles de Supervisor y Operario, Layout interactivo, QR/Code 128, Pedidos, Recepciones y Copiloto IA con Markdown |
+| **Backend API** | FastAPI + SQLAlchemy | Cloud Run (`smartwms-backend`) | API REST, JWT + MFA TOTP, Webhooks de órdenes, control de stock atómico y endpoints de Layout/Putaway |
+| **Bot IA** | FastAPI + Gemini API | Cloud Run (`smartwms-bot`) | Copiloto inteligente para consultas operativas con soporte completo de Markdown |
+| **Base de Datos** | Cloud SQL (`POSTGRES_18`) | Cloud SQL | Fuente única de verdad persistente para inventario, órdenes, pedidos, recepciones y ubicaciones |
 | **App Móvil Android** | Kotlin Nativo (`android-operario`) | Flavor `production` | App de picking, packing, escáner QR/Barras (`Code 128`) y módulo Putaway en tiempo real |
 
 ## Funcionalidades Principales Implementadas
