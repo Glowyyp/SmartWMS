@@ -8,7 +8,7 @@ SmartWMS es una plataforma WMS full-stack para gestión de inventario, recepció
 | :--- | :--- | :--- | :--- |
 | **Frontend Web** | Angular 22 (Zoneless + Nginx) | https://smartwms-frontend-523602689123.southamerica-west1.run.app | Paneles de Supervisor y Operario, Layout interactivo, QR/Code 128, Pedidos, Recepciones y Copiloto IA con Markdown |
 | **Backend API** | FastAPI + SQLAlchemy | https://smartwms-backend-523602689123.southamerica-west1.run.app/docs | API REST, JWT + MFA TOTP, Webhooks de órdenes, control de stock atómico y endpoints de Layout/Putaway |
-| **Bot IA** | FastAPI + Gemini API | https://smartwms-bot-523602689123.southamerica-west1.run.app | Copiloto inteligente para consultas operativas con soporte completo de Markdown |
+| **Bot IA** | FastAPI + Gemini API | https://smartwms-bot-523602689123.southamerica-west1.run.app/docs | Copiloto inteligente para consultas operativas con soporte completo de Markdown |
 | **Base de Datos** | Cloud SQL (`POSTGRES_18`) | Instancia `smartwms-bd-qa` | Fuente única de verdad persistente para inventario, órdenes, pedidos, recepciones y ubicaciones |
 | **App Móvil Android** | Kotlin Nativo (`android-operario`) | Flavor `production` | App de picking, packing, escáner QR/Barras (`Code 128`) y módulo Putaway en tiempo real |
 
