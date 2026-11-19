@@ -1092,7 +1092,7 @@
               Confirmar Llegada — Recepción #{{ rec.id }} ({{ rec.sku }})
             </h2>
             <p class="section-subtitle" style="margin-bottom: 12px;">
-              Esperada: <strong>{{ rec.expected_quantity }}</strong> · Ya recibida: <strong>{{ rec.received_quantity }}</strong> · Faltante: <strong>{{ rec.expected_quantity - rec.received_quantity > 0 ? rec.expected_quantity - rec.received_quantity : 0 }}</strong>
+              Esperada: <strong>{{ rec.expected_quantity }}</strong> · {{ rec.status === 'pending' ? 'Editada (sin confirmar)' : 'Ya confirmada' }}: <strong>{{ rec.received_quantity }}</strong> · Faltante: <strong>{{ rec.expected_quantity - rec.received_quantity > 0 ? rec.expected_quantity - rec.received_quantity : 0 }}</strong>
             </p>
             <div class="form-grid">
               <div class="form-field">

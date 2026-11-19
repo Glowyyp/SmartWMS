@@ -154,6 +154,7 @@ export class SupervisorComponent implements OnInit, OnDestroy {
   editReceptionReceived = signal<number>(0);
   editReceptionNotes = signal<string>('');
   savingReceptionAction = signal<boolean>(false);
+  editedPendingReceptionIds = signal<number[]>([]);
 
   // ── Formulario de nuevo pedido ─────────────────────────────────────────────
   showNewOrderForm = signal(false);
@@ -963,8 +964,18 @@ export class SupervisorComponent implements OnInit, OnDestroy {
     this.editingReception.set(null);
     this.showNewReceptionForm.set(false);
     this.confirmingReception.set(rec);
-    const remaining = Math.max(0, rec.expected_quantity - rec.received_quantity);
-    this.confirmQty.set(remaining);
+
+    if (rec.status === 'pending') {
+      const wasEdited =
+        rec.received_quantity > 0 ||
+        this.editedPendingReceptionIds().includes(rec.id) ||
+        !!(rec.notes && rec.notes.trim().length > 0);
+      this.confirmQty.set(wasEdited ? rec.received_quantity : rec.expected_quantity);
+    } else {
+      const remaining = Math.max(0, rec.expected_quantity - rec.received_quantity);
+      this.confirmQty.set(remaining);
+    }
+
     this.confirmCloseShortage.set(false);
     this.confirmNotes.set(rec.notes ?? '');
   }
@@ -1044,6 +1055,9 @@ export class SupervisorComponent implements OnInit, OnDestroy {
       .subscribe({
         next: updated => {
           this.receptions.update(list => list.map(r => r.id === updated.id ? updated : r));
+          if (rec.status === 'pending') {
+            this.editedPendingReceptionIds.update(ids => ids.includes(rec.id) ? ids : [...ids, rec.id]);
+          }
           this.editingReception.set(null);
           this.savingReceptionAction.set(false);
           this.snackBar.open(`✅ Recepción #${updated.id} actualizada`, 'OK', { duration: 3500 });
@@ -1058,7 +1072,9 @@ export class SupervisorComponent implements OnInit, OnDestroy {
   }
 
   cancelReception(rec: PendingReception): void {
-    const remaining = Math.max(0, rec.expected_quantity - rec.received_quantity);
+    const remaining = rec.status === 'pending'
+      ? rec.expected_quantity
+      : Math.max(0, rec.expected_quantity - rec.received_quantity);
     const ok = confirm(
       `¿Cancelar la recepción #${rec.id} (${rec.sku})?\n\n` +
       `Se liberarán ${remaining} unidad(es) de "por llegar" en el inventario.`

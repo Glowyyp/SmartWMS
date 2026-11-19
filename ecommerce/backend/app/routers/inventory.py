@@ -288,9 +288,17 @@ def confirm_pending_reception(
         raise HTTPException(status_code=404, detail="Producto no encontrado (pudo haber sido borrado)")
 
     added_to_received = confirm_in.received_quantity
-    remaining_before = max(0, reception.expected_quantity - reception.received_quantity)
 
-    reception.received_quantity += added_to_received
+    if reception.status == "pending":
+        # Si la recepción aún estaba pendiente (pudo haberse pre-editado received_quantity
+        # como borrador en Editar), al confirmar se acredita added_to_received una sola vez.
+        remaining_before = reception.expected_quantity
+        reception.received_quantity = added_to_received
+    else:
+        # Si ya estaba en estado 'partial', esta confirmación suma una nueva entrega adicional.
+        remaining_before = max(0, reception.expected_quantity - reception.received_quantity)
+        reception.received_quantity += added_to_received
+
     reception.received_by_id = current_user.id
     reception.received_at = datetime.now(timezone.utc)
     if confirm_in.notes is not None:
@@ -326,7 +334,12 @@ def update_pending_reception(
     db: Session = Depends(get_db),
     _: object = Depends(require_supervisor_or_admin),
 ):
-    """Permite corregir la cantidad esperada, cantidad recibida real y notas de una recepción."""
+    """
+    Permite corregir la cantidad esperada, cantidad recibida real y notas de una recepción.
+    - Si está en estado 'pending', guarda received_quantity y notes como valores preparados
+      para que al presionar 'Confirmar' ya aparezcan precargados sin acreditar stock doble.
+    - Si está en 'partial' o 'completed', ajusta el stock_quantity físico por la diferencia.
+    """
     reception = db.query(PendingReception).filter(PendingReception.id == reception_id).first()
     if not reception:
         raise HTTPException(status_code=404, detail="Recepción no encontrada")
@@ -339,10 +352,21 @@ def update_pending_reception(
 
     old_expected = reception.expected_quantity
     old_received = reception.received_quantity
-    old_remaining = 0 if reception.status in ["completed", "cancelled"] else max(0, old_expected - old_received)
-
     new_expected = payload.expected_quantity if payload.expected_quantity is not None else old_expected
     new_received = payload.received_quantity if payload.received_quantity is not None else old_received
+
+    if payload.notes is not None:
+        reception.notes = payload.notes.strip() or None
+
+    if reception.status == "pending":
+        reception.expected_quantity = new_expected
+        reception.received_quantity = new_received
+        product.pending_quantity = max(0, product.pending_quantity + (new_expected - old_expected))
+        db.commit()
+        db.refresh(reception)
+        return reception
+
+    old_remaining = 0 if reception.status in ["completed", "cancelled"] else max(0, old_expected - old_received)
     delta_received = new_received - old_received
 
     if product.stock_quantity + delta_received < 0:
@@ -353,8 +377,6 @@ def update_pending_reception(
 
     reception.expected_quantity = new_expected
     reception.received_quantity = new_received
-    if payload.notes is not None:
-        reception.notes = payload.notes.strip() or None
 
     if new_received >= new_expected:
         reception.status = "completed"
@@ -363,7 +385,9 @@ def update_pending_reception(
     else:
         reception.status = "pending"
 
-    new_remaining = 0 if reception.status == "completed" else max(0, new_expected - new_received)
+    new_remaining = 0 if reception.status in ["completed", "pending"] else max(0, new_expected - new_received)
+    if reception.status == "pending":
+        new_remaining = new_expected
 
     product.stock_quantity += delta_received
     product.pending_quantity = max(0, product.pending_quantity + (new_remaining - old_remaining))
@@ -396,7 +420,11 @@ def cancel_pending_reception(
         raise HTTPException(status_code=400, detail="La recepción ya se encuentra cancelada")
 
     product = db.query(ProductInventory).filter(ProductInventory.sku == reception.sku).first()
-    remaining_pending = max(0, reception.expected_quantity - reception.received_quantity)
+    remaining_pending = (
+        reception.expected_quantity
+        if reception.status == "pending"
+        else max(0, reception.expected_quantity - reception.received_quantity)
+    )
     reception.status = "cancelled"
 
     if product:
