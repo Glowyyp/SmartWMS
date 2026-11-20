@@ -1,0 +1,452 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" 
+                  xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI" 
+                  xmlns:dc="http://www.omg.org/spec/DD/20100524/DC" 
+                  xmlns:di="http://www.omg.org/spec/DD/20100524/DI" 
+                  id="Definitions_1" 
+                  targetNamespace="http://bpmn.io/schema/bpmn">
+                  
+  <bpmn:collaboration id="Collaboration_SmartWMS">
+    <bpmn:participant id="Participant_Eco" name="E-Commerce (Externo)" processRef="Process_Ecommerce" />
+    <bpmn:participant id="Participant_WMS" name="Plataforma SmartWMS" processRef="Process_WMS" />
+    <bpmn:messageFlow id="Flow_Msg_Webhook" sourceRef="Task_EmitirWebhook" targetRef="StartEvent_API" />
+  </bpmn:collaboration>
+
+  <bpmn:process id="Process_Ecommerce" isExecutable="false">
+    <bpmn:startEvent id="StartEvent_Eco" name="Inicio Compra">
+      <bpmn:outgoing>Flow_Eco1</bpmn:outgoing>
+    </bpmn:startEvent>
+    <bpmn:task id="Task_ProcesarPago" name="Procesar Pago y Confirmar">
+      <bpmn:incoming>Flow_Eco1</bpmn:incoming>
+      <bpmn:outgoing>Flow_Eco2</bpmn:outgoing>
+    </bpmn:task>
+    <bpmn:task id="Task_EmitirWebhook" name="Emitir Webhook POST /orden">
+      <bpmn:incoming>Flow_Eco2</bpmn:incoming>
+    </bpmn:task>
+    <bpmn:sequenceFlow id="Flow_Eco1" sourceRef="StartEvent_Eco" targetRef="Task_ProcesarPago" />
+    <bpmn:sequenceFlow id="Flow_Eco2" sourceRef="Task_ProcesarPago" targetRef="Task_EmitirWebhook" />
+  </bpmn:process>
+
+  <bpmn:process id="Process_WMS" isExecutable="false">
+    <bpmn:laneSet id="LaneSet_WMS">
+      <bpmn:lane id="Lane_API" name="API Backend (GCP)">
+        <bpmn:flowNodeRef>StartEvent_API</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_ValidarHMAC</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Gateway_Firma</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>EndEvent_401</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_ReservarStock</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Event_WSS</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_Commit</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>EndEvent_Fin</bpmn:flowNodeRef>
+      </bpmn:lane>
+      <bpmn:lane id="Lane_IA" name="Copiloto IA (Chatbot RAG)">
+        <bpmn:flowNodeRef>Task_ProcesarNLP</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_ResolverDuda</bpmn:flowNodeRef>
+      </bpmn:lane>
+      <bpmn:lane id="Lane_Ope" name="Operario (App Móvil)">
+        <bpmn:flowNodeRef>Task_Ruta</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Gateway_Ayuda</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_PreguntarIA</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_ScanQR</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Gateway_SKU</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_Rechazo</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_Empaque</bpmn:flowNodeRef>
+      </bpmn:lane>
+      <bpmn:lane id="Lane_Jef" name="Jefe Bodega (Web Admin)">
+        <bpmn:flowNodeRef>Task_Monitor</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_Cuarentena</bpmn:flowNodeRef>
+      </bpmn:lane>
+      <bpmn:lane id="Lane_IoT" name="Hardware IoT (ESP32)">
+        <bpmn:flowNodeRef>StartEvent_IoT</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_Monitorear</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Gateway_Impacto</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Task_AlertaIoT</bpmn:flowNodeRef>
+      </bpmn:lane>
+    </bpmn:laneSet>
+
+    <!-- Nodos API -->
+    <bpmn:startEvent id="StartEvent_API" name="Recibir Payload Webhook">
+      <bpmn:outgoing>Flow_API1</bpmn:outgoing>
+      <bpmn:messageEventDefinition id="MessageEventDefinition_1" />
+    </bpmn:startEvent>
+    <bpmn:task id="Task_ValidarHMAC" name="Validar HMAC">
+      <bpmn:incoming>Flow_API1</bpmn:incoming>
+      <bpmn:outgoing>Flow_API2</bpmn:outgoing>
+    </bpmn:task>
+    <bpmn:exclusiveGateway id="Gateway_Firma" name="¿Firma OK?">
+      <bpmn:incoming>Flow_API2</bpmn:incoming>
+      <bpmn:outgoing>Flow_API_No</bpmn:outgoing>
+      <bpmn:outgoing>Flow_API_Si</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+    <bpmn:endEvent id="EndEvent_401" name="Error 401">
+      <bpmn:incoming>Flow_API_No</bpmn:incoming>
+      <bpmn:errorEventDefinition id="ErrorEventDefinition_1" />
+    </bpmn:endEvent>
+    <bpmn:task id="Task_ReservarStock" name="Reservar Stock Lógico (ACID)">
+      <bpmn:incoming>Flow_API_Si</bpmn:incoming>
+      <bpmn:outgoing>Flow_API3</bpmn:outgoing>
+    </bpmn:task>
+    <bpmn:intermediateThrowEvent id="Event_WSS" name="Emitir WSS">
+      <bpmn:incoming>Flow_API3</bpmn:incoming>
+      <bpmn:outgoing>Flow_ToRuta</bpmn:outgoing>
+      <bpmn:outgoing>Flow_ToMonitor</bpmn:outgoing>
+    </bpmn:intermediateThrowEvent>
+    <bpmn:task id="Task_Commit" name="Commit: Descuento Definitivo BD">
+      <bpmn:incoming>Flow_ToCommit</bpmn:incoming>
+      <bpmn:outgoing>Flow_ToFin</bpmn:outgoing>
+    </bpmn:task>
+    <bpmn:endEvent id="EndEvent_Fin" name="Pedido Finalizado">
+      <bpmn:incoming>Flow_ToFin</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <!-- Nodos IA -->
+    <bpmn:task id="Task_ProcesarNLP" name="Procesar Consulta (LLM/pgvector)">
+      <bpmn:incoming>Flow_Ayuda_Si</bpmn:incoming>
+      <bpmn:outgoing>Flow_IA1</bpmn:outgoing>
+    </bpmn:task>
+    <bpmn:task id="Task_ResolverDuda" name="Entregar Manual / Respuesta">
+      <bpmn:incoming>Flow_IA1</bpmn:incoming>
+      <bpmn:outgoing>Flow_IA2</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Nodos Operario -->
+    <bpmn:task id="Task_Ruta" name="Visualizar Ruta Guiada">
+      <bpmn:incoming>Flow_ToRuta</bpmn:incoming>
+      <bpmn:outgoing>Flow_Ope1</bpmn:outgoing>
+    </bpmn:task>
+    <bpmn:exclusiveGateway id="Gateway_Ayuda" name="¿Necesita Ayuda?">
+      <bpmn:incoming>Flow_Ope1</bpmn:incoming>
+      <bpmn:outgoing>Flow_Ayuda_No</bpmn:outgoing>
+      <bpmn:outgoing>Flow_ToPregunta</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+    <bpmn:task id="Task_PreguntarIA" name="Consultar Duda al Chatbot">
+      <bpmn:incoming>Flow_ToPregunta</bpmn:incoming>
+      <bpmn:outgoing>Flow_Ayuda_Si</bpmn:outgoing>
+    </bpmn:task>
+    
+    <bpmn:task id="Task_ScanQR" name="Escaneo Continuo Zero-Touch">
+      <bpmn:incoming>Flow_Ayuda_No</bpmn:incoming>
+      <bpmn:incoming>Flow_IA2</bpmn:incoming>
+      <bpmn:incoming>Flow_LoopRechazo</bpmn:incoming>
+      <bpmn:outgoing>Flow_Ope2</bpmn:outgoing>
+    </bpmn:task>
+    <bpmn:exclusiveGateway id="Gateway_SKU" name="¿SKU Coincide?">
+      <bpmn:incoming>Flow_Ope2</bpmn:incoming>
+      <bpmn:outgoing>Flow_SKU_No</bpmn:outgoing>
+      <bpmn:outgoing>Flow_SKU_Si</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+    <bpmn:task id="Task_Rechazo" name="Alerta Error (Rechazo)">
+      <bpmn:incoming>Flow_SKU_No</bpmn:incoming>
+      <bpmn:outgoing>Flow_LoopRechazo</bpmn:outgoing>
+    </bpmn:task>
+    <bpmn:task id="Task_Empaque" name="Escanear Empaque Listo">
+      <bpmn:incoming>Flow_SKU_Si</bpmn:incoming>
+      <bpmn:outgoing>Flow_ToCommit</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Nodos Jefe -->
+    <bpmn:task id="Task_Monitor" name="Actualizar Monitor Web Vivo">
+      <bpmn:incoming>Flow_ToMonitor</bpmn:incoming>
+    </bpmn:task>
+    <bpmn:task id="Task_Cuarentena" name="Notificar Mermas (Cuarentena)">
+      <bpmn:incoming>Flow_ToCuarentena</bpmn:incoming>
+    </bpmn:task>
+
+    <!-- Nodos IoT -->
+    <bpmn:startEvent id="StartEvent_IoT" name="Loop IoT">
+      <bpmn:outgoing>Flow_IoT1</bpmn:outgoing>
+    </bpmn:startEvent>
+    <bpmn:task id="Task_Monitorear" name="Monitorear DHT22 / MPU6050">
+      <bpmn:incoming>Flow_IoT1</bpmn:incoming>
+      <bpmn:incoming>Flow_IoT_No</bpmn:incoming>
+      <bpmn:outgoing>Flow_IoT2</bpmn:outgoing>
+    </bpmn:task>
+    <bpmn:exclusiveGateway id="Gateway_Impacto" name="¿Impacto > 2.5G?">
+      <bpmn:incoming>Flow_IoT2</bpmn:incoming>
+      <bpmn:outgoing>Flow_IoT_No</bpmn:outgoing>
+      <bpmn:outgoing>Flow_IoT_Si</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+    <bpmn:task id="Task_AlertaIoT" name="Emitir Alerta POST a GCP">
+      <bpmn:incoming>Flow_IoT_Si</bpmn:incoming>
+      <bpmn:outgoing>Flow_ToCuarentena</bpmn:outgoing>
+    </bpmn:task>
+
+    <!-- Sequence Flows -->
+    <bpmn:sequenceFlow id="Flow_API1" sourceRef="StartEvent_API" targetRef="Task_ValidarHMAC" />
+    <bpmn:sequenceFlow id="Flow_API2" sourceRef="Task_ValidarHMAC" targetRef="Gateway_Firma" />
+    <bpmn:sequenceFlow id="Flow_API_No" name="No" sourceRef="Gateway_Firma" targetRef="EndEvent_401" />
+    <bpmn:sequenceFlow id="Flow_API_Si" name="Sí" sourceRef="Gateway_Firma" targetRef="Task_ReservarStock" />
+    <bpmn:sequenceFlow id="Flow_API3" sourceRef="Task_ReservarStock" targetRef="Event_WSS" />
+    <bpmn:sequenceFlow id="Flow_ToRuta" sourceRef="Event_WSS" targetRef="Task_Ruta" />
+    <bpmn:sequenceFlow id="Flow_ToMonitor" sourceRef="Event_WSS" targetRef="Task_Monitor" />
+    <bpmn:sequenceFlow id="Flow_ToCommit" sourceRef="Task_Empaque" targetRef="Task_Commit" />
+    <bpmn:sequenceFlow id="Flow_ToFin" sourceRef="Task_Commit" targetRef="EndEvent_Fin" />
+
+    <!-- Flows Ope/IA -->
+    <bpmn:sequenceFlow id="Flow_Ope1" sourceRef="Task_Ruta" targetRef="Gateway_Ayuda" />
+    <bpmn:sequenceFlow id="Flow_ToPregunta" name="Sí" sourceRef="Gateway_Ayuda" targetRef="Task_PreguntarIA" />
+    <bpmn:sequenceFlow id="Flow_Ayuda_No" name="No" sourceRef="Gateway_Ayuda" targetRef="Task_ScanQR" />
+    
+    <bpmn:sequenceFlow id="Flow_Ayuda_Si" sourceRef="Task_PreguntarIA" targetRef="Task_ProcesarNLP" />
+    <bpmn:sequenceFlow id="Flow_IA1" sourceRef="Task_ProcesarNLP" targetRef="Task_ResolverDuda" />
+    <bpmn:sequenceFlow id="Flow_IA2" sourceRef="Task_ResolverDuda" targetRef="Task_ScanQR" />
+
+    <bpmn:sequenceFlow id="Flow_Ope2" sourceRef="Task_ScanQR" targetRef="Gateway_SKU" />
+    <bpmn:sequenceFlow id="Flow_SKU_No" name="No" sourceRef="Gateway_SKU" targetRef="Task_Rechazo" />
+    <bpmn:sequenceFlow id="Flow_LoopRechazo" sourceRef="Task_Rechazo" targetRef="Task_ScanQR" />
+    <bpmn:sequenceFlow id="Flow_SKU_Si" name="Sí" sourceRef="Gateway_SKU" targetRef="Task_Empaque" />
+
+    <bpmn:sequenceFlow id="Flow_IoT1" sourceRef="StartEvent_IoT" targetRef="Task_Monitorear" />
+    <bpmn:sequenceFlow id="Flow_IoT2" sourceRef="Task_Monitorear" targetRef="Gateway_Impacto" />
+    <bpmn:sequenceFlow id="Flow_IoT_No" name="No" sourceRef="Gateway_Impacto" targetRef="Task_Monitorear" />
+    <bpmn:sequenceFlow id="Flow_IoT_Si" name="Sí" sourceRef="Gateway_Impacto" targetRef="Task_AlertaIoT" />
+    <bpmn:sequenceFlow id="Flow_ToCuarentena" sourceRef="Task_AlertaIoT" targetRef="Task_Cuarentena" />
+  </bpmn:process>
+
+  <bpmndi:BPMNDiagram id="BPMNDiagram_1">
+    <bpmndi:BPMNPlane id="BPMNPlane_1" bpmnElement="Collaboration_SmartWMS">
+      <!-- Pool Eco -->
+      <bpmndi:BPMNShape id="Participant_Eco_di" bpmnElement="Participant_Eco" isHorizontal="true">
+        <dc:Bounds x="100" y="50" width="1250" height="150" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="StartEvent_Eco_di" bpmnElement="StartEvent_Eco">
+        <dc:Bounds x="160" y="100" width="36" height="36" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Task_ProcesarPago_di" bpmnElement="Task_ProcesarPago">
+        <dc:Bounds x="250" y="78" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Task_EmitirWebhook_di" bpmnElement="Task_EmitirWebhook">
+        <dc:Bounds x="400" y="78" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNEdge id="Flow_Eco1_di" bpmnElement="Flow_Eco1">
+        <di:waypoint x="196" y="118" />
+        <di:waypoint x="250" y="118" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_Eco2_di" bpmnElement="Flow_Eco2">
+        <di:waypoint x="350" y="118" />
+        <di:waypoint x="400" y="118" />
+      </bpmndi:BPMNEdge>
+
+      <!-- Pool WMS -->
+      <bpmndi:BPMNShape id="Participant_WMS_di" bpmnElement="Participant_WMS" isHorizontal="true">
+        <dc:Bounds x="100" y="250" width="1250" height="750" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Lane_API_di" bpmnElement="Lane_API" isHorizontal="true">
+        <dc:Bounds x="130" y="250" width="1220" height="150" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Lane_IA_di" bpmnElement="Lane_IA" isHorizontal="true">
+        <dc:Bounds x="130" y="400" width="1220" height="150" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Lane_Ope_di" bpmnElement="Lane_Ope" isHorizontal="true">
+        <dc:Bounds x="130" y="550" width="1220" height="150" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Lane_Jef_di" bpmnElement="Lane_Jef" isHorizontal="true">
+        <dc:Bounds x="130" y="700" width="1220" height="150" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Lane_IoT_di" bpmnElement="Lane_IoT" isHorizontal="true">
+        <dc:Bounds x="130" y="850" width="1220" height="150" />
+      </bpmndi:BPMNShape>
+
+      <!-- API -->
+      <bpmndi:BPMNShape id="StartEvent_API_di" bpmnElement="StartEvent_API">
+        <dc:Bounds x="180" y="300" width="36" height="36" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Task_ValidarHMAC_di" bpmnElement="Task_ValidarHMAC">
+        <dc:Bounds x="260" y="278" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Gateway_Firma_di" bpmnElement="Gateway_Firma" isMarkerVisible="true">
+        <dc:Bounds x="400" y="293" width="50" height="50" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="EndEvent_401_di" bpmnElement="EndEvent_401">
+        <dc:Bounds x="407" y="360" width="36" height="36" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Task_ReservarStock_di" bpmnElement="Task_ReservarStock">
+        <dc:Bounds x="500" y="278" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Event_WSS_di" bpmnElement="Event_WSS">
+        <dc:Bounds x="650" y="300" width="36" height="36" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Task_Commit_di" bpmnElement="Task_Commit">
+        <dc:Bounds x="1100" y="278" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="EndEvent_Fin_di" bpmnElement="EndEvent_Fin">
+        <dc:Bounds x="1250" y="300" width="36" height="36" />
+      </bpmndi:BPMNShape>
+
+      <!-- IA Chatbot -->
+      <bpmndi:BPMNShape id="Task_ProcesarNLP_di" bpmnElement="Task_ProcesarNLP">
+        <dc:Bounds x="720" y="435" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Task_ResolverDuda_di" bpmnElement="Task_ResolverDuda">
+        <dc:Bounds x="850" y="435" width="100" height="80" />
+      </bpmndi:BPMNShape>
+
+      <!-- Operario -->
+      <bpmndi:BPMNShape id="Task_Ruta_di" bpmnElement="Task_Ruta">
+        <dc:Bounds x="550" y="585" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Gateway_Ayuda_di" bpmnElement="Gateway_Ayuda" isMarkerVisible="true">
+        <dc:Bounds x="680" y="600" width="50" height="50" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Task_PreguntarIA_di" bpmnElement="Task_PreguntarIA">
+        <dc:Bounds x="655" y="520" width="100" height="50" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Task_ScanQR_di" bpmnElement="Task_ScanQR">
+        <dc:Bounds x="850" y="585" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Gateway_SKU_di" bpmnElement="Gateway_SKU" isMarkerVisible="true">
+        <dc:Bounds x="980" y="600" width="50" height="50" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Task_Rechazo_di" bpmnElement="Task_Rechazo">
+        <dc:Bounds x="955" y="660" width="100" height="40" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Task_Empaque_di" bpmnElement="Task_Empaque">
+        <dc:Bounds x="1100" y="585" width="100" height="80" />
+      </bpmndi:BPMNShape>
+
+      <!-- Jefe -->
+      <bpmndi:BPMNShape id="Task_Monitor_di" bpmnElement="Task_Monitor">
+        <dc:Bounds x="760" y="735" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Task_Cuarentena_di" bpmnElement="Task_Cuarentena">
+        <dc:Bounds x="500" y="735" width="100" height="80" />
+      </bpmndi:BPMNShape>
+
+      <!-- IoT -->
+      <bpmndi:BPMNShape id="StartEvent_IoT_di" bpmnElement="StartEvent_IoT">
+        <dc:Bounds x="180" y="900" width="36" height="36" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Task_Monitorear_di" bpmnElement="Task_Monitorear">
+        <dc:Bounds x="260" y="878" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Gateway_Impacto_di" bpmnElement="Gateway_Impacto" isMarkerVisible="true">
+        <dc:Bounds x="400" y="893" width="50" height="50" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Task_AlertaIoT_di" bpmnElement="Task_AlertaIoT">
+        <dc:Bounds x="500" y="878" width="100" height="80" />
+      </bpmndi:BPMNShape>
+
+      <!-- Edges API -->
+      <bpmndi:BPMNEdge id="Flow_API1_di" bpmnElement="Flow_API1">
+        <di:waypoint x="216" y="318" />
+        <di:waypoint x="260" y="318" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_API2_di" bpmnElement="Flow_API2">
+        <di:waypoint x="360" y="318" />
+        <di:waypoint x="400" y="318" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_API_No_di" bpmnElement="Flow_API_No">
+        <di:waypoint x="425" y="343" />
+        <di:waypoint x="425" y="360" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_API_Si_di" bpmnElement="Flow_API_Si">
+        <di:waypoint x="450" y="318" />
+        <di:waypoint x="500" y="318" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_API3_di" bpmnElement="Flow_API3">
+        <di:waypoint x="600" y="318" />
+        <di:waypoint x="650" y="318" />
+      </bpmndi:BPMNEdge>
+
+      <!-- WSS -->
+      <bpmndi:BPMNEdge id="Flow_ToRuta_di" bpmnElement="Flow_ToRuta">
+        <di:waypoint x="668" y="336" />
+        <di:waypoint x="668" y="460" />
+        <di:waypoint x="600" y="460" />
+        <di:waypoint x="600" y="585" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_ToMonitor_di" bpmnElement="Flow_ToMonitor">
+        <di:waypoint x="686" y="318" />
+        <di:waypoint x="730" y="318" />
+        <di:waypoint x="730" y="775" />
+        <di:waypoint x="760" y="775" />
+      </bpmndi:BPMNEdge>
+
+      <!-- Operario y Chatbot -->
+      <bpmndi:BPMNEdge id="Flow_Ope1_di" bpmnElement="Flow_Ope1">
+        <di:waypoint x="650" y="625" />
+        <di:waypoint x="680" y="625" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_ToPregunta_di" bpmnElement="Flow_ToPregunta">
+        <di:waypoint x="705" y="600" />
+        <di:waypoint x="705" y="570" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_Ayuda_No_di" bpmnElement="Flow_Ayuda_No">
+        <di:waypoint x="730" y="625" />
+        <di:waypoint x="850" y="625" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_Ayuda_Si_di" bpmnElement="Flow_Ayuda_Si">
+        <di:waypoint x="705" y="520" />
+        <di:waypoint x="705" y="475" />
+        <di:waypoint x="720" y="475" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_IA1_di" bpmnElement="Flow_IA1">
+        <di:waypoint x="820" y="475" />
+        <di:waypoint x="850" y="475" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_IA2_di" bpmnElement="Flow_IA2">
+        <di:waypoint x="900" y="515" />
+        <di:waypoint x="900" y="585" />
+      </bpmndi:BPMNEdge>
+
+      <bpmndi:BPMNEdge id="Flow_Ope2_di" bpmnElement="Flow_Ope2">
+        <di:waypoint x="950" y="625" />
+        <di:waypoint x="980" y="625" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_SKU_No_di" bpmnElement="Flow_SKU_No">
+        <di:waypoint x="1005" y="650" />
+        <di:waypoint x="1005" y="660" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_LoopRechazo_di" bpmnElement="Flow_LoopRechazo">
+        <di:waypoint x="955" y="680" />
+        <di:waypoint x="900" y="680" />
+        <di:waypoint x="900" y="665" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_SKU_Si_di" bpmnElement="Flow_SKU_Si">
+        <di:waypoint x="1030" y="625" />
+        <di:waypoint x="1100" y="625" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_ToCommit_di" bpmnElement="Flow_ToCommit">
+        <di:waypoint x="1150" y="585" />
+        <di:waypoint x="1150" y="358" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_ToFin_di" bpmnElement="Flow_ToFin">
+        <di:waypoint x="1200" y="318" />
+        <di:waypoint x="1250" y="318" />
+      </bpmndi:BPMNEdge>
+
+      <!-- IoT -->
+      <bpmndi:BPMNEdge id="Flow_IoT1_di" bpmnElement="Flow_IoT1">
+        <di:waypoint x="216" y="918" />
+        <di:waypoint x="260" y="918" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_IoT2_di" bpmnElement="Flow_IoT2">
+        <di:waypoint x="360" y="918" />
+        <di:waypoint x="400" y="918" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_IoT_No_di" bpmnElement="Flow_IoT_No">
+        <di:waypoint x="425" y="943" />
+        <di:waypoint x="425" y="970" />
+        <di:waypoint x="310" y="970" />
+        <di:waypoint x="310" y="958" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_IoT_Si_di" bpmnElement="Flow_IoT_Si">
+        <di:waypoint x="450" y="918" />
+        <di:waypoint x="500" y="918" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_ToCuarentena_di" bpmnElement="Flow_ToCuarentena">
+        <di:waypoint x="550" y="878" />
+        <di:waypoint x="550" y="815" />
+      </bpmndi:BPMNEdge>
+
+      <!-- Webhook -->
+      <bpmndi:BPMNEdge id="Flow_Msg_Webhook_di" bpmnElement="Flow_Msg_Webhook">
+        <di:waypoint x="450" y="158" />
+        <di:waypoint x="450" y="220" />
+        <di:waypoint x="198" y="220" />
+        <di:waypoint x="198" y="300" />
+      </bpmndi:BPMNEdge>
+      
+    </bpmndi:BPMNPlane>
+  </bpmndi:BPMNDiagram>
+</bpmn:definitions>

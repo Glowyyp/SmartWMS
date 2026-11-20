@@ -1,0 +1,753 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>SmartWMS – Panel Supervisor</title>
+  <meta name="description" content="Panel de control para el Jefe de Bodega de SmartWMS. Monitoreo de pedidos, dashboards BI, alertas IoT e inventario en tiempo real." />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet" />
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <style>
+    :root {
+      --bg-dark: #060b18;
+      --bg-card: #0d1526;
+      --bg-card2: #111d35;
+      --border: rgba(99,179,237,0.12);
+      --accent: #3b82f6;
+      --accent2: #06b6d4;
+      --accent3: #8b5cf6;
+      --green: #10b981;
+      --yellow: #f59e0b;
+      --red: #ef4444;
+      --text: #e2e8f0;
+      --muted: #64748b;
+      --radius: 16px;
+    }
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: 'Inter', sans-serif; background: var(--bg-dark); color: var(--text); min-height: 100vh; overflow-x: hidden; }
+
+    #login-screen {
+      display: flex; align-items: center; justify-content: center;
+      min-height: 100vh;
+      background: radial-gradient(ellipse at 30% 20%, rgba(59,130,246,0.18) 0%, transparent 60%),
+                  radial-gradient(ellipse at 80% 80%, rgba(139,92,246,0.15) 0%, transparent 60%),
+                  var(--bg-dark);
+    }
+    .login-card {
+      background: var(--bg-card); border: 1px solid var(--border); border-radius: 24px;
+      padding: 48px 44px; width: 100%; max-width: 440px;
+      box-shadow: 0 0 80px rgba(59,130,246,0.08); backdrop-filter: blur(10px);
+    }
+    .login-logo { display: flex; align-items: center; gap: 12px; margin-bottom: 32px; }
+    .login-logo .logo-icon { width: 48px; height: 48px; border-radius: 12px; background: linear-gradient(135deg, var(--accent), var(--accent3)); display: flex; align-items: center; justify-content: center; font-size: 22px; }
+    .login-logo .brand { font-size: 24px; font-weight: 800; letter-spacing: -0.5px; }
+    .login-logo .brand span { color: var(--accent2); }
+    .login-subtitle { color: var(--muted); font-size: 13px; margin-bottom: 28px; }
+    .badge-role { display: inline-block; background: rgba(59,130,246,0.15); color: var(--accent); border: 1px solid rgba(59,130,246,0.35); border-radius: 6px; font-size: 11px; font-weight: 600; padding: 3px 10px; margin-bottom: 20px; text-transform: uppercase; letter-spacing: 1px; }
+    .form-group { margin-bottom: 18px; }
+    .form-group label { display: block; font-size: 13px; font-weight: 500; color: #94a3b8; margin-bottom: 8px; }
+    .form-group input { width: 100%; padding: 12px 16px; background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.1); border-radius: 10px; color: var(--text); font-size: 14px; font-family: 'Inter', sans-serif; transition: border-color 0.2s, box-shadow 0.2s; outline: none; }
+    .form-group input:focus { border-color: var(--accent); box-shadow: 0 0 0 3px rgba(59,130,246,0.15); }
+    .btn-login { width: 100%; padding: 14px; background: linear-gradient(135deg, var(--accent), #2563eb); border: none; border-radius: 10px; color: #fff; font-size: 15px; font-weight: 600; cursor: pointer; font-family: 'Inter', sans-serif; transition: transform 0.15s, box-shadow 0.2s; margin-top: 8px; }
+    .btn-login:hover { transform: translateY(-1px); box-shadow: 0 8px 24px rgba(59,130,246,0.35); }
+    .login-hint { text-align: center; margin-top: 20px; font-size: 12px; color: var(--muted); }
+    .login-hint code { color: #94a3b8; background: rgba(255,255,255,0.05); padding: 2px 6px; border-radius: 4px; }
+
+    #app { display: none; flex-direction: row; min-height: 100vh; }
+    #app.visible { display: flex; }
+
+    .sidebar { width: 240px; min-height: 100vh; background: var(--bg-card); border-right: 1px solid var(--border); display: flex; flex-direction: column; padding: 24px 0; position: fixed; left: 0; top: 0; bottom: 0; z-index: 100; }
+    .sidebar-logo { display: flex; align-items: center; gap: 10px; padding: 0 20px 28px; }
+    .sidebar-logo .logo-icon { width: 36px; height: 36px; border-radius: 9px; background: linear-gradient(135deg, var(--accent), var(--accent3)); display: flex; align-items: center; justify-content: center; font-size: 17px; }
+    .sidebar-logo .brand { font-size: 17px; font-weight: 800; }
+    .sidebar-logo .brand span { color: var(--accent2); }
+    .sidebar-section { font-size: 10px; font-weight: 700; color: var(--muted); text-transform: uppercase; letter-spacing: 1.2px; padding: 0 20px 8px; }
+    .nav-item { display: flex; align-items: center; gap: 12px; padding: 10px 20px; margin: 1px 10px; border-radius: 10px; cursor: pointer; transition: all 0.2s; font-size: 14px; font-weight: 500; color: var(--muted); position: relative; }
+    .nav-item:hover { background: rgba(59,130,246,0.08); color: var(--text); }
+    .nav-item.active { background: rgba(59,130,246,0.15); color: var(--accent); }
+    .nav-item .icon { font-size: 18px; width: 24px; text-align: center; }
+    .nav-item .badge-notif { position: absolute; right: 14px; top: 50%; transform: translateY(-50%); background: var(--red); color: #fff; font-size: 10px; font-weight: 700; padding: 1px 6px; border-radius: 20px; min-width: 18px; text-align: center; }
+    .sidebar-divider { height: 1px; background: var(--border); margin: 12px 20px; }
+    .sidebar-user { padding: 16px 20px; margin-top: auto; display: flex; align-items: center; gap: 10px; }
+    .user-avatar { width: 36px; height: 36px; border-radius: 50%; background: linear-gradient(135deg, var(--accent), var(--accent3)); display: flex; align-items: center; justify-content: center; font-size: 14px; font-weight: 700; color: #fff; }
+    .user-info .name { font-size: 13px; font-weight: 600; }
+    .user-info .role { font-size: 11px; color: var(--muted); }
+    .btn-logout { background: none; border: none; cursor: pointer; color: var(--muted); font-size: 18px; padding: 4px; border-radius: 6px; transition: color 0.2s; }
+    .btn-logout:hover { color: var(--red); }
+
+    .main { margin-left: 240px; flex: 1; padding: 28px; }
+    .topbar { display: flex; align-items: center; justify-content: space-between; margin-bottom: 28px; }
+    .topbar h1 { font-size: 22px; font-weight: 700; }
+    .topbar-right { display: flex; align-items: center; gap: 12px; }
+    .topbar-badge { display: flex; align-items: center; gap: 6px; font-size: 12px; font-weight: 500; padding: 6px 14px; border-radius: 8px; background: rgba(16,185,129,0.1); color: var(--green); border: 1px solid rgba(16,185,129,0.25); }
+    .dot-live { width: 7px; height: 7px; border-radius: 50%; background: var(--green); animation: pulse-green 1.5s infinite; }
+    @keyframes pulse-green { 0%,100%{opacity:1;transform:scale(1)} 50%{opacity:.5;transform:scale(1.3)} }
+    .topbar-time { font-size: 12px; color: var(--muted); }
+
+    .panel { display: none; }
+    .panel.active { display: block; }
+
+    .kpi-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; margin-bottom: 24px; }
+    .kpi-card { background: var(--bg-card); border: 1px solid var(--border); border-radius: var(--radius); padding: 20px; position: relative; overflow: hidden; transition: transform 0.2s, border-color 0.2s; }
+    .kpi-card:hover { transform: translateY(-2px); border-color: rgba(59,130,246,0.3); }
+    .kpi-card::before { content: ''; position: absolute; top: 0; left: 0; right: 0; height: 3px; }
+    .kpi-card.blue::before { background: linear-gradient(90deg, var(--accent), var(--accent2)); }
+    .kpi-card.green::before { background: linear-gradient(90deg, var(--green), #059669); }
+    .kpi-card.yellow::before { background: linear-gradient(90deg, var(--yellow), #d97706); }
+    .kpi-card.purple::before { background: linear-gradient(90deg, var(--accent3), #7c3aed); }
+    .kpi-icon { font-size: 28px; margin-bottom: 10px; }
+    .kpi-value { font-size: 32px; font-weight: 800; line-height: 1; margin-bottom: 4px; }
+    .kpi-label { font-size: 12px; color: var(--muted); font-weight: 500; }
+    .kpi-delta { font-size: 11px; margin-top: 8px; font-weight: 600; }
+    .kpi-delta.up { color: var(--green); }
+    .kpi-delta.down { color: var(--red); }
+
+    .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 24px; }
+    .grid-3 { display: grid; grid-template-columns: 2fr 1fr; gap: 16px; margin-bottom: 24px; }
+
+    .card { background: var(--bg-card); border: 1px solid var(--border); border-radius: var(--radius); padding: 22px; }
+    .card-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 18px; }
+    .card-title { font-size: 15px; font-weight: 700; display: flex; align-items: center; gap: 8px; }
+    .card-actions { display: flex; gap: 8px; }
+    .btn-sm { font-size: 11px; font-weight: 600; padding: 5px 12px; border-radius: 7px; cursor: pointer; border: 1px solid var(--border); background: rgba(255,255,255,0.04); color: var(--muted); transition: all 0.2s; font-family: 'Inter', sans-serif; }
+    .btn-sm:hover { background: rgba(59,130,246,0.12); border-color: var(--accent); color: var(--accent); }
+    .btn-sm.active { background: rgba(59,130,246,0.15); border-color: var(--accent); color: var(--accent); }
+
+    .orders-table { width: 100%; border-collapse: collapse; }
+    .orders-table th { font-size: 11px; font-weight: 600; color: var(--muted); text-align: left; padding: 8px 12px; text-transform: uppercase; letter-spacing: 0.8px; border-bottom: 1px solid var(--border); }
+    .orders-table td { padding: 12px 12px; font-size: 13px; border-bottom: 1px solid rgba(255,255,255,0.03); vertical-align: middle; }
+    .orders-table tr:hover td { background: rgba(255,255,255,0.02); }
+    .status-badge { display: inline-flex; align-items: center; gap: 5px; font-size: 11px; font-weight: 600; padding: 3px 10px; border-radius: 20px; }
+    .status-picking { background: rgba(245,158,11,0.15); color: var(--yellow); border: 1px solid rgba(245,158,11,0.3); }
+    .status-listo { background: rgba(16,185,129,0.15); color: var(--green); border: 1px solid rgba(16,185,129,0.3); }
+    .status-pendiente { background: rgba(100,116,139,0.15); color: var(--muted); border: 1px solid rgba(100,116,139,0.3); }
+    .status-empacando { background: rgba(139,92,246,0.15); color: var(--accent3); border: 1px solid rgba(139,92,246,0.3); }
+    .status-cuarentena { background: rgba(239,68,68,0.15); color: var(--red); border: 1px solid rgba(239,68,68,0.3); }
+    .progress-mini { height: 4px; background: rgba(255,255,255,0.06); border-radius: 2px; margin-top: 4px; }
+    .progress-mini-fill { height: 100%; border-radius: 2px; }
+
+    .filter-tabs { display: flex; gap: 6px; margin-bottom: 16px; flex-wrap: wrap; }
+    .filter-tab { font-size: 12px; font-weight: 600; padding: 6px 14px; border-radius: 8px; cursor: pointer; border: 1px solid var(--border); background: transparent; color: var(--muted); transition: all 0.2s; font-family: 'Inter', sans-serif; }
+    .filter-tab:hover { border-color: rgba(59,130,246,0.4); color: var(--text); }
+    .filter-tab.active { background: rgba(59,130,246,0.15); border-color: var(--accent); color: var(--accent); }
+
+    .iot-sensors { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+    .sensor-card { background: var(--bg-card2); border: 1px solid var(--border); border-radius: 12px; padding: 18px; text-align: center; position: relative; overflow: hidden; }
+    .sensor-card.alert-red { border-color: rgba(239,68,68,0.5); background: rgba(239,68,68,0.05); }
+    .sensor-card.alert-red::before { content: 'ALERTA'; position: absolute; top: 8px; right: 8px; font-size: 9px; font-weight: 700; background: var(--red); color: #fff; padding: 2px 7px; border-radius: 4px; letter-spacing: 0.5px; }
+    .sensor-value { font-size: 36px; font-weight: 800; margin: 8px 0 2px; }
+    .sensor-value.ok { color: var(--green); }
+    .sensor-value.warn { color: var(--yellow); }
+    .sensor-value.critical { color: var(--red); animation: blink 1s infinite; }
+    @keyframes blink { 0%,100%{opacity:1} 50%{opacity:0.4} }
+    .sensor-label { font-size: 12px; color: var(--muted); font-weight: 500; }
+    .sensor-limit { font-size: 10px; color: var(--muted); margin-top: 4px; }
+
+    .iot-events { margin-top: 14px; }
+    .iot-event { display: flex; align-items: center; gap: 10px; padding: 10px 12px; border-radius: 10px; margin-bottom: 8px; font-size: 13px; }
+    .iot-event.ok { background: rgba(16,185,129,0.08); border: 1px solid rgba(16,185,129,0.2); }
+    .iot-event.warn { background: rgba(239,68,68,0.08); border: 1px solid rgba(239,68,68,0.2); }
+    .iot-event-icon { font-size: 20px; }
+    .iot-event-text { flex: 1; }
+    .iot-event-text strong { display: block; font-size: 12px; font-weight: 600; }
+    .iot-event-text span { font-size: 11px; color: var(--muted); }
+    .iot-event-time { font-size: 10px; color: var(--muted); }
+
+    .stock-alerts { display: flex; flex-direction: column; gap: 8px; }
+    .stock-alert-item { display: flex; align-items: center; gap: 12px; padding: 12px 16px; border-radius: 12px; background: var(--bg-card2); border: 1px solid var(--border); }
+    .stock-alert-item.critical { border-color: rgba(239,68,68,0.35); background: rgba(239,68,68,0.04); }
+    .stock-alert-item.warn { border-color: rgba(245,158,11,0.35); background: rgba(245,158,11,0.04); }
+    .stock-circle { width: 38px; height: 38px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 15px; }
+    .stock-circle.r { background: rgba(239,68,68,0.15); }
+    .stock-circle.y { background: rgba(245,158,11,0.15); }
+    .stock-sku { font-size: 13px; font-weight: 600; }
+    .stock-desc { font-size: 11px; color: var(--muted); }
+    .stock-qty { margin-left: auto; text-align: right; }
+    .stock-qty .qty { font-size: 18px; font-weight: 700; }
+    .stock-qty .qty.red { color: var(--red); }
+    .stock-qty .qty.yellow { color: var(--yellow); }
+    .stock-qty .unit { font-size: 10px; color: var(--muted); }
+
+    .chart-wrap { position: relative; height: 220px; }
+
+    .inv-table { width: 100%; border-collapse: collapse; }
+    .inv-table th { font-size: 11px; color: var(--muted); text-align: left; padding: 8px 12px; border-bottom: 1px solid var(--border); text-transform: uppercase; letter-spacing: 0.8px; font-weight: 600; }
+    .inv-table td { padding: 11px 12px; font-size: 13px; border-bottom: 1px solid rgba(255,255,255,0.03); }
+    .inv-table tr:hover td { background: rgba(255,255,255,0.02); }
+    .stock-level { display: flex; align-items: center; gap: 8px; }
+    .stock-bar { flex: 1; height: 5px; background: rgba(255,255,255,0.06); border-radius: 3px; overflow: hidden; }
+    .stock-fill { height: 100%; border-radius: 3px; }
+    .stock-fill.ok { background: var(--green); }
+    .stock-fill.low { background: var(--yellow); }
+    .stock-fill.crit { background: var(--red); }
+
+    .search-box { display: flex; align-items: center; gap: 8px; background: rgba(255,255,255,0.04); border: 1px solid var(--border); border-radius: 10px; padding: 8px 14px; margin-bottom: 16px; }
+    .search-box input { background: none; border: none; outline: none; color: var(--text); font-size: 13px; font-family: 'Inter', sans-serif; flex: 1; }
+    .search-box span { color: var(--muted); font-size: 16px; }
+
+    .alert-banner { display: flex; align-items: center; gap: 12px; background: rgba(239,68,68,0.08); border: 1px solid rgba(239,68,68,0.35); border-radius: 12px; padding: 14px 18px; margin-bottom: 20px; animation: slide-in 0.3s ease; }
+    @keyframes slide-in { from{opacity:0;transform:translateY(-8px)} to{opacity:1;transform:none} }
+    .alert-banner .alert-icon { font-size: 22px; }
+    .alert-banner .alert-text { flex: 1; font-size: 13px; }
+    .alert-banner .alert-text strong { display: block; font-weight: 700; margin-bottom: 2px; }
+    .alert-banner .alert-text span { font-size: 12px; color: #fca5a5; }
+    .alert-banner .btn-dismiss { font-size: 12px; background: rgba(239,68,68,0.2); border: 1px solid rgba(239,68,68,0.4); color: #fca5a5; padding: 5px 12px; border-radius: 6px; cursor: pointer; font-family: 'Inter',sans-serif; font-weight: 600; transition: background 0.2s; }
+    .alert-banner .btn-dismiss:hover { background: rgba(239,68,68,0.35); }
+
+    .perf-list { display: flex; flex-direction: column; gap: 10px; }
+    .perf-item { display: flex; align-items: center; gap: 12px; }
+    .perf-avatar { width: 32px; height: 32px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 13px; font-weight: 700; color: #fff; }
+    .perf-name { font-size: 13px; font-weight: 500; min-width: 100px; }
+    .perf-bar-wrap { flex: 1; }
+    .perf-bar { height: 6px; border-radius: 3px; margin-bottom: 2px; }
+    .perf-meta { font-size: 10px; color: var(--muted); }
+    .perf-value { font-size: 13px; font-weight: 700; min-width: 40px; text-align: right; }
+
+    .modal-overlay { display: none; position: fixed; inset: 0; z-index: 200; background: rgba(0,0,0,0.7); backdrop-filter: blur(4px); align-items: center; justify-content: center; }
+    .modal-overlay.open { display: flex; }
+    .modal-box { background: var(--bg-card); border: 1px solid var(--border); border-radius: 20px; padding: 32px; width: 100%; max-width: 500px; box-shadow: 0 0 60px rgba(0,0,0,0.5); animation: modal-in 0.25s ease; }
+    @keyframes modal-in { from{opacity:0;transform:scale(0.95)} to{opacity:1;transform:none} }
+    .modal-title { font-size: 18px; font-weight: 700; margin-bottom: 20px; display: flex; align-items: center; gap: 10px; }
+    .modal-close { margin-left: auto; background: none; border: none; color: var(--muted); font-size: 20px; cursor: pointer; }
+    .modal-close:hover { color: var(--red); }
+    .modal-row { display: flex; justify-content: space-between; align-items: center; padding: 10px 0; border-bottom: 1px solid var(--border); font-size: 13px; }
+    .modal-row:last-child { border-bottom: none; }
+    .modal-row span { color: var(--muted); }
+    .modal-row strong { font-weight: 600; }
+
+    .toast { position: fixed; bottom: 28px; right: 28px; z-index: 300; background: var(--bg-card2); border: 1px solid rgba(16,185,129,0.4); border-radius: 12px; padding: 14px 20px; font-size: 13px; font-weight: 500; color: var(--green); box-shadow: 0 8px 32px rgba(0,0,0,0.4); display: flex; align-items: center; gap: 10px; transform: translateY(80px); opacity: 0; transition: all 0.3s; }
+    .toast.show { transform: none; opacity: 1; }
+
+    ::-webkit-scrollbar { width: 6px; }
+    ::-webkit-scrollbar-track { background: transparent; }
+    ::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.08); border-radius: 3px; }
+  </style>
+</head>
+<body>
+
+<div id="login-screen">
+  <div class="login-card">
+    <div class="login-logo">
+      <div class="logo-icon">🏭</div>
+      <div class="brand">Smart<span>WMS</span></div>
+    </div>
+    <div class="badge-role">Supervisor / Jefe de Bodega</div>
+    <p class="login-subtitle">Plataforma de gestión de bodega inteligente. Ingresa tus credenciales para continuar.</p>
+    <div class="form-group">
+      <label for="login-email">Correo electrónico</label>
+      <input type="email" id="login-email" placeholder="jefe@empresa.cl" value="jefe@smartwms.cl" />
+    </div>
+    <div class="form-group">
+      <label for="login-pass">Contraseña</label>
+      <input type="password" id="login-pass" placeholder="••••••••" value="admin123" />
+    </div>
+    <button class="btn-login" id="btn-login-sup" onclick="doLogin()">Iniciar Sesión</button>
+    <div id="login-error" style="display:none;margin-top:12px;padding:10px 14px;background:rgba(239,68,68,0.1);border:1px solid rgba(239,68,68,0.35);border-radius:8px;font-size:13px;color:#fca5a5;text-align:center">❌ Credenciales incorrectas. Intenta de nuevo.</div>
+    <div class="login-hint">Demo: <code>jefe@smartwms.cl</code> / <code>admin123</code></div>
+  </div>
+</div>
+
+<div id="app">
+  <aside class="sidebar">
+    <div class="sidebar-logo">
+      <div class="logo-icon">🏭</div>
+      <div class="brand">Smart<span>WMS</span></div>
+    </div>
+    <div class="sidebar-section">Principal</div>
+    <div class="nav-item active" id="nav-overview" onclick="showPanel('overview')"><span class="icon">📊</span> Resumen</div>
+    <div class="nav-item" id="nav-orders" onclick="showPanel('orders')"><span class="icon">📦</span> Monitor de Pedidos <span class="badge-notif">3</span></div>
+    <div class="nav-item" id="nav-inventory" onclick="showPanel('inventory')"><span class="icon">🗄️</span> Inventario</div>
+    <div class="sidebar-divider"></div>
+    <div class="sidebar-section">Analítica &amp; IoT</div>
+    <div class="nav-item" id="nav-bi" onclick="showPanel('bi')"><span class="icon">📈</span> Dashboards BI</div>
+    <div class="nav-item" id="nav-iot" onclick="showPanel('iot')"><span class="icon">🌡️</span> Sensores IoT <span class="badge-notif">1</span></div>
+    <div class="sidebar-divider"></div>
+    <div class="sidebar-section">Sistema</div>
+    <div class="nav-item" id="nav-team" onclick="showPanel('team')"><span class="icon">👥</span> Equipo Operarios</div>
+    <div class="nav-item" onclick="window.open('bot.html','_blank')"><span class="icon">🤖</span> Copiloto IA</div>
+    <div class="sidebar-user">
+      <div class="user-avatar">JB</div>
+      <div class="user-info"><div class="name">Juan Barrientos</div><div class="role">Jefe de Bodega</div></div>
+      <button class="btn-logout" onclick="doLogout()" title="Cerrar sesión">⏻</button>
+    </div>
+  </aside>
+
+  <main class="main">
+
+    <!-- OVERVIEW -->
+    <div class="panel active" id="panel-overview">
+      <div class="topbar">
+        <h1>📊 Resumen General</h1>
+        <div class="topbar-right">
+          <div class="topbar-badge"><span class="dot-live"></span> En Vivo</div>
+          <div class="topbar-time" id="clock"></div>
+        </div>
+      </div>
+      <div class="alert-banner" id="alert-temp">
+        <div class="alert-icon">🌡️</div>
+        <div class="alert-text">
+          <strong>⚠ Alerta IoT – Temperatura Excedida</strong>
+          <span>Zona A – Sensor DHT22 registró 27.3°C (límite: 25°C). Acción requerida.</span>
+        </div>
+        <button class="btn-dismiss" onclick="dismissAlert()">Revisar IoT</button>
+      </div>
+      <div class="kpi-grid">
+        <div class="kpi-card blue"><div class="kpi-icon">📦</div><div class="kpi-value">47</div><div class="kpi-label">Pedidos en curso hoy</div><div class="kpi-delta up">↑ +12% vs ayer</div></div>
+        <div class="kpi-card green"><div class="kpi-icon">✅</div><div class="kpi-value">31</div><div class="kpi-label">Pedidos completados</div><div class="kpi-delta up">↑ +8 vs promedio</div></div>
+        <div class="kpi-card yellow"><div class="kpi-icon">⏱️</div><div class="kpi-value">18<span style="font-size:16px;font-weight:400">min</span></div><div class="kpi-label">Lead Time promedio</div><div class="kpi-delta down">↓ -3 min mejor</div></div>
+        <div class="kpi-card purple"><div class="kpi-icon">👷</div><div class="kpi-value">6</div><div class="kpi-label">Operarios activos</div><div class="kpi-delta up">↑ 100% disponibles</div></div>
+      </div>
+      <div class="grid-3">
+        <div class="card">
+          <div class="card-header"><div class="card-title">📦 Pedidos Recientes</div><button class="btn-sm" onclick="showPanel('orders')">Ver todos →</button></div>
+          <table class="orders-table">
+            <thead><tr><th>Orden</th><th>Estado</th><th>Operario</th><th>Avance</th></tr></thead>
+            <tbody>
+              <tr><td><strong>#ORD-1041</strong></td><td><span class="status-badge status-picking">🔵 En Picking</span></td><td>Carlos R.</td><td><div class="progress-mini"><div class="progress-mini-fill" style="width:65%;background:var(--accent)"></div></div></td></tr>
+              <tr><td><strong>#ORD-1040</strong></td><td><span class="status-badge status-listo">✅ Listo</span></td><td>Ana M.</td><td><div class="progress-mini"><div class="progress-mini-fill" style="width:100%;background:var(--green)"></div></div></td></tr>
+              <tr><td><strong>#ORD-1039</strong></td><td><span class="status-badge status-empacando">📦 Empacando</span></td><td>Pedro L.</td><td><div class="progress-mini"><div class="progress-mini-fill" style="width:85%;background:var(--accent3)"></div></div></td></tr>
+              <tr><td><strong>#ORD-1038</strong></td><td><span class="status-badge status-pendiente">⏳ Pendiente</span></td><td>—</td><td><div class="progress-mini"><div class="progress-mini-fill" style="width:0%"></div></div></td></tr>
+              <tr><td><strong>#ORD-1037</strong></td><td><span class="status-badge status-cuarentena">🔴 Cuarentena</span></td><td>Carlos R.</td><td><div class="progress-mini"><div class="progress-mini-fill" style="width:40%;background:var(--red)"></div></div></td></tr>
+            </tbody>
+          </table>
+        </div>
+        <div class="card">
+          <div class="card-header"><div class="card-title">⚠️ Stock Crítico</div><button class="btn-sm" onclick="showPanel('inventory')">Ver →</button></div>
+          <div class="stock-alerts">
+            <div class="stock-alert-item critical"><div class="stock-circle r">📦</div><div><div class="stock-sku">SKU-00412</div><div class="stock-desc">Tornillo M8 x 30mm</div></div><div class="stock-qty"><div class="qty red">3</div><div class="unit">uds restantes</div></div></div>
+            <div class="stock-alert-item critical"><div class="stock-circle r">🔌</div><div><div class="stock-sku">SKU-00789</div><div class="stock-desc">Cable USB-C 2m</div></div><div class="stock-qty"><div class="qty red">1</div><div class="unit">uds restantes</div></div></div>
+            <div class="stock-alert-item warn"><div class="stock-circle y">🖥️</div><div><div class="stock-sku">SKU-01100</div><div class="stock-desc">Monitor 24" HDMI</div></div><div class="stock-qty"><div class="qty yellow">8</div><div class="unit">uds (mín: 10)</div></div></div>
+            <div class="stock-alert-item warn"><div class="stock-circle y">🖱️</div><div><div class="stock-sku">SKU-00234</div><div class="stock-desc">Mouse Inalámbrico</div></div><div class="stock-qty"><div class="qty yellow">12</div><div class="unit">uds (mín: 15)</div></div></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ORDERS -->
+    <div class="panel" id="panel-orders">
+      <div class="topbar"><h1>📦 Monitor de Pedidos en Tiempo Real</h1><div class="topbar-right"><div class="topbar-badge"><span class="dot-live"></span> WebSocket Activo</div></div></div>
+      <div class="card">
+        <div class="card-header"><div class="card-title">Todas las Órdenes</div><div class="card-actions"><button class="btn-sm">↓ Exportar CSV</button><button class="btn-sm">🔄 Actualizar</button></div></div>
+        <div class="filter-tabs">
+          <button class="filter-tab active" onclick="filterOrders(this,'all')">Todas (47)</button>
+          <button class="filter-tab" onclick="filterOrders(this,'picking')">En Picking (12)</button>
+          <button class="filter-tab" onclick="filterOrders(this,'empacando')">Empacando (8)</button>
+          <button class="filter-tab" onclick="filterOrders(this,'listo')">Listo Courier (19)</button>
+          <button class="filter-tab" onclick="filterOrders(this,'pendiente')">Pendientes (5)</button>
+          <button class="filter-tab" onclick="filterOrders(this,'cuarentena')">Cuarentena (3)</button>
+        </div>
+        <div class="search-box"><span>🔍</span><input type="text" placeholder="Buscar por orden, operario, SKU…" oninput="liveSearch(this.value)" /></div>
+        <table class="orders-table"><thead><tr><th>N° Orden</th><th>Cliente</th><th>Items</th><th>Operario</th><th>Estado</th><th>Lead Time</th><th>Acciones</th></tr></thead><tbody id="orders-tbody"></tbody></table>
+      </div>
+    </div>
+
+    <!-- INVENTORY -->
+    <div class="panel" id="panel-inventory">
+      <div class="topbar"><h1>🗄️ Gestión de Inventario</h1></div>
+      <div class="kpi-grid">
+        <div class="kpi-card blue"><div class="kpi-icon">📦</div><div class="kpi-value">1,842</div><div class="kpi-label">SKUs registrados</div></div>
+        <div class="kpi-card green"><div class="kpi-icon">✅</div><div class="kpi-value">1,796</div><div class="kpi-label">Stock saludable</div></div>
+        <div class="kpi-card yellow"><div class="kpi-icon">⚠️</div><div class="kpi-value">34</div><div class="kpi-label">Bajo stock</div></div>
+        <div class="kpi-card purple"><div class="kpi-icon">🔴</div><div class="kpi-value">12</div><div class="kpi-label">Críticos / Agotados</div></div>
+      </div>
+      <div class="card">
+        <div class="card-header"><div class="card-title">📋 Catálogo de Productos</div><div class="card-actions"><button class="btn-sm" onclick="showToast('📦 Formulario nuevo SKU (demo)')">+ Agregar SKU</button><button class="btn-sm">↓ Exportar</button></div></div>
+        <div class="search-box"><span>🔍</span><input type="text" placeholder="Buscar SKU, nombre, ubicación…" /></div>
+        <table class="inv-table">
+          <thead><tr><th>SKU</th><th>Producto</th><th>Ubicación</th><th>Stock</th><th>Mínimo</th><th>Estado</th></tr></thead>
+          <tbody>
+            <tr><td><code style="color:var(--accent2);font-size:12px">SKU-00412</code></td><td>Tornillo M8 x 30mm</td><td>A-03-B</td><td><div class="stock-level"><span style="font-weight:600;color:var(--red);min-width:30px">3</span><div class="stock-bar"><div class="stock-fill crit" style="width:6%"></div></div></div></td><td>50</td><td><span class="status-badge status-cuarentena">🔴 Crítico</span></td></tr>
+            <tr><td><code style="color:var(--accent2);font-size:12px">SKU-00789</code></td><td>Cable USB-C 2m</td><td>C-01-A</td><td><div class="stock-level"><span style="font-weight:600;color:var(--red);min-width:30px">1</span><div class="stock-bar"><div class="stock-fill crit" style="width:2%"></div></div></div></td><td>30</td><td><span class="status-badge status-cuarentena">🔴 Crítico</span></td></tr>
+            <tr><td><code style="color:var(--accent2);font-size:12px">SKU-01100</code></td><td>Monitor 24" HDMI</td><td>B-05-C</td><td><div class="stock-level"><span style="font-weight:600;color:var(--yellow);min-width:30px">8</span><div class="stock-bar"><div class="stock-fill low" style="width:27%"></div></div></div></td><td>10</td><td><span class="status-badge status-picking">⚠️ Bajo Stock</span></td></tr>
+            <tr><td><code style="color:var(--accent2);font-size:12px">SKU-00234</code></td><td>Mouse Inalámbrico</td><td>C-02-A</td><td><div class="stock-level"><span style="font-weight:600;color:var(--yellow);min-width:30px">12</span><div class="stock-bar"><div class="stock-fill low" style="width:40%"></div></div></div></td><td>15</td><td><span class="status-badge status-picking">⚠️ Bajo Stock</span></td></tr>
+            <tr><td><code style="color:var(--accent2);font-size:12px">SKU-00567</code></td><td>Teclado Mecánico TKL</td><td>C-03-B</td><td><div class="stock-level"><span style="font-weight:600;color:var(--green);min-width:30px">145</span><div class="stock-bar"><div class="stock-fill ok" style="width:96%"></div></div></div></td><td>20</td><td><span class="status-badge status-listo">✅ Saludable</span></td></tr>
+            <tr><td><code style="color:var(--accent2);font-size:12px">SKU-00890</code></td><td>Audífonos Bluetooth</td><td>D-02-A</td><td><div class="stock-level"><span style="font-weight:600;color:var(--green);min-width:30px">67</span><div class="stock-bar"><div class="stock-fill ok" style="width:80%"></div></div></div></td><td>25</td><td><span class="status-badge status-listo">✅ Saludable</span></td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- BI -->
+    <div class="panel" id="panel-bi">
+      <div class="topbar">
+        <h1>📈 Dashboards BI</h1>
+        <div class="topbar-right">
+          <button class="btn-sm active" onclick="setDateFilter(this,'7d')">7 días</button>
+          <button class="btn-sm" onclick="setDateFilter(this,'30d')">30 días</button>
+          <button class="btn-sm" onclick="setDateFilter(this,'90d')">Trimestre</button>
+        </div>
+      </div>
+      <div class="kpi-grid">
+        <div class="kpi-card blue"><div class="kpi-icon">⏱️</div><div class="kpi-value">18<span style="font-size:14px">min</span></div><div class="kpi-label">Lead Time Promedio</div><div class="kpi-delta up">↑ Mejoró 3 min</div></div>
+        <div class="kpi-card green"><div class="kpi-icon">🎯</div><div class="kpi-value">94.7<span style="font-size:14px">%</span></div><div class="kpi-label">Exactitud de Picking</div><div class="kpi-delta up">↑ +2.1% vs mes ant.</div></div>
+        <div class="kpi-card yellow"><div class="kpi-icon">🔄</div><div class="kpi-value">312</div><div class="kpi-label">Órdenes procesadas</div><div class="kpi-delta up">↑ +23 vs semana ant.</div></div>
+        <div class="kpi-card purple"><div class="kpi-icon">📉</div><div class="kpi-value">2.1<span style="font-size:14px">%</span></div><div class="kpi-label">Tasa de error</div><div class="kpi-delta up">↓ Mejoró 0.8%</div></div>
+      </div>
+      <div class="grid-2">
+        <div class="card"><div class="card-header"><div class="card-title">⏱️ Lead Time por Día (min)</div></div><div class="chart-wrap"><canvas id="leadTimeChart"></canvas></div></div>
+        <div class="card"><div class="card-header"><div class="card-title">📊 Órdenes por Estado</div></div><div class="chart-wrap"><canvas id="statusChart"></canvas></div></div>
+      </div>
+      <div class="grid-2">
+        <div class="card"><div class="card-header"><div class="card-title">📅 Throughput Diario (Órdenes)</div></div><div class="chart-wrap"><canvas id="throughputChart"></canvas></div></div>
+        <div class="card">
+          <div class="card-header"><div class="card-title">👷 Performance por Operario</div></div>
+          <div class="perf-list" style="margin-top:8px">
+            <div class="perf-item"><div class="perf-avatar" style="background:linear-gradient(135deg,#3b82f6,#8b5cf6)">CR</div><div class="perf-name">Carlos R.</div><div class="perf-bar-wrap"><div class="perf-bar" style="width:92%;background:linear-gradient(90deg,#3b82f6,#06b6d4)"></div><div class="perf-meta">87 órdenes · 16min avg</div></div><div class="perf-value" style="color:var(--accent)">92%</div></div>
+            <div class="perf-item"><div class="perf-avatar" style="background:linear-gradient(135deg,#10b981,#059669)">AM</div><div class="perf-name">Ana M.</div><div class="perf-bar-wrap"><div class="perf-bar" style="width:88%;background:linear-gradient(90deg,#10b981,#34d399)"></div><div class="perf-meta">73 órdenes · 17min avg</div></div><div class="perf-value" style="color:var(--green)">88%</div></div>
+            <div class="perf-item"><div class="perf-avatar" style="background:linear-gradient(135deg,#f59e0b,#d97706)">PL</div><div class="perf-name">Pedro L.</div><div class="perf-bar-wrap"><div class="perf-bar" style="width:75%;background:linear-gradient(90deg,#f59e0b,#fbbf24)"></div><div class="perf-meta">61 órdenes · 21min avg</div></div><div class="perf-value" style="color:var(--yellow)">75%</div></div>
+            <div class="perf-item"><div class="perf-avatar" style="background:linear-gradient(135deg,#8b5cf6,#7c3aed)">MG</div><div class="perf-name">María G.</div><div class="perf-bar-wrap"><div class="perf-bar" style="width:70%;background:linear-gradient(90deg,#8b5cf6,#a78bfa)"></div><div class="perf-meta">58 órdenes · 22min avg</div></div><div class="perf-value" style="color:var(--accent3)">70%</div></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- IOT -->
+    <div class="panel" id="panel-iot">
+      <div class="topbar"><h1>🌡️ Monitoreo de Sensores IoT</h1><div class="topbar-badge"><span class="dot-live"></span> ESP32 Conectado</div></div>
+
+      <!-- PIR Motion Sensor Alert Banner -->
+      <div id="pir-alert-banner" class="alert-banner" style="display:none;background:rgba(239,68,68,0.1);border-color:rgba(239,68,68,0.5);margin-bottom:20px">
+        <div class="alert-icon">🚨</div>
+        <div class="alert-text">
+          <strong id="pir-alert-title">⚠ ALERTA MOVIMIENTO – Extracción no autorizada detectada</strong>
+          <span id="pir-alert-detail">Estante B-04 – SKU-00890 retirado sin desactivar sensor. Operario no identificado.</span>
+        </div>
+        <button class="btn-dismiss" onclick="dismissPirAlert()" style="background:rgba(239,68,68,0.2);border-color:rgba(239,68,68,0.4);color:#fca5a5">Desestimar</button>
+      </div>
+
+      <div class="grid-2">
+        <div class="card">
+          <div class="card-header"><div class="card-title">🌡️ Sensores DHT22 – Temperatura &amp; Humedad</div></div>
+          <div class="iot-sensors">
+            <div class="sensor-card alert-red"><div style="font-size:28px">🌡️</div><div class="sensor-value critical">27.3°C</div><div class="sensor-label">Zona A – Almacén Principal</div><div class="sensor-limit">Límite máximo: 25°C</div></div>
+            <div class="sensor-card"><div style="font-size:28px">💧</div><div class="sensor-value warn">68%</div><div class="sensor-label">Humedad – Zona A</div><div class="sensor-limit">Rango normal: 40–70%</div></div>
+            <div class="sensor-card"><div style="font-size:28px">🌡️</div><div class="sensor-value ok">21.4°C</div><div class="sensor-label">Zona B – Cámara Fría</div><div class="sensor-limit">Límite máximo: 25°C</div></div>
+            <div class="sensor-card"><div style="font-size:28px">💧</div><div class="sensor-value ok">52%</div><div class="sensor-label">Humedad – Zona B</div><div class="sensor-limit">Rango normal: 40–70%</div></div>
+          </div>
+          <div class="iot-events" style="margin-top:16px">
+            <div style="font-size:12px;font-weight:700;color:var(--muted);margin-bottom:8px;text-transform:uppercase;letter-spacing:.8px">Log de Eventos</div>
+            <div class="iot-event warn"><div class="iot-event-icon">⚠️</div><div class="iot-event-text"><strong>Temperatura excedida – Zona A</strong><span>27.3°C registrado. Límite 25°C. Se generó alerta.</span></div><div class="iot-event-time">hace 3 min</div></div>
+            <div class="iot-event ok"><div class="iot-event-icon">✅</div><div class="iot-event-text"><strong>Lectura normal – Zona B</strong><span>21.4°C / 52% – Todo dentro de rango.</span></div><div class="iot-event-time">hace 5 min</div></div>
+            <div class="iot-event ok"><div class="iot-event-icon">✅</div><div class="iot-event-text"><strong>Reconexión ESP32</strong><span>Microcontrolador reconectado exitosamente.</span></div><div class="iot-event-time">hace 12 min</div></div>
+          </div>
+        </div>
+        <div class="card">
+          <div class="card-header"><div class="card-title">📳 MPU6050 – Detección de Impactos</div></div>
+          <div class="iot-sensors">
+            <div class="sensor-card alert-red" style="grid-column:1/-1"><div style="font-size:28px">💥</div><div class="sensor-value critical">3.8G</div><div class="sensor-label">Fuerza G detectada – Pallet #P-007</div><div class="sensor-limit">Límite tolerado: 2.5G → Producto en Cuarentena</div></div>
+            <div class="sensor-card"><div style="font-size:28px">📦</div><div class="sensor-value ok">0.4G</div><div class="sensor-label">Pallet #P-012 – Normal</div></div>
+            <div class="sensor-card"><div style="font-size:28px">📦</div><div class="sensor-value ok">0.7G</div><div class="sensor-label">Pallet #P-015 – Normal</div></div>
+          </div>
+          <div class="iot-events" style="margin-top:16px">
+            <div class="iot-event warn"><div class="iot-event-icon">💥</div><div class="iot-event-text"><strong>Impacto detectado – Pallet #P-007</strong><span>3.8G – SKU-00789 cambiado a "Cuarentena" automáticamente.</span></div><div class="iot-event-time">hace 8 min</div></div>
+            <div class="iot-event ok"><div class="iot-event-icon">✅</div><div class="iot-event-text"><strong>Manipulación leve – Pallet #P-012</strong><span>0.4G – Bajo umbral. Sin acción requerida.</span></div><div class="iot-event-time">hace 15 min</div></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- PIR MOTION SENSOR SECTION -->
+      <div class="card" style="margin-top:0">
+        <div class="card-header">
+          <div class="card-title">🚶 Sensores PIR – Detección de Movimiento en Estantes</div>
+          <div class="card-actions">
+            <button class="btn-sm" id="btn-simulate-pir" onclick="simulatePirAlert()">⚡ Simular Evento</button>
+            <button class="btn-sm active" id="btn-pir-arm" onclick="togglePirArm()">🔒 Armado</button>
+          </div>
+        </div>
+        <div style="font-size:12px;color:var(--muted);margin-bottom:14px;padding:10px 14px;background:rgba(59,130,246,0.06);border:1px solid rgba(59,130,246,0.15);border-radius:10px">
+          <strong style="color:var(--accent)">ℹ️ Cómo funciona:</strong> Los sensores PIR (HC-SR501) detectan movimiento de calor infrarrojo frente a cada estante. Si un ítem es retirado <strong>sin que el operario haya desactivado el sensor previamente</strong> en su app, el sistema genera una alerta de extracción no autorizada y notifica al supervisor.
+        </div>
+        <div class="iot-sensors" style="grid-template-columns:repeat(3,1fr);gap:12px" id="pir-sensors-grid">
+          <div class="sensor-card" id="pir-A03">
+            <div style="font-size:26px">🚶</div>
+            <div class="sensor-value ok" id="pir-A03-val">SIN MOV.</div>
+            <div class="sensor-label">Estante A-03 (Tornillos)</div>
+            <div class="sensor-limit" id="pir-A03-status">🔒 Sensor Armado</div>
+          </div>
+          <div class="sensor-card" id="pir-B04">
+            <div style="font-size:26px">🚶</div>
+            <div class="sensor-value ok" id="pir-B04-val">SIN MOV.</div>
+            <div class="sensor-label">Estante B-04 (Audífonos)</div>
+            <div class="sensor-limit" id="pir-B04-status">🔒 Sensor Armado</div>
+          </div>
+          <div class="sensor-card" id="pir-C01">
+            <div style="font-size:26px">🚶</div>
+            <div class="sensor-value ok" id="pir-C01-val">SIN MOV.</div>
+            <div class="sensor-label">Estante C-01 (Cables)</div>
+            <div class="sensor-limit" id="pir-C01-status">🔒 Sensor Armado</div>
+          </div>
+          <div class="sensor-card" id="pir-C02">
+            <div style="font-size:26px">🚶</div>
+            <div class="sensor-value ok" id="pir-C02-val">SIN MOV.</div>
+            <div class="sensor-label">Estante C-02 (Mouse)</div>
+            <div class="sensor-limit" id="pir-C02-status">🔒 Sensor Armado</div>
+          </div>
+          <div class="sensor-card" id="pir-C03">
+            <div style="font-size:26px">🚶</div>
+            <div class="sensor-value ok" id="pir-C03-val">SIN MOV.</div>
+            <div class="sensor-label">Estante C-03 (Teclados)</div>
+            <div class="sensor-limit" id="pir-C03-status">🔒 Sensor Armado</div>
+          </div>
+          <div class="sensor-card" id="pir-D02">
+            <div style="font-size:26px">🚶</div>
+            <div class="sensor-value ok" id="pir-D02-val">SIN MOV.</div>
+            <div class="sensor-label">Estante D-02 (Monitores)</div>
+            <div class="sensor-limit" id="pir-D02-status">🔒 Sensor Armado</div>
+          </div>
+        </div>
+        <div class="iot-events" style="margin-top:16px">
+          <div style="font-size:12px;font-weight:700;color:var(--muted);margin-bottom:8px;text-transform:uppercase;letter-spacing:.8px">Log de Movimientos PIR</div>
+          <div id="pir-log">
+            <div class="iot-event ok"><div class="iot-event-icon">✅</div><div class="iot-event-text"><strong>Acceso autorizado – Estante C-03</strong><span>Operario Carlos R. desactivó sensor antes del picking. SKU-00567.</span></div><div class="iot-event-time">hace 6 min</div></div>
+            <div class="iot-event ok"><div class="iot-event-icon">✅</div><div class="iot-event-text"><strong>Acceso autorizado – Estante A-03</strong><span>Operario Ana M. desactivó sensor antes de putaway. SKU-00412.</span></div><div class="iot-event-time">hace 22 min</div></div>
+            <div class="iot-event warn"><div class="iot-event-icon">🚨</div><div class="iot-event-text"><strong>⚠ Extracción NO autorizada – Estante D-02</strong><span>Movimiento detectado sin desactivar sensor. Operario no identificado. SKU-01100.</span></div><div class="iot-event-time">hace 34 min</div></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- TEAM -->
+    <div class="panel" id="panel-team">
+      <div class="topbar"><h1>👥 Equipo de Operarios</h1></div>
+      <div class="kpi-grid">
+        <div class="kpi-card green"><div class="kpi-icon">🟢</div><div class="kpi-value">6</div><div class="kpi-label">Activos ahora</div></div>
+        <div class="kpi-card blue"><div class="kpi-icon">📦</div><div class="kpi-value">47</div><div class="kpi-label">Órdenes asignadas</div></div>
+        <div class="kpi-card yellow"><div class="kpi-icon">⏱️</div><div class="kpi-value">18 min</div><div class="kpi-label">Lead Time promedio</div></div>
+        <div class="kpi-card purple"><div class="kpi-icon">🎯</div><div class="kpi-value">94.7%</div><div class="kpi-label">Exactitud global</div></div>
+      </div>
+      <div class="card">
+        <div class="card-header"><div class="card-title">👷 Operarios en Turno</div><button class="btn-sm" onclick="showToast('📋 Asignación de turno (demo)')">+ Asignar Turno</button></div>
+        <table class="inv-table">
+          <thead><tr><th>Operario</th><th>Estado</th><th>Orden Actual</th><th>Lead Time Hoy</th><th>Completadas</th><th>Exactitud</th></tr></thead>
+          <tbody>
+            <tr><td><div style="display:flex;align-items:center;gap:8px"><div style="width:28px;height:28px;border-radius:50%;background:linear-gradient(135deg,#3b82f6,#8b5cf6);display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;color:#fff">CR</div>Carlos Ramos</div></td><td><span class="status-badge status-picking">🔵 En Picking</span></td><td>#ORD-1041</td><td style="color:var(--green);font-weight:600">16 min</td><td style="font-weight:600">14</td><td style="color:var(--green);font-weight:600">96%</td></tr>
+            <tr><td><div style="display:flex;align-items:center;gap:8px"><div style="width:28px;height:28px;border-radius:50%;background:linear-gradient(135deg,#10b981,#059669);display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;color:#fff">AM</div>Ana Muñoz</div></td><td><span class="status-badge status-listo">✅ Disponible</span></td><td>—</td><td style="color:var(--green);font-weight:600">17 min</td><td style="font-weight:600">11</td><td style="color:var(--green);font-weight:600">93%</td></tr>
+            <tr><td><div style="display:flex;align-items:center;gap:8px"><div style="width:28px;height:28px;border-radius:50%;background:linear-gradient(135deg,#f59e0b,#d97706);display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;color:#fff">PL</div>Pedro Leal</div></td><td><span class="status-badge status-empacando">📦 Empacando</span></td><td>#ORD-1039</td><td style="color:var(--yellow);font-weight:600">21 min</td><td style="font-weight:600">9</td><td style="color:var(--yellow);font-weight:600">88%</td></tr>
+            <tr><td><div style="display:flex;align-items:center;gap:8px"><div style="width:28px;height:28px;border-radius:50%;background:linear-gradient(135deg,#8b5cf6,#7c3aed);display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;color:#fff">MG</div>María García</div></td><td><span class="status-badge status-pendiente">⏳ En Pausa</span></td><td>—</td><td style="color:var(--yellow);font-weight:600">22 min</td><td style="font-weight:600">8</td><td style="color:var(--yellow);font-weight:600">87%</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+  </main>
+</div>
+
+<div class="modal-overlay" id="modal-order">
+  <div class="modal-box">
+    <div class="modal-title">📦 Detalle de Orden <span id="modal-order-id" style="color:var(--accent2)">#ORD-1041</span><button class="modal-close" onclick="closeModal()">✕</button></div>
+    <div class="modal-row"><span>Cliente</span><strong>Tienda Online #42</strong></div>
+    <div class="modal-row"><span>Operario</span><strong>Carlos Ramos</strong></div>
+    <div class="modal-row"><span>Estado</span><span class="status-badge status-picking">🔵 En Picking</span></div>
+    <div class="modal-row"><span>Items totales</span><strong>8 productos</strong></div>
+    <div class="modal-row"><span>Items recogidos</span><strong>5 / 8</strong></div>
+    <div class="modal-row"><span>Lead Time actual</span><strong style="color:var(--yellow)">14 min (en curso)</strong></div>
+    <div class="modal-row"><span>Inicio</span><strong>01/09/2026 – 08:45</strong></div>
+    <div style="margin-top:16px;display:flex;gap:8px"><button class="btn-sm" style="flex:1;padding:10px" onclick="closeModal()">Cerrar</button><button class="btn-sm active" style="flex:1;padding:10px" onclick="showToast('⚠️ Reasignación iniciada (demo)');closeModal()">⚠️ Reasignar</button></div>
+  </div>
+</div>
+
+<div class="toast" id="toast">✅ Acción completada</div>
+
+<script>
+const ordersData = [
+  {id:'#ORD-1041',cliente:'Tienda Online #42',items:8,operario:'Carlos R.',estado:'picking',leadTime:'14 min'},
+  {id:'#ORD-1040',cliente:'E-commerce Rápido',items:3,operario:'Ana M.',estado:'listo',leadTime:'22 min'},
+  {id:'#ORD-1039',cliente:'MegaStore Chile',items:12,operario:'Pedro L.',estado:'empacando',leadTime:'19 min'},
+  {id:'#ORD-1038',cliente:'Distribuidora Norte',items:5,operario:'—',estado:'pendiente',leadTime:'—'},
+  {id:'#ORD-1037',cliente:'Ferretería Sur',items:2,operario:'Carlos R.',estado:'cuarentena',leadTime:'—'},
+  {id:'#ORD-1036',cliente:'Tienda Online #18',items:7,operario:'María G.',estado:'listo',leadTime:'28 min'},
+  {id:'#ORD-1035',cliente:'LogiChile',items:4,operario:'Ana M.',estado:'listo',leadTime:'15 min'},
+  {id:'#ORD-1034',cliente:'TechParts',items:9,operario:'Carlos R.',estado:'picking',leadTime:'8 min'},
+  {id:'#ORD-1033',cliente:'Grupo Bata',items:6,operario:'Pedro L.',estado:'picking',leadTime:'11 min'},
+  {id:'#ORD-1032',cliente:'StockNow',items:1,operario:'—',estado:'pendiente',leadTime:'—'},
+];
+const statusLabels = {picking:'En Picking',listo:'Listo Courier',empacando:'Empacando',pendiente:'Pendiente',cuarentena:'Cuarentena'};
+const statusClasses = {picking:'status-picking',listo:'status-listo',empacando:'status-empacando',pendiente:'status-pendiente',cuarentena:'status-cuarentena'};
+const statusEmojis = {picking:'🔵',listo:'✅',empacando:'📦',pendiente:'⏳',cuarentena:'🔴'};
+
+function renderOrders(data) {
+  document.getElementById('orders-tbody').innerHTML = data.map(o => `
+    <tr>
+      <td><strong>${o.id}</strong></td>
+      <td>${o.cliente}</td>
+      <td>${o.items} items</td>
+      <td>${o.operario}</td>
+      <td><span class="status-badge ${statusClasses[o.estado]}">${statusEmojis[o.estado]} ${statusLabels[o.estado]}</span></td>
+      <td style="color:${o.leadTime==='—'?'var(--muted)':'var(--text)'}">${o.leadTime}</td>
+      <td><button class="btn-sm" onclick="openModal('${o.id}')">Ver</button></td>
+    </tr>`).join('');
+}
+renderOrders(ordersData);
+
+function filterOrders(el, filter) {
+  document.querySelectorAll('.filter-tab').forEach(t=>t.classList.remove('active'));
+  el.classList.add('active');
+  renderOrders(filter==='all' ? ordersData : ordersData.filter(o=>o.estado===filter));
+}
+function liveSearch(val) {
+  renderOrders(ordersData.filter(o=>o.id.includes(val)||o.cliente.toLowerCase().includes(val.toLowerCase())||o.operario.toLowerCase().includes(val.toLowerCase())));
+}
+
+function showPanel(name) {
+  document.querySelectorAll('.panel').forEach(p=>p.classList.remove('active'));
+  document.querySelectorAll('.nav-item').forEach(n=>n.classList.remove('active'));
+  document.getElementById('panel-'+name).classList.add('active');
+  const nav = document.getElementById('nav-'+name);
+  if(nav) nav.classList.add('active');
+  if(name==='bi') initCharts();
+}
+
+// ─── PIR SENSOR LOGIC ───
+let pirArmed = true;
+const pirSensors = ['A03','B04','C01','C02','C03','D02'];
+const pirSKUs = {A03:'SKU-00412 (Tornillo M8)',B04:'SKU-00890 (Audífonos BT)',C01:'SKU-00789 (Cable USB-C)',C02:'SKU-00234 (Mouse Inalámbrico)',C03:'SKU-00567 (Teclado Mecánico)',D02:'SKU-01100 (Monitor 24"'};
+const pirShelves = {A03:'A-03',B04:'B-04',C01:'C-01',C02:'C-02',C03:'C-03',D02:'D-02'};
+
+function togglePirArm() {
+  pirArmed = !pirArmed;
+  const btn = document.getElementById('btn-pir-arm');
+  pirSensors.forEach(id => {
+    const statusEl = document.getElementById('pir-'+id+'-status');
+    if(pirArmed) { statusEl.textContent = '🔒 Sensor Armado'; }
+    else { statusEl.textContent = '🔓 Sensor Desactivado'; }
+  });
+  if(pirArmed) {
+    btn.textContent = '🔒 Armado'; btn.classList.add('active');
+    showToast('🔒 Todos los sensores PIR activados');
+  } else {
+    btn.textContent = '🔓 Desarmado'; btn.classList.remove('active');
+    showToast('🔓 Sensores PIR desactivados (modo operario)');
+  }
+}
+
+function simulatePirAlert() {
+  const randId = pirSensors[Math.floor(Math.random()*pirSensors.length)];
+  const card = document.getElementById('pir-'+randId);
+  const valEl = document.getElementById('pir-'+randId+'-val');
+  const statusEl = document.getElementById('pir-'+randId+'-status');
+  const sku = pirSKUs[randId];
+  const shelf = pirShelves[randId];
+
+  if(pirArmed) {
+    // UNAUTHORIZED: fire alert
+    card.classList.add('alert-red');
+    valEl.textContent = '¡MOVIMIENTO!';
+    valEl.className = 'sensor-value critical';
+    statusEl.textContent = '🚨 Extracción no autorizada';
+
+    const banner = document.getElementById('pir-alert-banner');
+    document.getElementById('pir-alert-title').textContent = '⚠ ALERTA PIR – Extracción no autorizada detectada';
+    document.getElementById('pir-alert-detail').textContent = 'Estante '+shelf+' – '+sku+' retirado sin desactivar sensor. Operario no identificado. '+new Date().toLocaleTimeString('es-CL');
+    banner.style.display = 'flex';
+
+    addPirLogEntry('warn','🚨','⚠ Extracción NO autorizada – Estante '+shelf,'Movimiento detectado con sensor armado. '+sku+'. Hora: '+new Date().toLocaleTimeString('es-CL'));
+
+    // Update overview alert
+    const alertTemp = document.getElementById('alert-temp');
+    if(alertTemp) {
+      const strong = alertTemp.querySelector('strong');
+      const span = alertTemp.querySelector('span');
+      if(strong) strong.textContent = '⚠ Alerta PIR – Extracción no autorizada en Estante '+shelf;
+      if(span) span.textContent = sku+' detectado en movimiento sin desactivar sensor. Revise cámaras.';
+      alertTemp.style.display = 'flex';
+    }
+
+    setTimeout(() => {
+      card.classList.remove('alert-red');
+      valEl.textContent = 'SIN MOV.';
+      valEl.className = 'sensor-value ok';
+      statusEl.textContent = pirArmed ? '🔒 Sensor Armado' : '🔓 Sensor Desactivado';
+    }, 8000);
+  } else {
+    // AUTHORIZED: sensor was disabled
+    card.style.borderColor = 'rgba(16,185,129,0.5)';
+    valEl.textContent = 'AUTORIZADO';
+    valEl.className = 'sensor-value ok';
+    statusEl.textContent = '✅ Desactivado por operario';
+    addPirLogEntry('ok','✅','Acceso autorizado – Estante '+shelf,'Operario desactivó sensor antes de retirar. '+sku);
+    setTimeout(() => {
+      card.style.borderColor = '';
+      valEl.textContent = 'SIN MOV.';
+      statusEl.textContent = '🔓 Sensor Desactivado';
+    }, 4000);
+  }
+}
+
+function addPirLogEntry(type, icon, title, detail) {
+  const log = document.getElementById('pir-log');
+  const div = document.createElement('div');
+  div.className = 'iot-event '+type;
+  div.innerHTML = `<div class="iot-event-icon">${icon}</div><div class="iot-event-text"><strong>${title}</strong><span>${detail}</span></div><div class="iot-event-time">ahora</div>`;
+  div.style.animation = 'slide-in 0.3s ease';
+  log.insertBefore(div, log.firstChild);
+}
+
+function dismissPirAlert() {
+  document.getElementById('pir-alert-banner').style.display = 'none';
+  showToast('✅ Alerta PIR desestimada');
+}
+
+// ─── LOGIN ───
+function doLogin() {
+  const emailEl = document.getElementById('login-email');
+  const passEl  = document.getElementById('login-pass');
+  const errEl   = document.getElementById('login-error');
+  const e = emailEl.value.trim();
+  const p = passEl.value.trim();
+
+  const VALID_EMAIL = 'jefe@smartwms.cl';
+  const VALID_PASS  = 'admin123';
+
+  if(e === VALID_EMAIL && p === VALID_PASS) {
+    if(errEl) errEl.style.display = 'none';
+    document.getElementById('login-screen').style.display = 'none';
+    const app = document.getElementById('app');
+    app.style.cssText = 'display:flex;flex-direction:row;min-height:100vh;';
+    updateClock();
+    setInterval(updateClock, 1000);
+  } else {
+    if(errEl) { errEl.style.display = 'block'; }
+    else { alert('Credenciales inválidas. Demo: jefe@smartwms.cl / admin123'); }
+    emailEl.style.borderColor = 'var(--red)';
+    passEl.style.borderColor  = 'var(--red)';
+    setTimeout(() => {
+      emailEl.style.borderColor = '';
+      passEl.style.borderColor  = '';
+    }, 1800);
+  }
+}
+function doLogout() {
+  document.getElementById('app').style.display='none';
+  document.getElementById('login-screen').style.display='flex';
+}
+function updateClock() {
+  const el=document.getElementById('clock');
+  if(el) el.textContent=new Date().toLocaleTimeString('es-CL',{hour:'2-digit',minute:'2-digit',second:'2-digit'});
+}
+function openModal(id) { document.getElementById('modal-order-id').textContent=id; document.getElementById('modal-order').classList.add('open'); }
+function closeModal() { document.getElementById('modal-order').classList.remove('open'); }
+document.getElementById('modal-order').addEventListener('click',function(e){if(e.target===this)closeModal();});
+function dismissAlert() { document.getElementById('alert-temp').style.display='none'; showPanel('iot'); }
+function showToast(msg) {
+  const t=document.getElementById('toast');
+  t.textContent=msg; t.classList.add('show');
+  setTimeout(()=>t.classList.remove('show'),3000);
+}
+function setDateFilter(el,period) {
+  document.querySelectorAll('.topbar .btn-sm').forEach(b=>b.classList.remove('active'));
+  el.classList.add('active');
+  showToast('✅ Filtro aplicado: '+period);
+}
+let chartsInit=false;
+function initCharts() {
+  if(chartsInit) return; chartsInit=true;
+  Chart.defaults.color='#94a3b8'; Chart.defaults.font.family='Inter';
+  new Chart(document.getElementById('leadTimeChart'),{type:'line',data:{labels:['Lun','Mar','Mié','Jue','Vie','Sáb','Dom'],datasets:[{label:'Lead Time (min)',data:[24,22,20,19,18,17,18],borderColor:'#3b82f6',backgroundColor:'rgba(59,130,246,0.1)',tension:0.4,fill:true,pointBackgroundColor:'#3b82f6',pointRadius:4}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{x:{grid:{color:'rgba(255,255,255,0.04)'}},y:{grid:{color:'rgba(255,255,255,0.04)'}}}}});
+  new Chart(document.getElementById('statusChart'),{type:'doughnut',data:{labels:['Listo Courier','En Picking','Empacando','Pendiente','Cuarentena'],datasets:[{data:[19,12,8,5,3],backgroundColor:['#10b981','#3b82f6','#8b5cf6','#64748b','#ef4444'],borderWidth:2,borderColor:'#0d1526'}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{position:'bottom',labels:{padding:16,boxWidth:10}}}}});
+  new Chart(document.getElementById('throughputChart'),{type:'bar',data:{labels:['Lun','Mar','Mié','Jue','Vie','Sáb','Dom'],datasets:[{label:'Órdenes',data:[38,44,52,41,47,35,22],backgroundColor:'rgba(6,182,212,0.25)',borderColor:'#06b6d4',borderWidth:2,borderRadius:6}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{x:{grid:{color:'rgba(255,255,255,0.04)'}},y:{grid:{color:'rgba(255,255,255,0.04)'}}}}});
+}
+document.addEventListener('keydown',function(e){if(e.key==='Enter'&&document.getElementById('login-screen').style.display!=='none')doLogin();});
+</script>
+</body>
+</html>

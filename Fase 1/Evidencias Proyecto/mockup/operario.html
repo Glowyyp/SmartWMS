@@ -1,0 +1,812 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0" />
+  <title>SmartWMS – App Operario</title>
+  <meta name="description" content="Aplicación móvil para operarios de bodega SmartWMS. Picking guiado, escaneo QR zero-touch, putaway y cierre de pedidos." />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet" />
+  <style>
+    :root {
+      --bg: #0a0f1c;
+      --surface: #111827;
+      --surface2: #1a2235;
+      --border: rgba(99,179,237,0.12);
+      --accent: #3b82f6;
+      --accent2: #06b6d4;
+      --green: #10b981;
+      --yellow: #f59e0b;
+      --red: #ef4444;
+      --text: #f1f5f9;
+      --muted: #64748b;
+      --radius: 18px;
+    }
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: 'Inter', sans-serif; background: #1a1a2e; color: var(--text); min-height: 100vh; display: flex; align-items: center; justify-content: center; padding: 20px; }
+
+    /* Phone Frame */
+    .phone-frame {
+      width: 390px;
+      min-height: 844px;
+      background: var(--bg);
+      border-radius: 44px;
+      border: 3px solid rgba(255,255,255,0.12);
+      box-shadow: 0 30px 80px rgba(0,0,0,0.6), 0 0 0 1px rgba(255,255,255,0.04), inset 0 1px 0 rgba(255,255,255,0.1);
+      overflow: hidden;
+      position: relative;
+      display: flex;
+      flex-direction: column;
+    }
+
+    /* Notch */
+    .notch { height: 44px; background: var(--bg); display: flex; align-items: flex-end; justify-content: space-between; padding: 0 20px 8px; }
+    .notch-time { font-size: 14px; font-weight: 600; }
+    .notch-icons { display: flex; gap: 6px; align-items: center; font-size: 13px; }
+
+    /* Screens */
+    .screen { display: none; flex-direction: column; flex: 1; overflow-y: auto; }
+    .screen.active { display: flex; }
+    .screen::-webkit-scrollbar { display: none; }
+
+    /* ─── LOGIN ─── */
+    #screen-login {
+      background: radial-gradient(ellipse at 50% 0%, rgba(59,130,246,0.2) 0%, transparent 60%), var(--bg);
+      padding: 40px 28px;
+      align-items: center;
+      justify-content: center;
+      gap: 0;
+    }
+    .app-icon { width: 72px; height: 72px; border-radius: 20px; background: linear-gradient(135deg, var(--accent), #8b5cf6); display: flex; align-items: center; justify-content: center; font-size: 34px; margin-bottom: 16px; box-shadow: 0 12px 40px rgba(59,130,246,0.35); }
+    .app-name { font-size: 26px; font-weight: 800; margin-bottom: 4px; text-align: center; }
+    .app-name span { color: var(--accent2); }
+    .app-tagline { font-size: 13px; color: var(--muted); margin-bottom: 36px; text-align: center; }
+    .role-badge { background: rgba(16,185,129,0.15); color: var(--green); border: 1px solid rgba(16,185,129,0.35); border-radius: 8px; font-size: 11px; font-weight: 700; padding: 4px 14px; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 32px; }
+    .inp-group { width: 100%; margin-bottom: 14px; }
+    .inp-group label { display: block; font-size: 12px; color: var(--muted); margin-bottom: 6px; font-weight: 500; }
+    .inp-group input { width: 100%; background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 13px 16px; color: var(--text); font-size: 15px; font-family: 'Inter',sans-serif; outline: none; transition: border-color 0.2s; }
+    .inp-group input:focus { border-color: var(--accent); }
+    .btn-primary { width: 100%; padding: 15px; background: linear-gradient(135deg, var(--accent), #2563eb); border: none; border-radius: 14px; color: #fff; font-size: 16px; font-weight: 700; cursor: pointer; font-family: 'Inter',sans-serif; margin-top: 8px; transition: transform 0.15s, box-shadow 0.2s; }
+    .btn-primary:hover { transform: scale(1.01); box-shadow: 0 8px 24px rgba(59,130,246,0.4); }
+    .btn-primary:active { transform: scale(0.98); }
+    .login-hint-op { text-align: center; margin-top: 14px; font-size: 11px; color: var(--muted); }
+    .login-hint-op code { color: #94a3b8; background: rgba(255,255,255,0.05); padding: 2px 5px; border-radius: 3px; }
+
+    /* ─── HEADER ─── */
+    .app-header { background: var(--surface); border-bottom: 1px solid var(--border); padding: 14px 20px; display: flex; align-items: center; justify-content: space-between; flex-shrink: 0; }
+    .header-logo { display: flex; align-items: center; gap: 8px; }
+    .header-logo .h-icon { width: 30px; height: 30px; border-radius: 8px; background: linear-gradient(135deg, var(--accent), #8b5cf6); display: flex; align-items: center; justify-content: center; font-size: 14px; }
+    .header-logo .h-brand { font-size: 15px; font-weight: 800; }
+    .header-logo .h-brand span { color: var(--accent2); }
+    .header-user { display: flex; align-items: center; gap: 8px; }
+    .h-avatar { width: 32px; height: 32px; border-radius: 50%; background: linear-gradient(135deg, var(--green), #059669); display: flex; align-items: center; justify-content: center; font-size: 12px; font-weight: 700; }
+    .h-name { font-size: 12px; font-weight: 600; }
+    .h-role { font-size: 10px; color: var(--muted); }
+
+    /* ─── BOTTOM NAV ─── */
+    .bottom-nav { background: var(--surface); border-top: 1px solid var(--border); display: flex; padding: 8px 0 16px; flex-shrink: 0; }
+    .bn-item { flex: 1; display: flex; flex-direction: column; align-items: center; gap: 3px; cursor: pointer; padding: 6px 4px; border-radius: 10px; transition: all 0.2s; color: var(--muted); font-size: 10px; font-weight: 500; }
+    .bn-item:hover { color: var(--text); }
+    .bn-item.active { color: var(--accent); }
+    .bn-item .bn-icon { font-size: 22px; }
+    .bn-item.active .bn-icon { filter: drop-shadow(0 0 8px var(--accent)); }
+
+    /* ─── CONTENT AREA ─── */
+    .content { flex: 1; overflow-y: auto; padding: 18px; }
+    .content::-webkit-scrollbar { display: none; }
+
+    /* ─── HOME SCREEN ─── */
+    .greeting { margin-bottom: 18px; }
+    .greeting h2 { font-size: 20px; font-weight: 800; }
+    .greeting p { font-size: 13px; color: var(--muted); margin-top: 2px; }
+
+    .active-order-card {
+      background: linear-gradient(135deg, rgba(59,130,246,0.15), rgba(139,92,246,0.1));
+      border: 1px solid rgba(59,130,246,0.35); border-radius: var(--radius);
+      padding: 18px; margin-bottom: 16px; position: relative; overflow: hidden;
+    }
+    .active-order-card::before { content: ''; position: absolute; top: -30px; right: -30px; width: 100px; height: 100px; border-radius: 50%; background: rgba(59,130,246,0.08); }
+    .aoc-label { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 1px; color: var(--accent); margin-bottom: 6px; }
+    .aoc-id { font-size: 22px; font-weight: 800; margin-bottom: 4px; }
+    .aoc-meta { font-size: 12px; color: var(--muted); margin-bottom: 14px; }
+    .aoc-progress { height: 6px; background: rgba(255,255,255,0.08); border-radius: 3px; margin-bottom: 6px; overflow: hidden; }
+    .aoc-fill { height: 100%; border-radius: 3px; background: linear-gradient(90deg, var(--accent), var(--accent2)); transition: width 0.5s; }
+    .aoc-stats { display: flex; justify-content: space-between; font-size: 12px; color: var(--muted); margin-bottom: 14px; }
+    .btn-start { width: 100%; padding: 13px; background: linear-gradient(135deg, var(--accent), var(--accent2)); border: none; border-radius: 12px; color: #fff; font-size: 15px; font-weight: 700; cursor: pointer; font-family: 'Inter',sans-serif; display: flex; align-items: center; justify-content: center; gap: 8px; transition: transform 0.15s; }
+    .btn-start:active { transform: scale(0.97); }
+
+    .quick-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 16px; }
+    .qa-card { background: var(--surface); border: 1px solid var(--border); border-radius: 14px; padding: 16px; cursor: pointer; transition: all 0.2s; text-align: center; }
+    .qa-card:hover { border-color: rgba(59,130,246,0.35); transform: translateY(-2px); }
+    .qa-card:active { transform: scale(0.96); }
+    .qa-icon { font-size: 28px; margin-bottom: 6px; }
+    .qa-label { font-size: 12px; font-weight: 600; color: var(--text); }
+    .qa-desc { font-size: 10px; color: var(--muted); margin-top: 2px; }
+
+    .section-title { font-size: 13px; font-weight: 700; color: var(--muted); text-transform: uppercase; letter-spacing: 0.8px; margin-bottom: 10px; }
+
+    .history-item { display: flex; align-items: center; gap: 12px; background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 12px; margin-bottom: 8px; }
+    .hi-icon { width: 36px; height: 36px; border-radius: 10px; display: flex; align-items: center; justify-content: center; font-size: 16px; }
+    .hi-icon.done { background: rgba(16,185,129,0.15); }
+    .hi-icon.error { background: rgba(239,68,68,0.15); }
+    .hi-info { flex: 1; }
+    .hi-id { font-size: 13px; font-weight: 600; }
+    .hi-meta { font-size: 11px; color: var(--muted); }
+    .hi-time { font-size: 11px; color: var(--muted); }
+
+    /* ─── PICKING SCREEN ─── */
+    .picking-header { background: var(--surface); padding: 16px 18px; border-bottom: 1px solid var(--border); flex-shrink: 0; }
+    .picking-order { font-size: 18px; font-weight: 800; margin-bottom: 2px; }
+    .picking-sub { font-size: 12px; color: var(--muted); }
+    .picking-progress-bar { height: 4px; background: rgba(255,255,255,0.06); margin-top: 10px; border-radius: 2px; overflow: hidden; }
+    .picking-progress-fill { height: 100%; background: linear-gradient(90deg, var(--accent), var(--green)); border-radius: 2px; transition: width 0.4s; }
+
+    .step-card { background: linear-gradient(135deg, rgba(16,185,129,0.12), rgba(6,182,212,0.06)); border: 1px solid rgba(16,185,129,0.3); border-radius: var(--radius); padding: 20px; margin-bottom: 14px; position: relative; }
+    .step-number { position: absolute; top: 14px; right: 14px; width: 28px; height: 28px; border-radius: 50%; background: rgba(16,185,129,0.2); display: flex; align-items: center; justify-content: center; font-size: 12px; font-weight: 700; color: var(--green); }
+    .step-location { font-size: 13px; font-weight: 600; color: var(--green); margin-bottom: 4px; display: flex; align-items: center; gap: 6px; }
+    .step-sku { font-size: 11px; color: var(--muted); margin-bottom: 8px; }
+    .step-product { font-size: 16px; font-weight: 700; margin-bottom: 4px; }
+    .step-qty { font-size: 13px; color: var(--muted); }
+    .step-qty strong { color: var(--accent2); font-size: 18px; }
+
+    .scan-area {
+      background: var(--surface); border: 2px dashed rgba(59,130,246,0.4); border-radius: var(--radius);
+      padding: 28px 20px; text-align: center; margin-bottom: 14px; cursor: pointer;
+      transition: all 0.3s; position: relative; overflow: hidden;
+    }
+    .scan-area:hover { border-color: var(--accent); background: rgba(59,130,246,0.04); }
+    .scan-area.scanning { border-color: var(--green); border-style: solid; animation: scan-pulse 1s infinite; }
+    @keyframes scan-pulse { 0%,100%{box-shadow:0 0 0 0 rgba(16,185,129,0.3)} 50%{box-shadow:0 0 0 10px rgba(16,185,129,0)} }
+    .scan-area.success { border-color: var(--green); background: rgba(16,185,129,0.08); }
+    .scan-area.error { border-color: var(--red); background: rgba(239,68,68,0.08); animation: shake 0.3s; }
+    @keyframes shake { 0%,100%{transform:translateX(0)} 25%{transform:translateX(-6px)} 75%{transform:translateX(6px)} }
+    .scan-icon { font-size: 48px; margin-bottom: 8px; }
+    .scan-text { font-size: 13px; color: var(--muted); }
+    .scan-text strong { color: var(--text); display: block; font-size: 15px; margin-bottom: 4px; }
+    .scan-laser { position: absolute; left: 0; right: 0; height: 2px; background: linear-gradient(90deg, transparent, var(--accent), transparent); top: 50%; animation: laser 1.5s infinite; }
+    .scan-area.scanning .scan-laser { display: block; }
+    .scan-laser { display: none; }
+    @keyframes laser { 0%{top:20%} 100%{top:80%} }
+
+    .item-list { display: flex; flex-direction: column; gap: 8px; }
+    .item-row { display: flex; align-items: center; gap: 10px; background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 10px 12px; transition: all 0.3s; }
+    .item-row.done { opacity: 0.5; border-color: rgba(16,185,129,0.3); }
+    .item-check { width: 22px; height: 22px; border-radius: 50%; border: 2px solid var(--border); display: flex; align-items: center; justify-content: center; font-size: 12px; flex-shrink: 0; transition: all 0.3s; }
+    .item-row.done .item-check { background: var(--green); border-color: var(--green); }
+    .item-info { flex: 1; }
+    .item-name { font-size: 13px; font-weight: 600; }
+    .item-location { font-size: 11px; color: var(--muted); }
+    .item-qty-badge { background: rgba(59,130,246,0.15); color: var(--accent); border-radius: 6px; font-size: 11px; font-weight: 700; padding: 2px 8px; }
+    .item-row.done .item-qty-badge { background: rgba(16,185,129,0.15); color: var(--green); }
+
+    .btn-action { width: 100%; padding: 14px; border: none; border-radius: 14px; font-size: 15px; font-weight: 700; cursor: pointer; font-family: 'Inter',sans-serif; transition: all 0.2s; margin-top: 12px; }
+    .btn-action.primary { background: linear-gradient(135deg, var(--accent), var(--accent2)); color: #fff; }
+    .btn-action.success { background: linear-gradient(135deg, var(--green), #059669); color: #fff; }
+    .btn-action.danger { background: linear-gradient(135deg, var(--red), #dc2626); color: #fff; }
+    .btn-action.outline { background: transparent; border: 2px solid var(--border); color: var(--muted); }
+    .btn-action:active { transform: scale(0.97); }
+
+    /* ─── PUTAWAY SCREEN ─── */
+    .putaway-card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 18px; margin-bottom: 14px; }
+    .paw-step { display: flex; align-items: center; gap: 12px; margin-bottom: 12px; }
+    .paw-num { width: 32px; height: 32px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 13px; font-weight: 700; flex-shrink: 0; }
+    .paw-num.done { background: var(--green); color: #fff; }
+    .paw-num.active { background: var(--accent); color: #fff; }
+    .paw-num.pending { background: rgba(255,255,255,0.08); color: var(--muted); }
+    .paw-info { flex: 1; }
+    .paw-label { font-size: 13px; font-weight: 600; }
+    .paw-sub { font-size: 11px; color: var(--muted); }
+    .paw-result { margin-left: auto; font-size: 12px; font-weight: 700; }
+    .paw-result.ok { color: var(--green); }
+    .paw-result.err { color: var(--red); }
+
+    /* ─── PACKING SCREEN ─── */
+    .packing-checklist { display: flex; flex-direction: column; gap: 8px; margin-bottom: 14px; }
+    .pack-item { display: flex; align-items: center; gap: 10px; background: var(--surface); border: 1px solid rgba(16,185,129,0.25); border-radius: 12px; padding: 12px; }
+    .pack-item.missing { border-color: rgba(239,68,68,0.3); background: rgba(239,68,68,0.04); }
+    .pack-check { width: 24px; height: 24px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 13px; }
+    .pack-check.ok { background: rgba(16,185,129,0.2); }
+    .pack-check.miss { background: rgba(239,68,68,0.2); }
+    .pack-name { flex: 1; font-size: 13px; font-weight: 500; }
+    .pack-qty { font-size: 12px; font-weight: 600; }
+
+    /* ─── STOCK QUERY ─── */
+    .ai-chat { display: flex; flex-direction: column; gap: 10px; margin-bottom: 14px; }
+    .chat-msg { max-width: 85%; padding: 10px 14px; border-radius: 16px; font-size: 13px; line-height: 1.5; }
+    .chat-msg.user { background: linear-gradient(135deg, var(--accent), #2563eb); color: #fff; align-self: flex-end; border-bottom-right-radius: 4px; }
+    .chat-msg.bot { background: var(--surface2); border: 1px solid var(--border); align-self: flex-start; border-bottom-left-radius: 4px; }
+    .chat-msg.bot .bot-name { font-size: 10px; font-weight: 700; color: var(--accent2); margin-bottom: 4px; text-transform: uppercase; letter-spacing: 0.5px; }
+    .chat-input-row { display: flex; gap: 8px; align-items: flex-end; }
+    .chat-input { flex: 1; background: var(--surface); border: 1px solid var(--border); border-radius: 14px; padding: 12px 14px; color: var(--text); font-size: 14px; font-family: 'Inter',sans-serif; outline: none; resize: none; }
+    .chat-input:focus { border-color: var(--accent); }
+    .chat-send { width: 42px; height: 42px; border-radius: 50%; background: linear-gradient(135deg, var(--accent), var(--accent2)); border: none; color: #fff; font-size: 18px; cursor: pointer; display: flex; align-items: center; justify-content: center; flex-shrink: 0; transition: transform 0.15s; }
+    .chat-send:active { transform: scale(0.9); }
+    .quick-queries { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 12px; }
+    .qq-btn { background: var(--surface2); border: 1px solid var(--border); border-radius: 20px; padding: 5px 12px; font-size: 11px; font-weight: 500; cursor: pointer; color: var(--text); transition: all 0.2s; font-family: 'Inter',sans-serif; }
+    .qq-btn:hover { border-color: var(--accent); color: var(--accent); }
+
+    /* Alerts / Toasts */
+    .in-app-alert { display: flex; align-items: center; gap: 10px; border-radius: 12px; padding: 12px 14px; margin-bottom: 12px; font-size: 13px; }
+    .in-app-alert.success { background: rgba(16,185,129,0.1); border: 1px solid rgba(16,185,129,0.3); }
+    .in-app-alert.danger { background: rgba(239,68,68,0.1); border: 1px solid rgba(239,68,68,0.3); color: #fca5a5; }
+    .in-app-alert.info { background: rgba(59,130,246,0.1); border: 1px solid rgba(59,130,246,0.3); }
+
+    /* Status chips */
+    .chip { display: inline-flex; align-items: center; gap: 4px; padding: 3px 10px; border-radius: 20px; font-size: 11px; font-weight: 600; }
+    .chip.green { background: rgba(16,185,129,0.15); color: var(--green); }
+    .chip.blue { background: rgba(59,130,246,0.15); color: var(--accent); }
+    .chip.red { background: rgba(239,68,68,0.15); color: var(--red); }
+
+    /* Animations */
+    @keyframes fade-in { from{opacity:0;transform:translateY(8px)} to{opacity:1;transform:none} }
+    .screen.active .content > * { animation: fade-in 0.25s ease both; }
+
+    .divider { height: 1px; background: var(--border); margin: 16px 0; }
+  </style>
+</head>
+<body>
+
+<div class="phone-frame">
+  <!-- Status Bar -->
+  <div class="notch">
+    <div class="notch-time" id="op-clock">09:34</div>
+    <div class="notch-icons">📶 🔋</div>
+  </div>
+
+  <!-- ═══ LOGIN SCREEN ═══ -->
+  <div class="screen active" id="screen-login">
+    <div class="app-icon">🏭</div>
+    <div class="app-name">Smart<span>WMS</span></div>
+    <div class="app-tagline">Sistema de Gestión de Bodega</div>
+    <div class="role-badge">👷 Operario de Bodega</div>
+    <div class="inp-group">
+      <label>Usuario / RUT</label>
+      <input id="op-user" type="text" placeholder="12345678-9" value="carlos.ramos" />
+    </div>
+    <div class="inp-group">
+      <label>PIN de acceso</label>
+      <input id="op-pin" type="password" placeholder="• • • •" value="1234" maxlength="4" />
+    </div>
+    <button class="btn-primary" onclick="opLogin()">🔐 Ingresar al Sistema</button>
+    <div class="login-hint-op">Demo: <code>carlos.ramos</code> / <code>1234</code></div>
+  </div>
+
+  <!-- ═══ HOME SCREEN ═══ -->
+  <div class="screen" id="screen-home">
+    <div class="app-header">
+      <div class="header-logo"><div class="h-icon">🏭</div><div><div class="h-brand">Smart<span>WMS</span></div></div></div>
+      <div class="header-user"><div class="h-avatar">CR</div><div><div class="h-name">Carlos R.</div><div class="h-role">Operario</div></div></div>
+    </div>
+    <div class="content">
+      <div class="greeting">
+        <h2>Buenos días, Carlos 👋</h2>
+        <p>Lunes, 01 Sep 2026 · Turno Mañana</p>
+      </div>
+
+      <div class="active-order-card">
+        <div class="aoc-label">🟢 Orden Activa</div>
+        <div class="aoc-id">#ORD-1041</div>
+        <div class="aoc-meta">Tienda Online #42 · 8 productos</div>
+        <div class="aoc-progress"><div class="aoc-fill" style="width:62%"></div></div>
+        <div class="aoc-stats"><span>5 / 8 recolectados</span><span>⏱️ 14 min</span></div>
+        <button class="btn-start" onclick="showScreen('picking')">▶ Continuar Picking</button>
+      </div>
+
+      <div class="section-title">Acciones Rápidas</div>
+      <div class="quick-actions">
+        <div class="qa-card" onclick="showScreen('picking')">
+          <div class="qa-icon">🗺️</div>
+          <div class="qa-label">Picking Guiado</div>
+          <div class="qa-desc">Ruta optimizada</div>
+        </div>
+        <div class="qa-card" onclick="showScreen('putaway')">
+          <div class="qa-icon">📥</div>
+          <div class="qa-label">Putaway / Ingreso</div>
+          <div class="qa-desc">Escanear QR estante</div>
+        </div>
+        <div class="qa-card" onclick="showScreen('packing')">
+          <div class="qa-icon">📦</div>
+          <div class="qa-label">Cerrar Pedido</div>
+          <div class="qa-desc">Empaque Listo</div>
+        </div>
+        <div class="qa-card" onclick="showScreen('stock')">
+          <div class="qa-icon">🤖</div>
+          <div class="qa-label">Consultar Stock IA</div>
+          <div class="qa-desc">Copiloto de bodega</div>
+        </div>
+      </div>
+
+      <div class="section-title">Historial de Hoy</div>
+      <div class="history-item"><div class="hi-icon done">✅</div><div class="hi-info"><div class="hi-id">#ORD-1038</div><div class="hi-meta">6 items · Lead Time: 16 min</div></div><div class="hi-time">08:22</div></div>
+      <div class="history-item"><div class="hi-icon done">✅</div><div class="hi-info"><div class="hi-id">#ORD-1035</div><div class="hi-meta">4 items · Lead Time: 14 min</div></div><div class="hi-time">07:45</div></div>
+      <div class="history-item"><div class="hi-icon error">❌</div><div class="hi-info"><div class="hi-id">#ORD-1033</div><div class="hi-meta">QR incorrecto – Reasignada</div></div><div class="hi-time">07:12</div></div>
+    </div>
+    <div class="bottom-nav">
+      <div class="bn-item active" onclick="showScreen('home')"><div class="bn-icon">🏠</div>Inicio</div>
+      <div class="bn-item" onclick="showScreen('picking')"><div class="bn-icon">🗺️</div>Picking</div>
+      <div class="bn-item" onclick="showScreen('putaway')"><div class="bn-icon">📥</div>Putaway</div>
+      <div class="bn-item" onclick="showScreen('stock')"><div class="bn-icon">🤖</div>Copiloto</div>
+    </div>
+  </div>
+
+  <!-- ═══ PICKING SCREEN ═══ -->
+  <div class="screen" id="screen-picking">
+    <div class="picking-header">
+      <div style="display:flex;align-items:center;gap:10px;margin-bottom:6px">
+        <button onclick="showScreen('home')" style="background:none;border:none;color:var(--muted);font-size:20px;cursor:pointer">←</button>
+        <div>
+          <div class="picking-order">Picking – #ORD-1041</div>
+          <div class="picking-sub">Tienda Online #42 · 8 productos</div>
+        </div>
+      </div>
+      <div class="picking-progress-bar"><div class="picking-progress-fill" id="pick-progress-bar" style="width:62%"></div></div>
+      <div style="display:flex;justify-content:space-between;font-size:11px;color:var(--muted);margin-top:4px"><span id="pick-count">5 / 8 recolectados</span><span>⏱️ 14 min</span></div>
+    </div>
+    <div class="content" id="picking-content">
+
+      <!-- Current Step -->
+      <div class="step-card">
+        <div class="step-number">6</div>
+        <div class="step-location">📍 Ir a Ubicación B-03-C</div>
+        <div class="step-sku">SKU-00567</div>
+        <div class="step-product">Teclado Mecánico TKL</div>
+        <div class="step-qty">Recoger <strong id="qty-needed">2</strong> unidades</div>
+      </div>
+
+      <!-- QR Scan Area -->
+      <div class="scan-area" id="scan-zone" onclick="simulateScan()">
+        <div class="scan-laser"></div>
+        <div class="scan-icon" id="scan-icon">📱</div>
+        <div class="scan-text">
+          <strong id="scan-title">Escanear QR del Producto</strong>
+          <span id="scan-subtitle">Apunta la cámara al código QR del item</span>
+        </div>
+      </div>
+
+      <div class="in-app-alert info" id="zero-touch-info">
+        <span>⚡</span>
+        <span><strong>Modo Zero-Touch activo.</strong> El sistema avanza automáticamente al escanear el QR correcto.</span>
+      </div>
+
+      <!-- Item List -->
+      <div class="section-title">Lista de Items</div>
+      <div class="item-list" id="item-list">
+        <div class="item-row done"><div class="item-check">✓</div><div class="item-info"><div class="item-name">Tornillo M8 x 30mm</div><div class="item-location">A-03-B</div></div><div class="item-qty-badge">✓ 5</div></div>
+        <div class="item-row done"><div class="item-check">✓</div><div class="item-info"><div class="item-name">Cable USB-C 2m</div><div class="item-location">C-01-A</div></div><div class="item-qty-badge">✓ 2</div></div>
+        <div class="item-row done"><div class="item-check">✓</div><div class="item-info"><div class="item-name">Mouse Inalámbrico</div><div class="item-location">C-02-A</div></div><div class="item-qty-badge">✓ 1</div></div>
+        <div class="item-row done"><div class="item-check">✓</div><div class="item-info"><div class="item-name">Audífonos Bluetooth</div><div class="item-location">D-02-A</div></div><div class="item-qty-badge">✓ 3</div></div>
+        <div class="item-row done"><div class="item-check">✓</div><div class="item-info"><div class="item-name">Monitor 24" HDMI</div><div class="item-location">B-05-C</div></div><div class="item-qty-badge">✓ 1</div></div>
+        <div class="item-row" id="item-6"><div class="item-check"></div><div class="item-info"><div class="item-name">Teclado Mecánico TKL</div><div class="item-location">C-03-B → B-03-C</div></div><div class="item-qty-badge">2</div></div>
+        <div class="item-row" id="item-7"><div class="item-check"></div><div class="item-info"><div class="item-name">USB Hub 7 puertos</div><div class="item-location">D-01-A</div></div><div class="item-qty-badge">1</div></div>
+        <div class="item-row" id="item-8"><div class="item-check"></div><div class="item-info"><div class="item-name">Pad Mouse XL</div><div class="item-location">C-04-B</div></div><div class="item-qty-badge">1</div></div>
+      </div>
+
+      <button class="btn-action outline" style="margin-top:14px" onclick="showScreen('home')">← Volver al Inicio</button>
+    </div>
+    <div class="bottom-nav">
+      <div class="bn-item" onclick="showScreen('home')"><div class="bn-icon">🏠</div>Inicio</div>
+      <div class="bn-item active"><div class="bn-icon">🗺️</div>Picking</div>
+      <div class="bn-item" onclick="showScreen('putaway')"><div class="bn-icon">📥</div>Putaway</div>
+      <div class="bn-item" onclick="showScreen('stock')"><div class="bn-icon">🤖</div>Copiloto</div>
+    </div>
+  </div>
+
+  <!-- ═══ PUTAWAY SCREEN ═══ -->
+  <div class="screen" id="screen-putaway">
+    <div class="app-header">
+      <button onclick="showScreen('home')" style="background:none;border:none;color:var(--muted);font-size:20px;cursor:pointer;margin-right:10px">←</button>
+      <div><div style="font-size:16px;font-weight:800">📥 Putaway – Ingreso de Stock</div><div style="font-size:11px;color:var(--muted)">Escanea ubicación → luego SKU</div></div>
+    </div>
+    <div class="content">
+
+      <div class="in-app-alert info">
+        <span>ℹ️</span>
+        <span>Sigue los pasos: <strong>1) Escanea QR del estante → 2) Escanea QR del SKU</strong></span>
+      </div>
+
+      <div class="putaway-card">
+        <div class="paw-step">
+          <div class="paw-num done">✓</div>
+          <div class="paw-info"><div class="paw-label">Paso 1 – Escanear Estante</div><div class="paw-sub">Código QR de la ubicación física</div></div>
+          <div class="paw-result ok">B-04-A</div>
+        </div>
+        <div class="paw-step">
+          <div class="paw-num active">2</div>
+          <div class="paw-info"><div class="paw-label">Paso 2 – Escanear SKU</div><div class="paw-sub">Código QR del producto a almacenar</div></div>
+          <div class="paw-result" id="paw-sku-result">—</div>
+        </div>
+        <div class="paw-step" style="margin-bottom:0">
+          <div class="paw-num pending">3</div>
+          <div class="paw-info"><div class="paw-label">Confirmar Almacenamiento</div><div class="paw-sub">Registrar en sistema</div></div>
+          <div class="paw-result" id="paw-confirm-result">—</div>
+        </div>
+      </div>
+
+      <div class="scan-area" id="putaway-scan" onclick="simulatePutaway()">
+        <div class="scan-laser"></div>
+        <div class="scan-icon">📦</div>
+        <div class="scan-text">
+          <strong>Escanear QR del Producto (SKU)</strong>
+          <span>Apunta al código del item a almacenar</span>
+        </div>
+      </div>
+
+      <div id="putaway-result-area" style="display:none">
+        <div class="in-app-alert success">
+          <span>✅</span>
+          <div><strong>Almacenamiento exitoso</strong><br/><span style="font-size:11px">SKU-00567 asignado a ubicación B-04-A en base de datos.</span></div>
+        </div>
+        <div style="background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:14px;font-size:13px">
+          <div style="display:flex;justify-content:space-between;padding:4px 0"><span style="color:var(--muted)">SKU</span><strong>SKU-00567</strong></div>
+          <div style="display:flex;justify-content:space-between;padding:4px 0"><span style="color:var(--muted)">Producto</span><strong>Teclado Mecánico TKL</strong></div>
+          <div style="display:flex;justify-content:space-between;padding:4px 0"><span style="color:var(--muted)">Ubicación asignada</span><strong style="color:var(--green)">B-04-A</strong></div>
+          <div style="display:flex;justify-content:space-between;padding:4px 0"><span style="color:var(--muted)">Unidades ingresadas</span><strong>50</strong></div>
+        </div>
+        <button class="btn-action success" onclick="resetPutaway()">+ Nuevo Ingreso</button>
+      </div>
+
+      <div id="putaway-error-area" style="display:none">
+        <div class="in-app-alert danger">
+          <span>❌</span>
+          <div><strong>Ubicación no encontrada</strong><br/><span style="font-size:11px">El QR escaneado no corresponde a una ubicación registrada en el layout.</span></div>
+        </div>
+        <button class="btn-action danger" onclick="resetPutaway()">🔄 Reintentar</button>
+      </div>
+
+      <button class="btn-action outline" onclick="showScreen('home')">← Volver</button>
+    </div>
+    <div class="bottom-nav">
+      <div class="bn-item" onclick="showScreen('home')"><div class="bn-icon">🏠</div>Inicio</div>
+      <div class="bn-item" onclick="showScreen('picking')"><div class="bn-icon">🗺️</div>Picking</div>
+      <div class="bn-item active"><div class="bn-icon">📥</div>Putaway</div>
+      <div class="bn-item" onclick="showScreen('stock')"><div class="bn-icon">🤖</div>Copiloto</div>
+    </div>
+  </div>
+
+  <!-- ═══ PACKING SCREEN ═══ -->
+  <div class="screen" id="screen-packing">
+    <div class="app-header">
+      <button onclick="showScreen('home')" style="background:none;border:none;color:var(--muted);font-size:20px;cursor:pointer;margin-right:10px">←</button>
+      <div><div style="font-size:16px;font-weight:800">📦 Cierre de Pedido</div><div style="font-size:11px;color:var(--muted)">#ORD-1041 · Mesa de Salida</div></div>
+    </div>
+    <div class="content">
+
+      <div class="in-app-alert info">
+        <span>📍</span>
+        <span>Dirígete a la <strong>Mesa de Salida</strong>. Verifica items y escanea QR de "Empaque Listo".</span>
+      </div>
+
+      <div class="section-title">Verificación de Items (8/8)</div>
+      <div class="packing-checklist">
+        <div class="pack-item"><div class="pack-check ok">✅</div><div class="pack-name">Tornillo M8 x 30mm</div><div class="pack-qty" style="color:var(--green)">5 uds</div></div>
+        <div class="pack-item"><div class="pack-check ok">✅</div><div class="pack-name">Cable USB-C 2m</div><div class="pack-qty" style="color:var(--green)">2 uds</div></div>
+        <div class="pack-item"><div class="pack-check ok">✅</div><div class="pack-name">Mouse Inalámbrico</div><div class="pack-qty" style="color:var(--green)">1 uds</div></div>
+        <div class="pack-item"><div class="pack-check ok">✅</div><div class="pack-name">Audífonos Bluetooth</div><div class="pack-qty" style="color:var(--green)">3 uds</div></div>
+        <div class="pack-item"><div class="pack-check ok">✅</div><div class="pack-name">Monitor 24" HDMI</div><div class="pack-qty" style="color:var(--green)">1 uds</div></div>
+        <div class="pack-item"><div class="pack-check ok">✅</div><div class="pack-name">Teclado Mecánico TKL</div><div class="pack-qty" style="color:var(--green)">2 uds</div></div>
+        <div class="pack-item"><div class="pack-check ok">✅</div><div class="pack-name">USB Hub 7 puertos</div><div class="pack-qty" style="color:var(--green)">1 uds</div></div>
+        <div class="pack-item"><div class="pack-check ok">✅</div><div class="pack-name">Pad Mouse XL</div><div class="pack-qty" style="color:var(--green)">1 uds</div></div>
+      </div>
+
+      <div class="in-app-alert success">
+        <span>🎉</span>
+        <span><strong>Todos los items verificados.</strong> Listo para escanear QR de Empaque.</span>
+      </div>
+
+      <div class="scan-area" id="pack-scan" onclick="simulatePacking()">
+        <div class="scan-icon">🏷️</div>
+        <div class="scan-text">
+          <strong>Escanear QR "Empaque Listo"</strong>
+          <span>QR ubicado en la mesa de salida de la bodega</span>
+        </div>
+      </div>
+
+      <div id="pack-success" style="display:none">
+        <div class="in-app-alert success">
+          <span>✅</span>
+          <div><strong>Pedido cerrado exitosamente</strong><br/><span style="font-size:11px">Estado cambiado a "Listo para Courier". Stock descontado definitivamente.</span></div>
+        </div>
+        <div style="background:var(--surface);border:1px solid rgba(16,185,129,0.25);border-radius:12px;padding:16px;text-align:center">
+          <div style="font-size:36px;margin-bottom:8px">🎉</div>
+          <div style="font-size:17px;font-weight:800;color:var(--green);margin-bottom:4px">¡Pedido completado!</div>
+          <div style="font-size:13px;color:var(--muted)">#ORD-1041 · Lead Time: 22 min</div>
+        </div>
+        <button class="btn-action success" onclick="showScreen('home')">🏠 Volver al Inicio</button>
+      </div>
+
+      <div id="pack-error" style="display:none">
+        <div class="in-app-alert danger">
+          <span>❌</span>
+          <div><strong>No se puede cerrar el pedido</strong><br/><span style="font-size:11px">Faltan 3 items por recolectar. Regresa a Picking.</span></div>
+        </div>
+        <button class="btn-action danger" onclick="showScreen('picking')">↩ Volver al Picking</button>
+      </div>
+
+      <button class="btn-action outline" onclick="showScreen('home')">← Volver</button>
+    </div>
+    <div class="bottom-nav">
+      <div class="bn-item" onclick="showScreen('home')"><div class="bn-icon">🏠</div>Inicio</div>
+      <div class="bn-item" onclick="showScreen('picking')"><div class="bn-icon">🗺️</div>Picking</div>
+      <div class="bn-item active"><div class="bn-icon">📦</div>Packing</div>
+      <div class="bn-item" onclick="showScreen('stock')"><div class="bn-icon">🤖</div>Copiloto</div>
+    </div>
+  </div>
+
+  <!-- ═══ STOCK / AI SCREEN ═══ -->
+  <div class="screen" id="screen-stock">
+    <div class="app-header">
+      <button onclick="showScreen('home')" style="background:none;border:none;color:var(--muted);font-size:20px;cursor:pointer;margin-right:10px">←</button>
+      <div>
+        <div style="font-size:16px;font-weight:800">🤖 Copiloto IA</div>
+        <div style="font-size:11px;color:var(--accent2)">● Asistente de Bodega SmartWMS</div>
+      </div>
+    </div>
+    <div class="content" style="display:flex;flex-direction:column">
+      <div class="section-title">Consultas rápidas</div>
+      <div class="quick-queries">
+        <button class="qq-btn" onclick="askBot('¿Cuántos SKU-00567 hay en stock?')">📦 Stock SKU-00567</button>
+        <button class="qq-btn" onclick="askBot('¿Dónde está el producto Cable USB-C 2m?')">📍 Ubicación Cable USB</button>
+        <button class="qq-btn" onclick="askBot('¿Cuál es el protocolo de picking?')">📋 Protocolo picking</button>
+        <button class="qq-btn" onclick="askBot('¿Qué hago si escaneo un QR incorrecto?')">❓ QR incorrecto</button>
+      </div>
+      <div class="ai-chat" id="ai-chat">
+        <div class="chat-msg bot">
+          <div class="bot-name">🤖 Copiloto SmartWMS</div>
+          Hola Carlos 👋 Soy tu asistente de bodega. Puedo consultar stock, guiarte en procedimientos logísticos y responder tus dudas operativas. ¿En qué te ayudo?
+        </div>
+      </div>
+      <div style="flex:1"></div>
+      <div class="chat-input-row" style="margin-top:14px">
+        <textarea class="chat-input" id="chat-input" placeholder="Pregunta algo… ej: ¿Cuántas unidades de SKU-00412?" rows="1" onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();sendChat()}"></textarea>
+        <button class="chat-send" onclick="sendChat()">➤</button>
+      </div>
+    </div>
+    <div class="bottom-nav">
+      <div class="bn-item" onclick="showScreen('home')"><div class="bn-icon">🏠</div>Inicio</div>
+      <div class="bn-item" onclick="showScreen('picking')"><div class="bn-icon">🗺️</div>Picking</div>
+      <div class="bn-item" onclick="showScreen('putaway')"><div class="bn-icon">📥</div>Putaway</div>
+      <div class="bn-item active"><div class="bn-icon">🤖</div>Copiloto</div>
+    </div>
+  </div>
+
+</div><!-- end phone-frame -->
+
+<script>
+// ─── SCREEN NAVIGATION ───
+function showScreen(name) {
+  document.querySelectorAll('.screen').forEach(s=>s.classList.remove('active'));
+  document.getElementById('screen-'+name).classList.add('active');
+}
+
+// ─── LOGIN ───
+function opLogin() {
+  const u = document.getElementById('op-user').value;
+  const p = document.getElementById('op-pin').value;
+  if(u.length > 2 && p.length >= 4) {
+    showScreen('home');
+  } else {
+    alert('PIN inválido. Demo: carlos.ramos / 1234');
+  }
+}
+document.addEventListener('keydown', e => {
+  if(e.key==='Enter' && document.getElementById('screen-login').classList.contains('active')) opLogin();
+});
+
+// ─── CLOCK ───
+function updateClock() {
+  const now = new Date();
+  const el = document.getElementById('op-clock');
+  if(el) el.textContent = now.toLocaleTimeString('es-CL',{hour:'2-digit',minute:'2-digit'});
+}
+setInterval(updateClock, 10000);
+updateClock();
+
+// ─── PICKING SIMULATION ───
+let pickCount = 5;
+const totalItems = 8;
+const steps = [
+  {num:6, loc:'B-03-C', sku:'SKU-00567', product:'Teclado Mecánico TKL', qty:2, itemId:'item-6'},
+  {num:7, loc:'D-01-A', sku:'SKU-00333', product:'USB Hub 7 puertos', qty:1, itemId:'item-7'},
+  {num:8, loc:'C-04-B', sku:'SKU-00111', product:'Pad Mouse XL', qty:1, itemId:'item-8'},
+];
+let currentStep = 0;
+let scanning = false;
+
+function simulateScan() {
+  if(scanning) return;
+  if(currentStep >= steps.length) { showScreen('packing'); return; }
+  scanning = true;
+  const zone = document.getElementById('scan-zone');
+  zone.classList.add('scanning');
+  document.getElementById('scan-title').textContent = 'Escaneando…';
+  document.getElementById('scan-subtitle').textContent = 'Leyendo código QR…';
+  document.getElementById('scan-icon').textContent = '🔍';
+
+  setTimeout(() => {
+    // 85% success, 15% error for demo
+    const success = Math.random() > 0.15;
+    if(success) {
+      zone.classList.remove('scanning');
+      zone.classList.add('success');
+      document.getElementById('scan-icon').textContent = '✅';
+      document.getElementById('scan-title').textContent = '¡QR Correcto! — ' + steps[currentStep].sku;
+      document.getElementById('scan-subtitle').textContent = 'Unidad descontada. Avanzando…';
+
+      // Mark item done
+      const itemEl = document.getElementById(steps[currentStep].itemId);
+      if(itemEl) {
+        itemEl.classList.add('done');
+        itemEl.querySelector('.item-check').textContent = '✓';
+        itemEl.querySelector('.item-qty-badge').textContent = '✓ ' + steps[currentStep].qty;
+      }
+      pickCount++;
+      updatePickProgress();
+
+      setTimeout(() => {
+        zone.classList.remove('success');
+        currentStep++;
+        scanning = false;
+        if(currentStep >= steps.length) {
+          document.getElementById('scan-icon').textContent = '🎉';
+          document.getElementById('scan-title').textContent = '¡Picking Completado!';
+          document.getElementById('scan-subtitle').textContent = 'Todos los items recolectados. Dirigite a Mesa de Salida.';
+          document.querySelector('#screen-picking .step-card').innerHTML = '<div style="text-align:center;padding:10px"><div style="font-size:36px;margin-bottom:8px">🎉</div><div style="font-size:17px;font-weight:800;color:var(--green)">¡Ruta completada!</div><div style="font-size:13px;color:var(--muted);margin-top:4px">Dirígete a la Mesa de Salida para el Packing</div></div>';
+        } else {
+          const next = steps[currentStep];
+          document.querySelector('.step-location').textContent = '📍 Ir a Ubicación ' + next.loc;
+          document.querySelector('.step-card .step-sku').textContent = next.sku;
+          document.querySelector('.step-product').textContent = next.product;
+          document.getElementById('qty-needed').textContent = next.qty;
+          document.querySelector('.step-number').textContent = next.num;
+          document.getElementById('scan-icon').textContent = '📱';
+          document.getElementById('scan-title').textContent = 'Escanear QR del Producto';
+          document.getElementById('scan-subtitle').textContent = 'Apunta la cámara al código QR del item';
+        }
+      }, 1200);
+    } else {
+      zone.classList.remove('scanning');
+      zone.classList.add('error');
+      document.getElementById('scan-icon').textContent = '❌';
+      document.getElementById('scan-title').textContent = 'QR Incorrecto';
+      document.getElementById('scan-subtitle').textContent = 'SKU no pertenece a esta orden. Intenta de nuevo.';
+      setTimeout(() => {
+        zone.classList.remove('error');
+        document.getElementById('scan-icon').textContent = '📱';
+        document.getElementById('scan-title').textContent = 'Escanear QR del Producto';
+        document.getElementById('scan-subtitle').textContent = 'Apunta la cámara al código QR del item';
+        scanning = false;
+      }, 2000);
+    }
+  }, 1500);
+}
+
+function updatePickProgress() {
+  const pct = Math.round((pickCount / totalItems) * 100);
+  document.getElementById('pick-progress-bar').style.width = pct + '%';
+  document.getElementById('pick-count').textContent = pickCount + ' / ' + totalItems + ' recolectados';
+}
+
+// ─── PUTAWAY SIMULATION ───
+let putawayStep = 'sku';
+function simulatePutaway() {
+  if(putawayStep !== 'sku') return;
+  const zone = document.getElementById('putaway-scan');
+  zone.classList.add('scanning');
+  setTimeout(() => {
+    zone.classList.remove('scanning');
+    const success = Math.random() > 0.2;
+    if(success) {
+      zone.classList.add('success');
+      document.getElementById('paw-sku-result').textContent = 'SKU-00567';
+      document.getElementById('paw-sku-result').className = 'paw-result ok';
+      document.querySelectorAll('.putaway-card .paw-num')[1].textContent = '✓';
+      document.querySelectorAll('.putaway-card .paw-num')[1].className = 'paw-num done';
+      document.querySelectorAll('.putaway-card .paw-num')[2].className = 'paw-num active';
+      setTimeout(() => {
+        zone.classList.remove('success');
+        document.getElementById('putaway-scan').style.display = 'none';
+        document.getElementById('putaway-result-area').style.display = 'block';
+        document.getElementById('paw-confirm-result').textContent = 'Registrado ✓';
+        document.getElementById('paw-confirm-result').className = 'paw-result ok';
+        document.querySelectorAll('.putaway-card .paw-num')[2].textContent = '✓';
+        document.querySelectorAll('.putaway-card .paw-num')[2].className = 'paw-num done';
+        putawayStep = 'done';
+      }, 1000);
+    } else {
+      zone.classList.add('error');
+      setTimeout(() => {
+        zone.classList.remove('error');
+        document.getElementById('putaway-scan').style.display = 'none';
+        document.getElementById('putaway-error-area').style.display = 'block';
+      }, 1200);
+    }
+  }, 1400);
+}
+
+function resetPutaway() {
+  putawayStep = 'sku';
+  document.getElementById('putaway-scan').style.display = 'block';
+  document.getElementById('putaway-scan').className = 'scan-area';
+  document.getElementById('putaway-result-area').style.display = 'none';
+  document.getElementById('putaway-error-area').style.display = 'none';
+  document.getElementById('paw-sku-result').textContent = '—';
+  document.getElementById('paw-sku-result').className = 'paw-result';
+  document.getElementById('paw-confirm-result').textContent = '—';
+  document.getElementById('paw-confirm-result').className = 'paw-result';
+}
+
+// ─── PACKING SIMULATION ───
+function simulatePacking() {
+  const zone = document.getElementById('pack-scan');
+  zone.classList.add('scanning');
+  setTimeout(() => {
+    zone.classList.remove('scanning');
+    zone.style.display = 'none';
+    document.getElementById('pack-success').style.display = 'block';
+  }, 1500);
+}
+
+// ─── AI CHAT ───
+const botAnswers = {
+  'sku-00567': 'El <strong>SKU-00567 (Teclado Mecánico TKL)</strong> tiene actualmente <strong style="color:#10b981">145 unidades</strong> en stock. Ubicación: <strong>C-03-B</strong>. Estado: ✅ Saludable.',
+  'sku-00412': 'El <strong>SKU-00412 (Tornillo M8 x 30mm)</strong> tiene solo <strong style="color:#ef4444">3 unidades</strong> restantes. ⚠️ Stock crítico. Ubicación: A-03-B.',
+  'stock': 'Actualmente hay <strong>1,842 SKUs</strong> registrados. <strong style="color:#10b981">1,796</strong> en stock saludable, <strong style="color:#f59e0b">34</strong> con bajo stock y <strong style="color:#ef4444">12</strong> en estado crítico.',
+  'cable': 'El <strong>Cable USB-C 2m (SKU-00789)</strong> está en la ubicación <strong>C-01-A</strong>. Stock actual: <strong style="color:#ef4444">1 unidad</strong> (CRÍTICO).',
+  'picking': '📋 <strong>Protocolo de Picking SmartWMS:</strong><br/>1. Recibe la orden asignada en la app<br/>2. Presiona "Iniciar Picking"<br/>3. Sigue la ruta secuencial por ubicaciones<br/>4. Escanea el QR de cada producto<br/>5. Al terminar, dirígete a la Mesa de Salida<br/>6. Escanea QR "Empaque Listo" para cerrar.',
+  'qr incorrecto': '❌ <strong>Si escaneas un QR incorrecto:</strong><br/>• La app emitirá tono grave y mostrará error rojo<br/>• No descuenta ningún item<br/>• Debes volver a escanear el QR correcto<br/>• Si el error persiste, reporta al supervisor.',
+  'cuarentena': 'Un producto en Cuarentena (<strong>🔴</strong>) fue detectado por el sensor MPU6050 con impacto superior a 2.5G, o fue reportado manualmente. <strong>No puede ser picking</strong> hasta que el supervisor lo libere.',
+  'default': '🤖 Entendido. Déjame consultar los datos del sistema...<br/><br/>No encontré información específica sobre esa consulta en los registros de bodega. Si es una duda operativa, revisa el manual de procedimientos o consulta con tu supervisor. Soy un asistente de bodega y solo respondo preguntas del ámbito logístico. 😊',
+};
+
+function getBotAnswer(q) {
+  const ql = q.toLowerCase();
+  if(ql.includes('sku-00567') || ql.includes('teclado')) return botAnswers['sku-00567'];
+  if(ql.includes('sku-00412') || ql.includes('tornillo')) return botAnswers['sku-00412'];
+  if(ql.includes('cable') || ql.includes('usb')) return botAnswers['cable'];
+  if(ql.includes('stock') || ql.includes('inventario') || ql.includes('cuánto') || ql.includes('cuantos')) return botAnswers['stock'];
+  if(ql.includes('picking') || ql.includes('protocolo') || ql.includes('procedimiento')) return botAnswers['picking'];
+  if(ql.includes('qr incorrecto') || ql.includes('error') || ql.includes('incorrecto')) return botAnswers['qr incorrecto'];
+  if(ql.includes('cuarentena')) return botAnswers['cuarentena'];
+  return botAnswers['default'];
+}
+
+function addMsg(text, role) {
+  const chat = document.getElementById('ai-chat');
+  const div = document.createElement('div');
+  div.className = 'chat-msg ' + role;
+  if(role === 'bot') div.innerHTML = '<div class="bot-name">🤖 Copiloto SmartWMS</div>' + text;
+  else div.textContent = text;
+  chat.appendChild(div);
+  div.scrollIntoView({behavior:'smooth'});
+}
+
+function addTyping() {
+  const chat = document.getElementById('ai-chat');
+  const div = document.createElement('div');
+  div.className = 'chat-msg bot'; div.id = 'typing-indicator';
+  div.innerHTML = '<div class="bot-name">🤖 Copiloto SmartWMS</div><em style="color:var(--muted)">Consultando base de datos…</em>';
+  chat.appendChild(div);
+  div.scrollIntoView({behavior:'smooth'});
+}
+
+function sendChat() {
+  const inp = document.getElementById('chat-input');
+  const q = inp.value.trim();
+  if(!q) return;
+  inp.value = '';
+  addMsg(q, 'user');
+  addTyping();
+  setTimeout(() => {
+    document.getElementById('typing-indicator').remove();
+    addMsg(getBotAnswer(q), 'bot');
+  }, 900 + Math.random()*600);
+}
+
+function askBot(q) {
+  document.getElementById('chat-input').value = q;
+  showScreen('stock');
+  setTimeout(sendChat, 200);
+}
+</script>
+</body>
+</html>

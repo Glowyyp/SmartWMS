@@ -29,14 +29,16 @@ SmartWMS es una plataforma WMS full-stack para gestión de inventario, recepció
 
 ```text
 SmartWMS/
+├── Fase 1/                         # Documentación y entregables Fase 1
+├── Fase 2/                         # Documentación y entregables Fase 2
+├── Fase 3/                         # Documentación y entregables Fase 3
 ├── android-operario/               # App móvil nativa Android (Kotlin)
 ├── bot/                            # Servicio Bot IA (FastAPI + Gemini)
 ├── deploy/gcp/                     # Pipeline CI/CD (cloudbuild.yaml) y script manual de aprovisionamiento
 ├── ecommerce/
 │   ├── backend/                    # API REST FastAPI, modelos SQLAlchemy, tests y simulador webhook
 │   └── frontend/smartwms-angular/  # Portal web Angular + Nginx para Cloud Run
-├── scripts/                        # Utilidades administrativas (init_db, reset_user_mfa) y pruebas
-└── Entrega 2/                      # Documentación y entregables del proyecto
+└── scripts/                        # Utilidades administrativas (init_db, reset_user_mfa) y pruebas
 ```
 
 ---
