@@ -21,6 +21,13 @@ class PickingAdapter(
     private val onLocationClick: ((sku: String, location: String?) -> Unit)? = null
 ) : RecyclerView.Adapter<PickingAdapter.ViewHolder>() {
 
+    private var lastScannedSku: String? = null
+
+    fun setLastScannedSku(sku: String?) {
+        lastScannedSku = sku
+        notifyDataSetChanged()
+    }
+
     inner class ViewHolder(private val binding: ItemPickingBinding) :
         RecyclerView.ViewHolder(binding.root) {
 
@@ -45,16 +52,23 @@ class PickingAdapter(
                 }
             }
 
+            val isLastScanned = lastScannedSku != null && item.sku.equals(lastScannedSku, ignoreCase = true)
+
             if (item.isPicked) {
-                binding.root.alpha           = 0.5f
+                binding.root.alpha           = 0.55f
                 binding.ivStatus.setImageResource(android.R.drawable.ic_menu_send)
                 binding.ivStatus.setColorFilter(Color.parseColor("#4ade80"))
                 binding.tvQuantity.setTextColor(Color.parseColor("#4ade80"))
             } else {
                 binding.root.alpha           = 1f
                 binding.ivStatus.setImageResource(android.R.drawable.ic_menu_search)
-                binding.ivStatus.clearColorFilter()
-                binding.tvQuantity.setTextColor(Color.parseColor("#facc15"))
+                if (isLastScanned) {
+                    binding.ivStatus.setColorFilter(Color.parseColor("#4ade80"))
+                    binding.tvQuantity.setTextColor(Color.parseColor("#4ade80"))
+                } else {
+                    binding.ivStatus.clearColorFilter()
+                    binding.tvQuantity.setTextColor(Color.parseColor("#facc15"))
+                }
             }
         }
     }

@@ -32,6 +32,7 @@ from pydantic import BaseModel, Field
 from sqlalchemy import func, or_, select
 from sqlalchemy.orm import Session
 
+from app.core.stock_status import sync_inventory_stock_statuses
 from app.database import get_db
 from app.models.inventory import ProductInventory
 from app.models.user import User
@@ -542,6 +543,8 @@ def create_work_order(
 
     _record_status_change(wo, None, wo.status, current_user, db, notes="Pedido creado")
 
+    db.flush()
+    sync_inventory_stock_statuses(db, [item.sku for item, _ in enriched_items])
     db.commit()
     db.refresh(wo)
     logger.info("📦 Pedido creado: %s status=%s operario=%s", wo.order_number, wo.status, wo.assigned_operario_email)
@@ -705,6 +708,11 @@ def update_work_order(
             notes=f"Operario modificado a '{wo.assigned_operario_email or 'Sin asignar'}' por {current_user.email}",
         )
 
+    old_skus = [it.sku for it in wo.items]
+    if payload.items is not None:
+        old_skus = list(set(old_skus + [it.sku for it in payload.items]))
+    db.flush()
+    sync_inventory_stock_statuses(db, old_skus)
     db.commit()
     db.refresh(wo)
     logger.info("✏️ Pedido %s actualizado: status=%s operario=%s", wo.order_number, wo.status, wo.assigned_operario_email)
@@ -887,6 +895,8 @@ def dispatch_work_order(
             notes=f"Pedido despachado por {current_user.email}",
         )
 
+        db.flush()
+        sync_inventory_stock_statuses(db, [it.sku for it in wo.items])
         db.commit()
         db.refresh(wo)
         logger.info("✅ Pedido despachado: %s por %s", wo.order_number, current_user.email)
@@ -935,6 +945,8 @@ def cancel_work_order(
 
     _record_status_change(wo, old_status, "cancelled", current_user, db, notes="Pedido cancelado por supervisor")
 
+    db.flush()
+    sync_inventory_stock_statuses(db, [it.sku for it in wo.items])
     db.commit()
     db.refresh(wo)
     logger.info("❌ Pedido cancelado: %s por %s", wo.order_number, current_user.email)

@@ -212,7 +212,23 @@
             android:max="100"
             android:progress="0"
             android:progressTint="@color/purple_primary"
-            android:layout_marginBottom="16dp"/>
+            android:layout_marginBottom="10dp"/>
+
+        <!-- Indicador visual inmediato de producto escaneado (+1 automático) -->
+        <TextView
+            android:id="@+id/tv_scan_feedback"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:background="#264ade80"
+            android:textColor="#4ade80"
+            android:textSize="13sp"
+            android:textStyle="bold"
+            android:paddingStart="12dp"
+            android:paddingEnd="12dp"
+            android:paddingTop="8dp"
+            android:paddingBottom="8dp"
+            android:layout_marginBottom="10dp"
+            android:visibility="gone"/>
 
         <!-- Lista de items del pedido (con botón ❓) -->
         <androidx.recyclerview.widget.RecyclerView

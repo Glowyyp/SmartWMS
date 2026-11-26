@@ -22,6 +22,9 @@ class HostSelectionInterceptor : Interceptor {
 
     override fun intercept(chain: Interceptor.Chain): Response {
         var request = chain.request()
+        val reqBuilder = request.newBuilder()
+            .header("X-Client-Type", "mobile")
+
         val currentHost = host
         if (!currentHost.isNullOrEmpty()) {
             val newUrlBuilder = request.url.newBuilder()
@@ -36,11 +39,9 @@ class HostSelectionInterceptor : Interceptor {
                 backendPort ?: request.url.port
             }
             newUrlBuilder.port(targetPort)
-
-            request = request.newBuilder()
-                .url(newUrlBuilder.build())
-                .build()
+            reqBuilder.url(newUrlBuilder.build())
         }
+        request = reqBuilder.build()
         return chain.proceed(request)
     }
 }

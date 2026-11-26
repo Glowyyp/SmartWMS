@@ -18,6 +18,11 @@ from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from app.core.qr import generate_sku_qr_data_uri
+from app.core.stock_status import (
+    compute_stock_status,
+    get_warning_threshold,
+    sync_inventory_stock_statuses,
+)
 from app.database import get_db
 from app.models.inventory import ProductInventory
 from app.models.warehouse import (
@@ -63,12 +68,14 @@ ACTIVE_RESERVED_STATUSES = [
     summary="Listar todos los productos con stock físico, reservado y disponible",
 )
 def list_products(
+    stock_status: str | None = None,
     db: Session = Depends(get_db),
     _: object = Depends(get_current_user),   # cualquier usuario autenticado
 ):
     """
     Devuelve todos los productos del inventario ordenados por SKU.
-    Incluye reserved_qty (suma de pedidos pendientes), available_qty y
+    Incluye reserved_qty (suma de pedidos pendientes), available_qty,
+    stock_status ('healthy' | 'warning' | 'critical') sincronizado y
     el desglose real por ubicación (location_stocks / unlocated_qty).
     """
     ensure_default_layout(db)
@@ -87,23 +94,42 @@ def list_products(
 
     location_stocks_by_sku = get_located_qty_by_sku(db)
 
-    dirty_qr = False
+    dirty_rows = False
     for p in products:
         expected_qr = generate_sku_qr_data_uri(p.sku)
         if p.qr_code != expected_qr:
             p.qr_code = expected_qr
-            dirty_qr = True
-    if dirty_qr:
+            dirty_rows = True
+        avail = max(0, p.stock_quantity - reserved_by_sku.get(p.sku, 0))
+        computed_status = compute_stock_status(avail, p.reorder_point)
+        if p.stock_status != computed_status:
+            p.stock_status = computed_status
+            dirty_rows = True
+    if dirty_rows:
         db.commit()
+
+    normalized_filter = (stock_status or "").strip().lower() or None
+    if normalized_filter and normalized_filter not in ("healthy", "warning", "critical"):
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="Filtro stock_status inválido. Valores permitidos: healthy, warning, critical.",
+        )
 
     result = []
     for p in products:
         reserved = reserved_by_sku.get(p.sku, 0)
+        avail = max(0, p.stock_quantity - reserved)
+        computed_status = compute_stock_status(avail, p.reorder_point)
+        if normalized_filter and computed_status != normalized_filter:
+            continue
         loc_list = location_stocks_by_sku.get(p.sku, [])
         located_total = sum(x["quantity"] for x in loc_list)
         out = ProductOut.model_validate(p)
         out.reserved_qty = reserved
-        out.available_qty = max(0, p.stock_quantity - reserved)
+        out.available_qty = avail
+        out.stock_status = computed_status
+        out.warning_threshold = get_warning_threshold(p.reorder_point)
+        out.is_low_stock = computed_status == "critical"
         out.location_stocks = [ProductLocationBreakdown(**x) for x in loc_list]
         out.unlocated_qty = max(0, p.stock_quantity - located_total)
         if out.estimated_volume is None and p.length and p.width and p.height:
@@ -140,13 +166,21 @@ def create_product(
     if data.get("estimated_volume") is None and data.get("length") and data.get("width") and data.get("height"):
         data["estimated_volume"] = data["length"] * data["width"] * data["height"]
     data["qr_code"] = generate_sku_qr_data_uri(product_in.sku)
+    data["stock_status"] = compute_stock_status(product_in.stock_quantity, product_in.reorder_point)
 
     product = ProductInventory(**data)
     db.add(product)
     db.commit()
     db.refresh(product)
-    logger.info("📦 Producto creado: %s — %s", product.sku, product.product_name)
-    return product
+    logger.info("📦 Producto creado: %s — %s (estado: %s)", product.sku, product.product_name, product.stock_status)
+    out = ProductOut.model_validate(product)
+    out.reserved_qty = 0
+    out.available_qty = product.stock_quantity
+    out.unlocated_qty = product.stock_quantity
+    out.stock_status = product.stock_status
+    out.warning_threshold = get_warning_threshold(product.reorder_point)
+    out.is_low_stock = product.stock_status == "critical"
+    return out
 
 
 # ─── PUT /api/v1/inventory/{id} ───────────────────────────────────────────────
@@ -187,10 +221,30 @@ def update_product(
     if product.qr_code != expected_qr:
         product.qr_code = expected_qr
 
+    reserved = int(
+        db.execute(
+            select(func.coalesce(func.sum(WorkOrderItem.quantity), 0))
+            .join(WorkOrder, WorkOrder.id == WorkOrderItem.work_order_id)
+            .where(
+                WorkOrder.status.in_(ACTIVE_RESERVED_STATUSES),
+                WorkOrderItem.sku == product.sku,
+            )
+        ).scalar()
+        or 0
+    )
+    avail = max(0, product.stock_quantity - reserved)
+    product.stock_status = compute_stock_status(avail, product.reorder_point)
+
     db.commit()
     db.refresh(product)
-    logger.info("✏️  Producto actualizado: id=%d SKU=%s", product.id, product.sku)
-    return product
+    logger.info("✏️  Producto actualizado: id=%d SKU=%s estado=%s", product.id, product.sku, product.stock_status)
+    out = ProductOut.model_validate(product)
+    out.reserved_qty = reserved
+    out.available_qty = avail
+    out.stock_status = product.stock_status
+    out.warning_threshold = get_warning_threshold(product.reorder_point)
+    out.is_low_stock = product.stock_status == "critical"
+    return out
 
 
 # ─── DELETE /api/v1/inventory/{id} ────────────────────────────────────────────
@@ -344,9 +398,11 @@ def confirm_pending_reception(
     # Actualizar inventario físico y por llegar
     product.stock_quantity += added_to_received
     product.pending_quantity = max(0, product.pending_quantity - pending_delta)
+    sync_inventory_stock_statuses(db, [product.sku])
 
     db.commit()
     _unlock_waiting_work_orders(db)
+    sync_inventory_stock_statuses(db, [product.sku])
     db.commit()
     db.refresh(reception)
     return reception
@@ -420,10 +476,12 @@ def update_pending_reception(
 
     product.stock_quantity += delta_received
     product.pending_quantity = max(0, product.pending_quantity + (new_remaining - old_remaining))
+    sync_inventory_stock_statuses(db, [product.sku])
 
     db.commit()
     if delta_received > 0:
         _unlock_waiting_work_orders(db)
+        sync_inventory_stock_statuses(db, [product.sku])
         db.commit()
     db.refresh(reception)
     return reception

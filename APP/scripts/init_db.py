@@ -16,7 +16,9 @@ from app.core.env import load_project_env
 load_project_env()
 
 from app.database import Base, engine, SessionLocal, migrate_schema
+from app.core.stock_status import sync_inventory_stock_statuses
 from app.models.user import User
+from app.models.user_session import UserSession
 from app.models.inventory import ProductInventory
 from app.models.work_order import WorkOrder, WorkOrderItem, WorkOrderPackage
 from app.models.pending_reception import PendingReception
@@ -140,6 +142,11 @@ def init_database():
             print("  -> 3 productos de demostración insertados.")
         else:
             print(f"  -> Catalogo existente contiene {prod_count} productos.")
+
+        synced = sync_inventory_stock_statuses(db)
+        if synced > 0:
+            db.commit()
+            print(f"  -> Estados de stock sincronizados para {synced} producto(s).")
 
         print("\n" + "=" * 60)
         print("  Base de datos inicializada y lista para usar.")

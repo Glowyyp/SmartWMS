@@ -59,6 +59,7 @@ class LocationItemDetailOut(BaseModel):
     available_qty: int
     unit_price: float
     reorder_point: int
+    stock_status: str = "healthy"
     is_low_stock: bool
 
 
@@ -152,6 +153,8 @@ def _build_reserved_map(db: Session) -> dict[str, int]:
     return {r.sku: int(r.reserved) for r in rows}
 
 
+from app.core.stock_status import compute_stock_status
+
 def _serialize_location(
     loc: WarehouseLocation,
     zone: WarehouseZone | None,
@@ -166,6 +169,7 @@ def _serialize_location(
             continue
         res_qty = reserved_by_sku.get(prod.sku, 0)
         avail_qty = max(0, prod.stock_quantity - res_qty)
+        computed_status = compute_stock_status(avail_qty, prod.reorder_point)
         total_units += st.quantity
         items.append(
             LocationItemDetailOut(
@@ -178,7 +182,8 @@ def _serialize_location(
                 available_qty=avail_qty,
                 unit_price=float(prod.unit_price),
                 reorder_point=prod.reorder_point,
-                is_low_stock=prod.is_low_stock,
+                stock_status=computed_status,
+                is_low_stock=computed_status == "critical",
             )
         )
 

@@ -43,11 +43,16 @@ async def lifespan(app: FastAPI):
 
     # Seed de datos de prueba (solo si inventario está vacío) y layout inicial
     from app.database import SessionLocal
+    from app.core.presence import reconcile_stale_sessions
+    from app.core.stock_status import sync_inventory_stock_statuses
     from app.services.order_service import seed_inventory
     from app.services.layout_service import ensure_default_layout
     with SessionLocal() as db:
         seed_inventory(db)
         ensure_default_layout(db)
+        if sync_inventory_stock_statuses(db) > 0:
+            db.commit()
+        reconcile_stale_sessions(db)
 
     yield  # La app corre aquí
 
@@ -101,6 +106,7 @@ from app.routers import users    # noqa: E402
 from app.routers import orders   # noqa: E402
 from app.routers import work_orders  # noqa: E402
 from app.routers import layout  # noqa: E402
+from app.routers import activity  # noqa: E402
 
 app.include_router(webhooks.router)
 app.include_router(auth.router)
@@ -109,6 +115,7 @@ app.include_router(users.router)
 app.include_router(orders.router)
 app.include_router(work_orders.router)
 app.include_router(layout.router)
+app.include_router(activity.router)
 
 
 # =============================================================================

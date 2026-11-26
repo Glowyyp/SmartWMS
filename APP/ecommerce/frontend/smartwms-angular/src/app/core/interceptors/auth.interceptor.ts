@@ -20,9 +20,14 @@ export const authInterceptor: HttpInterceptorFn = (req, next) => {
     ? req.clone({
         setHeaders: {
           Authorization: `Bearer ${token}`,
+          'X-Client-Type': 'web',
         },
       })
-    : req;
+    : req.clone({
+        setHeaders: {
+          'X-Client-Type': 'web',
+        },
+      });
 
   return next(authReq).pipe(
     catchError((error: HttpErrorResponse) => {

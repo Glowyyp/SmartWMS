@@ -64,6 +64,16 @@ except Exception as e:
 
 # ─── INVENTARIO EN TIEMPO REAL DESDE ECOMMERCE.DB ─────────────────────────────
 
+def classify_stock_status(qty: int, reorder: int) -> str:
+    q = max(0, int(qty or 0))
+    rp = max(0, int(reorder or 0))
+    if q <= 0 or q <= rp:
+        return "critical"
+    if rp > 0 and q <= rp * 2:
+        return "warning"
+    return "healthy"
+
+
 def get_live_inventory() -> tuple[str, list[dict]]:
     """Consulta la BD (PostgreSQL/Cloud SQL via DATABASE_URL o SQLite local ecommerce.db)."""
     products: list[dict] = []
@@ -121,7 +131,13 @@ def get_live_inventory() -> tuple[str, list[dict]]:
         qty = p.get("stock_quantity", 0)
         reorder = p.get("reorder_point") or 10
         loc = p.get("warehouse_location") or "S/L"
-        estado = "⚠️ CRÍTICO" if qty <= reorder else "✅ Saludable"
+        st = classify_stock_status(qty, reorder)
+        if st == "critical":
+            estado = "🔴 CRÍTICO"
+        elif st == "warning":
+            estado = "🟡 ADVERTENCIA"
+        else:
+            estado = "✅ Saludable"
         lines.append(f"- {p.get('sku')} ({p.get('product_name')}): {qty} uds en Zona {loc} ({estado})")
 
     context_str = "\n".join(lines)
@@ -184,22 +200,32 @@ def get_local_fallback_reply(text: str, products: list[dict]) -> dict:
             "buttons": [{"label": "📋 Volver a Picking", "cmd": "/picking"}]
         }
 
-    # 4. Alertas de Stock Crítico
-    if any(k in tl for k in ["alerta", "alertas", "critico", "crítico", "agotado", "reorden", "bajo stock", "/alertas"]):
-        criticos = [p for p in products if p.get("stock_quantity", 0) <= (p.get("reorder_point") or 10)]
-        if not criticos:
-            return {"text": "✅ **Estado del Inventario:** Todos los SKUs se encuentran con niveles saludables de stock."}
-        
-        items_txt = []
-        for p in criticos[:8]:
-            loc = p.get('warehouse_location') or 'S/L'
-            items_txt.append(f"- **{p.get('sku')}** ({p.get('product_name')}): `{p.get('stock_quantity')} uds` en Zona {loc} (Punto reorden: {p.get('reorder_point', 10)})")
+    # 4. Alertas de Stock (Crítico y Advertencia)
+    if any(k in tl for k in ["alerta", "alertas", "critico", "crítico", "advertencia", "agotado", "reorden", "bajo stock", "/alertas"]):
+        criticos = [p for p in products if classify_stock_status(p.get("stock_quantity", 0), p.get("reorder_point") or 10) == "critical"]
+        advertencias = [p for p in products if classify_stock_status(p.get("stock_quantity", 0), p.get("reorder_point") or 10) == "warning"]
+        if not criticos and not advertencias:
+            return {"text": "✅ **Estado del Inventario:** Todos los SKUs se encuentran en nivel Saludable."}
+
+        sections = []
+        if criticos:
+            crit_lines = [
+                f"- 🔴 **{p.get('sku')}** ({p.get('product_name')}): `{p.get('stock_quantity')} uds` en Zona {p.get('warehouse_location') or 'S/L'} (Umbral crítico: ≤{p.get('reorder_point', 10)})"
+                for p in criticos[:6]
+            ]
+            sections.append(f"#### 🔴 Estado Crítico ({len(criticos)})\n" + "\n".join(crit_lines))
+        if advertencias:
+            warn_lines = [
+                f"- 🟡 **{p.get('sku')}** ({p.get('product_name')}): `{p.get('stock_quantity')} uds` en Zona {p.get('warehouse_location') or 'S/L'} (Advertencia: ≤{(p.get('reorder_point') or 10) * 2})"
+                for p in advertencias[:6]
+            ]
+            sections.append(f"#### 🟡 Estado Advertencia ({len(advertencias)})\n" + "\n".join(warn_lines))
 
         return {
             "text": (
-                f"### ⚠️ Alertas de Stock Crítico ({len(criticos)} ítems detectados)\n\n"
-                + "\n".join(items_txt)
-                + "\n\n> Se sugiere al Supervisor emitir orden de compra para reabastecimiento."
+                f"### ⚠️ Alertas de Stock ({len(criticos)} críticos · {len(advertencias)} en advertencia)\n\n"
+                + "\n\n".join(sections)
+                + "\n\n> Se sugiere priorizar el reabastecimiento de productos en estado **Crítico** y monitorear los de **Advertencia**."
             ),
             "buttons": [{"label": "📦 Ver Todo el Stock", "cmd": "/stock"}]
         }
@@ -228,7 +254,13 @@ def get_local_fallback_reply(text: str, products: list[dict]) -> dict:
         qty = found.get("stock_quantity", 0)
         reorder = found.get("reorder_point") or 10
         loc = found.get("warehouse_location") or "Sin asignar"
-        estado = "⚠️ En nivel crítico" if qty <= reorder else "✅ Nivel adecuado"
+        st = classify_stock_status(qty, reorder)
+        if st == "critical":
+            estado = "🔴 Crítico"
+        elif st == "warning":
+            estado = "🟡 Advertencia"
+        else:
+            estado = "✅ Saludable"
         return {
             "text": (
                 f"### 📦 Información de Inventario\n\n"

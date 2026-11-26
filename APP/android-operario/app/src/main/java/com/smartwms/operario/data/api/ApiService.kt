@@ -47,6 +47,11 @@ interface ApiService {
         @Header("Authorization") token: String
     ): Response<Unit>
 
+    @POST("api/auth/heartbeat")
+    suspend fun heartbeat(
+        @Header("Authorization") token: String
+    ): Response<Unit>
+
 
     // ── Inventario ────────────────────────────────────────────────────────────
     // Incluye warehouse_location para mostrar la zona de cada SKU al operario

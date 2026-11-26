@@ -8,6 +8,7 @@ para garantizar consistencia bajo concurrencia (múltiples webhooks simultáneos
 from datetime import datetime
 from typing import Optional
 from sqlalchemy import Column, Integer, String, Numeric, DateTime, func, Text, Boolean, CheckConstraint
+from app.core.stock_status import compute_stock_status
 from app.database import Base
 
 
@@ -31,8 +32,11 @@ class ProductInventory(Base):
     # Precio de referencia (puede diferir del precio de venta en el webhook)
     unit_price = Column(Numeric(precision=12, scale=2), nullable=False)
 
-    # Umbral mínimo para alertas de stock bajo
+    # Umbral mínimo (crítico) para alertas de stock bajo
     reorder_point = Column(Integer, nullable=False, default=10)
+
+    # Estado de stock persistido y sincronizado: 'healthy' | 'warning' | 'critical'
+    stock_status = Column(String(20), nullable=False, default="healthy", index=True)
 
     # Ubicación física en el almacén (zona/pasillo). Ej: 'A', 'B', 'C-01', etc.
     # NULL = sin ubicación asignada. Se muestra en el botón ❓ del Operario.
@@ -69,8 +73,11 @@ class ProductInventory(Base):
 
     @property
     def is_low_stock(self) -> bool:
-        """True si el stock actual está en o por debajo del reorder point."""
-        return self.stock_quantity <= self.reorder_point
+        """True si el producto se encuentra en estado crítico (<= reorder_point)."""
+        status = getattr(self, "stock_status", None)
+        if status in ("healthy", "warning", "critical"):
+            return status == "critical"
+        return compute_stock_status(self.stock_quantity, self.reorder_point) == "critical"
 
     def __repr__(self) -> str:
         return f"<ProductInventory sku={self.sku} stock={self.stock_quantity}>"

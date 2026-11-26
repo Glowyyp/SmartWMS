@@ -12,6 +12,22 @@
   .toolbar-title { font-weight: 700; font-size: 1.1rem; }
   .spacer { flex: 1 1 auto; }
 
+  .warning-stock-badge {
+    display: flex;
+    align-items: center;
+    gap: 0.3rem;
+    background: rgba(245, 158, 11, 0.15);
+    color: #f59e0b;
+    border: 1px solid rgba(245, 158, 11, 0.35);
+    border-radius: 20px;
+    padding: 0.3rem 0.75rem;
+    font-size: 0.8rem;
+    font-weight: 600;
+    margin-right: 0.5rem;
+
+    mat-icon { font-size: 16px; width: 16px; height: 16px; }
+  }
+
   .low-stock-badge {
     display: flex;
     align-items: center;
@@ -145,18 +161,30 @@
   color: #3ecf8e;
 }
 
-.status-badge {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.3rem;
-  padding: 0.25rem 0.75rem;
-  border-radius: 20px;
-  font-size: 0.8rem;
-  font-weight: 600;
+  .status-filter-select {
+    background: #13131f;
+    color: #f8fafc;
+    border: 1px solid rgba(255, 255, 255, 0.15);
+    border-radius: 8px;
+    padding: 0.45rem 0.75rem;
+    font-size: 0.82rem;
+    outline: none;
+    cursor: pointer;
+  }
 
-  mat-icon { font-size: 14px; width: 14px; height: 14px; }
+  .status-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.3rem;
+    padding: 0.25rem 0.75rem;
+    border-radius: 20px;
+    font-size: 0.8rem;
+    font-weight: 600;
 
-  &--ok       { background: rgba(62,207,142,0.15); color: #3ecf8e; border: 1px solid rgba(62,207,142,0.3); }
-  &--warning  { background: rgba(245,158,11,0.15); color: #f59e0b; border: 1px solid rgba(245,158,11,0.3); }
-  &--critical { background: rgba(239,68,68,0.15);  color: #ef4444;  border: 1px solid rgba(239,68,68,0.3);  }
-}
+    mat-icon { font-size: 14px; width: 14px; height: 14px; }
+
+    &--healthy,
+    &--ok       { background: rgba(62,207,142,0.15); color: #3ecf8e; border: 1px solid rgba(62,207,142,0.3); }
+    &--warning  { background: rgba(245,158,11,0.15); color: #f59e0b; border: 1px solid rgba(245,158,11,0.3); }
+    &--critical { background: rgba(239,68,68,0.15);  color: #ef4444;  border: 1px solid rgba(239,68,68,0.3);  }
+  }

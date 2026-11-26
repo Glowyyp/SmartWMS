@@ -28,13 +28,20 @@ from __future__ import annotations
 import logging
 from datetime import datetime, timezone
 
-from fastapi import APIRouter, Depends, Header, HTTPException, status
+from fastapi import APIRouter, Depends, Header, HTTPException, Request, status
 from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
 from jose import JWTError
 from sqlalchemy.orm import Session
 
 from app.core import mfa
-from app.core.presence import compute_user_online, mark_user_connected, touch_user_activity
+from app.core.presence import (
+    close_user_session,
+    compute_user_online,
+    detect_client_type,
+    extract_client_ip,
+    open_user_session,
+    touch_user_activity,
+)
 from app.core.security import (
     TOKEN_TYPE_ACCESS,
     TOKEN_TYPE_MFA_PENDING,
@@ -67,15 +74,11 @@ oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/auth/login", auto_error=Fals
 
 # ─── Dependencias de Autenticación ────────────────────────────────────────────
 
-def get_current_user(
-    token: str | None = Depends(oauth2_scheme),
-    db: Session = Depends(get_db),
-) -> User:
-    """
-    Dependencia estándar para endpoints protegidos de la API.
-    Exige un token JWT válido de tipo 'access'.
-    Rechaza terminantemente tokens parciales 'mfa_pending' (HTTP 401).
-    """
+def _authenticate_access_token(
+    token: str | None,
+    db: Session,
+) -> tuple[User, str | None]:
+    """Valida el JWT de tipo 'access' y devuelve (user, jti) sin modificar sesiones."""
     credentials_exc = HTTPException(
         status_code=status.HTTP_401_UNAUTHORIZED,
         detail="Credenciales de acceso inválidas o sesión expirada",
@@ -94,13 +97,34 @@ def get_current_user(
         email: str | None = payload.get("sub")
         if email is None:
             raise credentials_exc
+        jti: str | None = payload.get("jti")
     except JWTError:
         raise credentials_exc
 
     user = db.query(User).filter(User.email == email).first()
     if user is None or not user.is_active:
         raise credentials_exc
-    touch_user_activity(user, db)
+    return user, jti
+
+
+def get_current_user(
+    request: Request,
+    token: str | None = Depends(oauth2_scheme),
+    db: Session = Depends(get_db),
+) -> User:
+    """
+    Dependencia estándar para endpoints protegidos de la API.
+    Exige un token JWT válido de tipo 'access'.
+    Rechaza terminantemente tokens parciales 'mfa_pending' (HTTP 401).
+    """
+    user, jti = _authenticate_access_token(token, db)
+    touch_user_activity(
+        user,
+        db,
+        jti=jti,
+        client_type=detect_client_type(request),
+        ip_address=extract_client_ip(request),
+    )
     return user
 
 
@@ -223,6 +247,7 @@ def register(user_in: UserCreate, db: Session = Depends(get_db)):
     summary="Login y evaluación de segundo factor",
 )
 def login(
+    request: Request,
     form_data: OAuth2PasswordRequestForm = Depends(),
     db: Session = Depends(get_db),
 ):
@@ -280,9 +305,14 @@ def login(
         )
 
     # Caso 3: MFA no requerido por política (compatibilidad hacia atrás)
-    mark_user_connected(user, is_login=True)
+    jti = open_user_session(
+        user,
+        db,
+        client_type=detect_client_type(request),
+        ip_address=extract_client_ip(request),
+    )
     db.commit()
-    final_token = create_access_token({"sub": user.email, "role": user.role})
+    final_token = create_access_token({"sub": user.email, "role": user.role, "jti": jti})
     logger.info("Login completo directo (sin MFA) para %s (%s)", user.email, user.role)
     return TokenResponse(
         access_token=final_token,
@@ -346,6 +376,7 @@ def mfa_setup(
     summary="Confirmar código TOTP y activar MFA en la cuenta",
 )
 def mfa_activate(
+    request: Request,
     payload: MFAActivateRequest,
     authorization: str | None = Header(default=None),
     db: Session = Depends(get_db),
@@ -391,11 +422,16 @@ def mfa_activate(
     user.mfa_enabled_at = datetime.now(timezone.utc)
     user.mfa_last_used_step = accepted_step
     mfa.register_success(user)
-    mark_user_connected(user, is_login=True)
+    jti = open_user_session(
+        user,
+        db,
+        client_type=detect_client_type(request),
+        ip_address=extract_client_ip(request),
+    )
     db.commit()
 
     logger.info("MFA activado con éxito para %s (rol: %s)", user.email, user.role)
-    access_token = create_access_token({"sub": user.email, "role": user.role})
+    access_token = create_access_token({"sub": user.email, "role": user.role, "jti": jti})
     return TokenResponse(
         access_token=access_token,
         role=user.role,
@@ -409,6 +445,7 @@ def mfa_activate(
     summary="Verificar código TOTP de segundo factor",
 )
 def mfa_verify(
+    request: Request,
     payload: MFAVerifyRequest,
     authorization: str | None = Header(default=None),
     db: Session = Depends(get_db),
@@ -459,11 +496,16 @@ def mfa_verify(
     # Éxito: registrar paso y limpiar intentos fallidos
     user.mfa_last_used_step = accepted_step
     mfa.register_success(user)
-    mark_user_connected(user, is_login=True)
+    jti = open_user_session(
+        user,
+        db,
+        client_type=detect_client_type(request),
+        ip_address=extract_client_ip(request),
+    )
     db.commit()
 
     logger.info("Segundo factor validado con éxito para %s (%s)", user.email, user.role)
-    access_token = create_access_token({"sub": user.email, "role": user.role})
+    access_token = create_access_token({"sub": user.email, "role": user.role, "jti": jti})
     return TokenResponse(
         access_token=access_token,
         role=user.role,
@@ -477,6 +519,7 @@ def mfa_verify(
     summary="Acceso de emergencia usando código de recuperación",
 )
 def mfa_recover(
+    request: Request,
     payload: MFARecoverRequest,
     authorization: str | None = Header(default=None),
     db: Session = Depends(get_db),
@@ -518,13 +561,18 @@ def mfa_recover(
 
     user.mfa_recovery_codes = new_codes_json
     mfa.register_success(user)
-    mark_user_connected(user, is_login=True)
+    jti = open_user_session(
+        user,
+        db,
+        client_type=detect_client_type(request),
+        ip_address=extract_client_ip(request),
+    )
     db.commit()
 
     remaining = mfa.remaining_recovery_codes(new_codes_json)
     logger.warning("Usuario %s accedió con código de recuperación. Códigos restantes: %d", user.email, remaining)
 
-    access_token = create_access_token({"sub": user.email, "role": user.role})
+    access_token = create_access_token({"sub": user.email, "role": user.role, "jti": jti})
     return TokenResponse(
         access_token=access_token,
         role=user.role,
@@ -581,14 +629,44 @@ def me(current_user: User = Depends(get_current_user)):
 
 
 @router.post(
+    "/heartbeat",
+    summary="Registrar actividad periódica de la sesión activa",
+)
+def heartbeat(
+    request: Request,
+    token: str | None = Depends(oauth2_scheme),
+    db: Session = Depends(get_db),
+):
+    """Mantiene viva la sesión activa del usuario y registra su última actividad."""
+    user, jti = _authenticate_access_token(token, db)
+    session = touch_user_activity(
+        user,
+        db,
+        jti=jti,
+        client_type=detect_client_type(request),
+        ip_address=extract_client_ip(request),
+        force=True,
+    )
+    return {
+        "status": "ok",
+        "session_id": session.id if session else None,
+        "last_activity_at": session.last_activity_at.isoformat() if session and session.last_activity_at else None,
+    }
+
+
+@router.post(
     "/logout",
     summary="Cerrar sesión y marcar usuario como desconectado",
 )
 def logout(
-    current_user: User = Depends(get_current_user),
+    token: str | None = Depends(oauth2_scheme),
     db: Session = Depends(get_db),
 ):
-    """Marca el estado de conexión del usuario como desconectado."""
-    current_user.is_connected = False
-    db.commit()
-    return {"status": "ok"}
+    """Cierra la sesión histórica activa, calcula su duración y marca al usuario como desconectado."""
+    user, jti = _authenticate_access_token(token, db)
+    closed = close_user_session(user, db, jti=jti, reason="logout")
+    return {
+        "status": "ok",
+        "session_id": closed.id if closed else None,
+        "duration_seconds": closed.duration_seconds if closed else 0,
+    }

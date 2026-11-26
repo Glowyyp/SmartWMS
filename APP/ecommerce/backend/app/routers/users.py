@@ -14,7 +14,7 @@ from typing import List, Union
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 
-from app.core.presence import compute_user_online
+from app.core.presence import compute_user_online, reconcile_stale_sessions
 from app.database import get_db
 from app.models.user import User
 from app.routers.auth import get_current_user, require_admin, require_supervisor_or_admin
@@ -57,6 +57,7 @@ def list_users(
     - Administradores: ven todos los usuarios del sistema.
     - Supervisores: solo pueden consultar supervisores y operarios (nunca administradores).
     """
+    reconcile_stale_sessions(db)
     query = db.query(User)
     if current_user.role != "admin":
         query = query.filter(User.role.in_(["supervisor", "operario"]))
@@ -95,6 +96,7 @@ def get_user(
     current_user: User = Depends(require_supervisor_or_admin),
 ):
     """Retorna los datos de un usuario específico por ID (supervisores no ven admins)."""
+    reconcile_stale_sessions(db, user_id=user_id)
     query = db.query(User).filter(User.id == user_id)
     if current_user.role != "admin":
         query = query.filter(User.role.in_(["supervisor", "operario"]))
@@ -115,7 +117,7 @@ def get_user(
 def toggle_user_active(
     user_id: int,
     db: Session = Depends(get_db),
-    _: User = Depends(require_admin),
+    admin_user: User = Depends(require_admin),
 ):
     """Alterna el estado activo/inactivo de un usuario. Solo admin."""
     query = db.query(User).filter(User.id == user_id)

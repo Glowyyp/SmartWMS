@@ -10,8 +10,11 @@ from __future__ import annotations
 
 from datetime import datetime
 from decimal import Decimal
+from typing import Literal
 
 from pydantic import BaseModel, Field
+
+StockStatus = Literal["healthy", "warning", "critical"]
 
 
 # ─── Entrada ──────────────────────────────────────────────────────────────────
@@ -77,6 +80,8 @@ class ProductOut(BaseModel):
     stock_quantity: int
     unit_price: Decimal
     reorder_point: int
+    warning_threshold: int = 20
+    stock_status: StockStatus = "healthy"
     is_low_stock: bool
     warehouse_location: str | None = None
     pending_quantity: int = 0

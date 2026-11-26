@@ -23,8 +23,25 @@ import { MatSnackBar, MatSnackBarModule } from '@angular/material/snack-bar';
 
 import { AuthService } from '../../core/services/auth.service';
 import { OrdersService, Order, InsufficientStockItem } from '../../core/services/orders.service';
-import { InventoryService, ProductInventory, PendingReception } from '../../core/services/inventory.service';
+import {
+  InventoryService,
+  ProductInventory,
+  PendingReception,
+  StockStatus,
+  resolveStockStatus,
+  getStockStatusLabel,
+  getStockStatusChipClass,
+} from '../../core/services/inventory.service';
 import { UsersService, UserRecord } from '../../core/services/users.service';
+import {
+  ActivityService,
+  ActivityOverview,
+  UserActivitySummary,
+  UserActivityDetail,
+  SessionLog,
+  formatDuration,
+  formatCompactDuration,
+} from '../../core/services/activity.service';
 import { WorkOrdersService, WorkOrder, WorkOrderItemIn, WorkOrderUpdate, Operario } from '../../core/services/work-orders.service';
 import {
   LayoutService, LayoutLocation, LayoutZone, PutawayMovement, LocationItemDetail
@@ -81,6 +98,7 @@ export class SupervisorComponent implements OnInit, OnDestroy {
   products = signal<ProductInventory[]>([]);
   productsLoading = signal(false);
   inventorySearch = signal('');
+  inventoryStatusFilter = signal<'' | StockStatus>('');
   expandedProductQrId = signal<number | null>(null);
 
   showAddForm = signal(false);
@@ -110,21 +128,101 @@ export class SupervisorComponent implements OnInit, OnDestroy {
   });
 
   filteredProducts = computed(() => {
-    const q = this.inventorySearch().toLowerCase();
-    if (!q) return this.products();
-    return this.products().filter(p =>
-      p.sku.toLowerCase().includes(q) || p.product_name.toLowerCase().includes(q)
-    );
+    const q = this.inventorySearch().toLowerCase().trim();
+    const status = this.inventoryStatusFilter();
+    return this.products().filter(p => {
+      const matchesQuery = !q || p.sku.toLowerCase().includes(q) || p.product_name.toLowerCase().includes(q);
+      const matchesStatus = !status || this.getStockStatus(p) === status;
+      return matchesQuery && matchesStatus;
+    });
   });
 
-  lowStockCount = computed(() =>
-    this.products().filter(p => p.is_low_stock).length
+  healthyStockCount = computed(() =>
+    this.products().filter(p => this.getStockStatus(p) === 'healthy').length
   );
 
-  // ── Usuarios ───────────────────────────────────────────────────────────────
+  warningStockCount = computed(() =>
+    this.products().filter(p => this.getStockStatus(p) === 'warning').length
+  );
+
+  criticalStockCount = computed(() =>
+    this.products().filter(p => this.getStockStatus(p) === 'critical').length
+  );
+
+  alertStockCount = computed(() =>
+    this.criticalStockCount() + this.warningStockCount()
+  );
+
+  alertStockProducts = computed(() => {
+    const order: Record<StockStatus, number> = { critical: 0, warning: 1, healthy: 2 };
+    return this.products()
+      .filter(p => this.getStockStatus(p) !== 'healthy')
+      .sort((a, b) => {
+        const diff = order[this.getStockStatus(a)] - order[this.getStockStatus(b)];
+        return diff !== 0 ? diff : a.available_qty - b.available_qty;
+      });
+  });
+
+  lowStockCount = computed(() => this.criticalStockCount());
+
+  // ── Usuarios y Registro de Actividad / Métricas ────────────────────────────
   users = signal<UserRecord[]>([]);
   usersLoading = signal(false);
   userColumns = ['id', 'email', 'full_name', 'role', 'is_active', 'created_at'];
+
+  activityOverview = signal<ActivityOverview | null>(null);
+  activityLoading = signal(false);
+  activityError = signal('');
+  activityDays = signal<number>(7);
+  activitySearch = signal('');
+  activityStatusFilter = signal<'' | 'online' | 'offline'>('');
+
+  selectedActivityUserId = signal<number | null>(null);
+  selectedUserDetail = signal<UserActivityDetail | null>(null);
+  selectedUserDetailLoading = signal(false);
+  selectedUserDetailDays = signal<number>(14);
+
+  filteredActivityUsers = computed<UserActivitySummary[]>(() => {
+    const overview = this.activityOverview();
+    if (!overview) return [];
+    const q = this.activitySearch().toLowerCase().trim();
+    const st = this.activityStatusFilter();
+    return overview.users.filter(u => {
+      const matchesQuery =
+        !q ||
+        u.user_name.toLowerCase().includes(q) ||
+        (u.email ?? '').toLowerCase().includes(q) ||
+        u.role.toLowerCase().includes(q);
+      const matchesStatus =
+        !st || (st === 'online' ? u.is_online : !u.is_online);
+      return matchesQuery && matchesStatus;
+    });
+  });
+
+  onlineUsersCount = computed(() =>
+    this.activityOverview()?.summary.online_users ??
+    this.visibleUsers().filter(u => !!u.is_online).length
+  );
+
+  offlineUsersCount = computed(() =>
+    this.activityOverview()?.summary.offline_users ??
+    Math.max(0, this.visibleUsers().length - this.onlineUsersCount())
+  );
+
+  maxOverviewDailySeconds = computed(() => {
+    const pts = this.activityOverview()?.daily_activity ?? [];
+    return Math.max(1, ...pts.map(p => p.duration_seconds));
+  });
+
+  maxComparisonUserSeconds = computed(() => {
+    const list = this.activityOverview()?.users ?? [];
+    return Math.max(1, ...list.map(u => u.total_duration_seconds));
+  });
+
+  maxUserDetailDailySeconds = computed(() => {
+    const pts = this.selectedUserDetail()?.daily_activity ?? [];
+    return Math.max(1, ...pts.map(p => p.duration_seconds));
+  });
 
   // ── Pedidos de Bodega (Work Orders) ────────────────────────────────────────
   workOrders = signal<WorkOrder[]>([]);
@@ -268,11 +366,11 @@ export class SupervisorComponent implements OnInit, OnDestroy {
 
   // ── Métricas BI ────────────────────────────────────────────────────────────
   leadTimeAvg = signal(2.3);
-  criticalStockCount = computed(() => this.products().filter(p => p.stock_quantity === 0 || p.is_low_stock).length);
 
   private pollSub?: Subscription;
   private woPollSub?: Subscription;
   private usersPollSub?: Subscription;
+  private activityPollSub?: Subscription;
   private layoutPollSub?: Subscription;
 
   constructor(
@@ -280,6 +378,7 @@ export class SupervisorComponent implements OnInit, OnDestroy {
     private ordersService: OrdersService,
     private inventoryService: InventoryService,
     private usersService: UsersService,
+    private activityService: ActivityService,
     private workOrdersService: WorkOrdersService,
     private layoutService: LayoutService,
     private snackBar: MatSnackBar,
@@ -292,6 +391,7 @@ export class SupervisorComponent implements OnInit, OnDestroy {
     this.loadOrders();
     this.loadInventory();
     this.loadUsers();
+    this.loadActivityOverview();
     this.loadWorkOrders();
     this.loadReceptions();
     this.loadOperarios();
@@ -315,6 +415,19 @@ export class SupervisorComponent implements OnInit, OnDestroy {
       switchMap(() => this.usersService.getUsers())
     ).subscribe({ next: users => this.users.set(users) });
 
+    // Poll métricas de actividad cada 15 s
+    this.activityPollSub = interval(15000).pipe(
+      switchMap(() => this.activityService.getOverview(this.activityDays()))
+    ).subscribe({
+      next: overview => {
+        this.activityOverview.set(overview);
+        const selId = this.selectedActivityUserId();
+        if (selId !== null && this.activeTab() === 2) {
+          this.refreshSelectedUserDetailSilent(selId);
+        }
+      },
+    });
+
     // Poll layout cada 15 s para reflejar movimientos Putaway de la APK en tiempo real
     this.layoutPollSub = interval(15000).pipe(
       switchMap(() => this.layoutService.getLayout())
@@ -331,6 +444,7 @@ export class SupervisorComponent implements OnInit, OnDestroy {
     this.pollSub?.unsubscribe();
     this.woPollSub?.unsubscribe();
     this.usersPollSub?.unsubscribe();
+    this.activityPollSub?.unsubscribe();
     this.layoutPollSub?.unsubscribe();
   }
 
@@ -523,7 +637,12 @@ export class SupervisorComponent implements OnInit, OnDestroy {
       const editProd = this.editingProduct()!;
       this.inventoryService.updateProduct(editProd.id, editProd).subscribe({
         next: updated => {
-          this.products.update(list => list.map(item => item.id === updated.id ? { ...updated, reserved_qty: item.reserved_qty, available_qty: updated.stock_quantity - item.reserved_qty } : item));
+          this.products.update(list => list.map(item => {
+            if (item.id !== updated.id) return item;
+            const available = Math.max(0, updated.stock_quantity - item.reserved_qty);
+            const merged = { ...updated, reserved_qty: item.reserved_qty, available_qty: available };
+            return { ...merged, stock_status: resolveStockStatus(merged), is_low_stock: resolveStockStatus(merged) === 'critical' };
+          }));
           this.cancelEdit();
           this.addingProduct.set(false);
           this.snackBar.open(`✅ Producto ${updated.sku} actualizado`, '', { duration: 3000 });
@@ -582,6 +701,113 @@ export class SupervisorComponent implements OnInit, OnDestroy {
 
   getUserLastConnection(u: UserRecord): string | null {
     return u.last_seen_at || u.last_login_at || null;
+  }
+
+  // ── Actividad y Métricas de Usuarios ───────────────────────────────────────
+  loadActivityOverview(): void {
+    this.activityLoading.set(true);
+    this.activityError.set('');
+    this.activityService.getOverview(this.activityDays()).subscribe({
+      next: data => {
+        this.activityOverview.set(data);
+        this.activityLoading.set(false);
+        const selId = this.selectedActivityUserId();
+        if (selId !== null) {
+          this.refreshSelectedUserDetailSilent(selId);
+        }
+      },
+      error: err => {
+        this.activityLoading.set(false);
+        this.activityError.set(err.error?.detail ?? 'No se pudieron cargar las métricas de actividad.');
+      },
+    });
+  }
+
+  onActivityDaysChange(days: number): void {
+    this.activityDays.set(Number(days) || 7);
+    this.loadActivityOverview();
+  }
+
+  selectActivityUser(userId: number): void {
+    if (this.selectedActivityUserId() === userId && this.selectedUserDetail()) {
+      this.closeActivityUserDetail();
+      return;
+    }
+    this.selectedActivityUserId.set(userId);
+    this.loadUserActivityDetail(userId);
+  }
+
+  loadUserActivityDetail(userId: number): void {
+    this.selectedUserDetailLoading.set(true);
+    this.activityService.getUserDetail(userId, this.selectedUserDetailDays(), 50).subscribe({
+      next: detail => {
+        this.selectedUserDetail.set(detail);
+        this.selectedUserDetailLoading.set(false);
+      },
+      error: err => {
+        this.selectedUserDetailLoading.set(false);
+        this.snackBar.open(
+          err.error?.detail ?? 'No se pudo cargar el historial del usuario.',
+          'Cerrar',
+          { duration: 4000 }
+        );
+      },
+    });
+  }
+
+  private refreshSelectedUserDetailSilent(userId: number): void {
+    this.activityService.getUserDetail(userId, this.selectedUserDetailDays(), 50).subscribe({
+      next: detail => this.selectedUserDetail.set(detail),
+    });
+  }
+
+  onUserDetailDaysChange(days: number): void {
+    this.selectedUserDetailDays.set(Number(days) || 14);
+    const id = this.selectedActivityUserId();
+    if (id !== null) {
+      this.loadUserActivityDetail(id);
+    }
+  }
+
+  closeActivityUserDetail(): void {
+    this.selectedActivityUserId.set(null);
+    this.selectedUserDetail.set(null);
+  }
+
+  formatDuration(seconds: number | null | undefined): string {
+    return formatDuration(seconds);
+  }
+
+  formatCompactDuration(seconds: number | null | undefined): string {
+    return formatCompactDuration(seconds);
+  }
+
+  getBarPercent(value: number, max: number): number {
+    if (!value || max <= 0) return 0;
+    return Math.max(4, Math.min(100, Math.round((value / max) * 100)));
+  }
+
+  getSessionStatusLabel(sess: SessionLog): string {
+    if (sess.is_online || sess.status === 'active') return 'Conectado';
+    if (sess.status === 'timeout' || sess.disconnect_reason === 'inactivity_timeout') {
+      return 'Inactividad / Timeout';
+    }
+    return 'Desconectado';
+  }
+
+  getSessionStatusClass(sess: SessionLog): string {
+    if (sess.is_online || sess.status === 'active') return 'chip-success';
+    if (sess.status === 'timeout' || sess.disconnect_reason === 'inactivity_timeout') {
+      return 'chip-warning';
+    }
+    return 'chip-muted';
+  }
+
+  getClientTypeLabel(clientType: string | null | undefined): string {
+    const c = (clientType || 'web').toLowerCase();
+    if (c === 'mobile') return 'App Móvil';
+    if (c === 'web') return 'Web';
+    return 'API';
   }
 
   // ── Work Orders ────────────────────────────────────────────────────────────
@@ -1255,11 +1481,21 @@ export class SupervisorComponent implements OnInit, OnDestroy {
       .join('\n');
   }
 
-  getStockStatus(p: ProductInventory): 'critical' | 'warning' | 'ok' {
-    if (p.stock_quantity === 0) return 'critical';
-    if (p.is_low_stock) return 'critical';
-    const ratio = p.stock_quantity / p.reorder_point;
-    return ratio <= 2 ? 'warning' : 'ok';
+  getStockStatus(p: ProductInventory): StockStatus {
+    return resolveStockStatus(p);
+  }
+
+  getStockStatusLabel(p: ProductInventory): string {
+    return getStockStatusLabel(this.getStockStatus(p));
+  }
+
+  getStockStatusChipClass(p: ProductInventory): string {
+    return getStockStatusChipClass(this.getStockStatus(p));
+  }
+
+  getStockAlertProgress(p: ProductInventory): number {
+    const denom = Math.max(1, (p.reorder_point || 10) * 3);
+    return Math.min(100, Math.round((Math.max(0, p.available_qty) / denom) * 100));
   }
 
   getRoleLabel(role: string): string {

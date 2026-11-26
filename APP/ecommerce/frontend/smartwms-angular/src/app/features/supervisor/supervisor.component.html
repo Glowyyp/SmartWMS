@@ -22,15 +22,26 @@
       </button>
       <button class="nav-item" [class.active]="activeTab() === 1" (click)="activeTab.set(1)">
         <mat-icon>inventory_2</mat-icon><span>Inventario</span>
-        @if (lowStockCount()) {
-          <span class="nav-badge danger">{{ lowStockCount() }}</span>
+        @if (criticalStockCount()) {
+          <span class="nav-badge danger"
+            [matTooltip]="criticalStockCount() + ' crítico(s) · ' + warningStockCount() + ' en advertencia'"
+            matTooltipClass="wms-tooltip">{{ criticalStockCount() }}</span>
+        } @else if (warningStockCount()) {
+          <span class="nav-badge warning"
+            [matTooltip]="warningStockCount() + ' producto(s) en advertencia'"
+            matTooltipClass="wms-tooltip">{{ warningStockCount() }}</span>
         }
       </button>
       <button class="nav-item" [class.active]="activeTab() === 7" (click)="activeTab.set(7)">
         <mat-icon>local_shipping</mat-icon><span>Recepciones</span>
       </button>
-      <button class="nav-item" [class.active]="activeTab() === 2" (click)="activeTab.set(2)">
-        <mat-icon>group</mat-icon><span>Usuarios</span>
+      <button class="nav-item" [class.active]="activeTab() === 2" (click)="activeTab.set(2); loadActivityOverview()">
+        <mat-icon>group</mat-icon><span>Usuarios y Actividad</span>
+        @if (onlineUsersCount() > 0) {
+          <span class="nav-badge success"
+            [matTooltip]="onlineUsersCount() + ' usuario(s) conectado(s) ahora'"
+            matTooltipClass="wms-tooltip">{{ onlineUsersCount() }}</span>
+        }
       </button>
       <button class="nav-item" [class.active]="activeTab() === 3" (click)="activeTab.set(3); loadLayout()">
         <mat-icon>map</mat-icon><span>Layout</span>
@@ -621,10 +632,19 @@
             <h1 class="section-title">Inventario</h1>
             <p class="section-subtitle">
               {{ products().length }} productos ·
-              <span class="critical-text">{{ lowStockCount() }} con stock crítico</span>
+              <span class="healthy-text">{{ healthyStockCount() }} saludables</span> ·
+              <span class="warning-text">{{ warningStockCount() }} en advertencia</span> ·
+              <span class="critical-text">{{ criticalStockCount() }} críticos</span>
             </p>
           </div>
           <div class="header-actions">
+            <select id="inventory-status-filter" class="status-select"
+              [ngModel]="inventoryStatusFilter()" (ngModelChange)="inventoryStatusFilter.set($event)">
+              <option value="">Todos los estados ({{ products().length }})</option>
+              <option value="healthy">Saludable ({{ healthyStockCount() }})</option>
+              <option value="warning">Advertencia ({{ warningStockCount() }})</option>
+              <option value="critical">Crítico ({{ criticalStockCount() }})</option>
+            </select>
             <input id="inventory-search" class="search-input" type="text" placeholder="Buscar SKU o producto..."
               [ngModel]="inventorySearch()" (ngModelChange)="inventorySearch.set($event)" />
             <button mat-stroked-button (click)="loadInventory()">
@@ -743,7 +763,10 @@
                   <td><code class="mono">{{ p.sku }}</code></td>
                   <td>{{ p.product_name }}</td>
                   <td>
-                    <span class="stock-value" [class.critical]="getStockStatus(p) === 'critical'" [class.warning]="getStockStatus(p) === 'warning'">
+                    <span class="stock-value"
+                      [class.healthy]="getStockStatus(p) === 'healthy'"
+                      [class.warning]="getStockStatus(p) === 'warning'"
+                      [class.critical]="getStockStatus(p) === 'critical'">
                       {{ p.available_qty }}
                     </span>
                   </td>
@@ -762,8 +785,10 @@
                     }
                   </td>
                   <td>
-                    <span class="status-chip" [ngClass]="getStockStatus(p) === 'ok' ? 'chip-success' : 'chip-danger'">
-                      {{ getStockStatus(p) === 'ok' ? 'Saludable' : 'Crítico' }}
+                    <span class="status-chip" [ngClass]="getStockStatusChipClass(p)"
+                      [matTooltip]="'Umbral crítico: ≤ ' + p.reorder_point + ' · Advertencia: ≤ ' + (p.reorder_point * 2)"
+                      matTooltipClass="wms-tooltip">
+                      {{ getStockStatusLabel(p) }}
                     </span>
                   </td>
                   <td style="white-space: nowrap">
@@ -836,47 +861,403 @@
       </section>
     }
 
-    <!-- ── TAB 2: USUARIOS ────────────────────────────────────────────────── -->
+    <!-- ── TAB 2: USUARIOS Y REGISTRO DE ACTIVIDAD / MÉTRICAS ───────────── -->
     @if (activeTab() === 2) {
       <section class="panel-section">
         <div class="section-header">
           <div>
-            <h1 class="section-title">Usuarios Conectados</h1>
-            <p class="section-subtitle">{{ visibleUsers().length }} usuarios visibles según tu rol</p>
+            <h1 class="section-title">Usuarios y Registro de Actividad</h1>
+            <p class="section-subtitle">
+              Seguimiento automático de conexiones, tiempos de uso e historial por usuario
+              @if (activityOverview(); as ov) {
+                · Timeout por inactividad: {{ ov.summary.session_timeout_seconds }}s
+              }
+            </p>
           </div>
-          <button mat-stroked-button (click)="loadUsers()">
-            <mat-icon>refresh</mat-icon> Actualizar
-          </button>
+          <div class="header-actions">
+            <select id="activity-days-filter" class="status-select"
+              [ngModel]="activityDays()" (ngModelChange)="onActivityDaysChange($event)">
+              <option [ngValue]="7">Últimos 7 días</option>
+              <option [ngValue]="14">Últimos 14 días</option>
+              <option [ngValue]="30">Últimos 30 días</option>
+            </select>
+            <button mat-stroked-button id="btn-refresh-activity" (click)="loadUsers(); loadActivityOverview()">
+              <mat-icon>refresh</mat-icon> Actualizar
+            </button>
+          </div>
         </div>
-        @if (usersLoading()) { <mat-progress-bar mode="indeterminate"></mat-progress-bar> }
-        <div class="users-grid">
-          @for (u of visibleUsers(); track u.id) {
-            <div class="user-card">
-              <div class="user-avatar">{{ (getUserDisplayName(u)[0] || '?').toUpperCase() }}</div>
-              <div class="user-details">
-                <p class="user-email">{{ getUserDisplayName(u) }}</p>
-                <div class="user-badges-row">
-                  <span class="role-badge" [ngClass]="getRoleBadgeClass(u.role)">{{ getRoleLabel(u.role) }}</span>
-                  <span class="conn-badge" [class.online]="u.is_online">
-                    <span class="active-dot" [class.inactive]="!u.is_online"></span>
-                    {{ u.is_online ? 'Conectado' : 'Desconectado' }}
-                  </span>
-                </div>
-                <p class="user-last-conn">
-                  Última conexión:
-                  @if (getUserLastConnection(u); as lastConn) {
-                    <strong>{{ lastConn | date:'dd/MM/yyyy HH:mm' }}</strong>
-                  } @else {
-                    <span>Sin registro</span>
-                  }
-                </p>
+
+        @if (activityError()) {
+          <div class="error-banner"><mat-icon>error_outline</mat-icon> {{ activityError() }}</div>
+        }
+        @if (activityLoading() || usersLoading()) {
+          <mat-progress-bar mode="indeterminate"></mat-progress-bar>
+        }
+
+        <!-- 1. KPIs Generales de Supervisión (3.4) -->
+        @if (activityOverview(); as ov) {
+          <div class="bi-grid activity-kpi-grid">
+            <div class="bi-card bi-card--purple">
+              <mat-icon>group</mat-icon>
+              <h3>Usuarios Registrados</h3>
+              <p class="bi-value" id="kpi-total-users">{{ ov.summary.total_users }}</p>
+              <p class="bi-subtitle">Visibles según rol ({{ getRoleLabel(userRole()) }})</p>
+            </div>
+            <div class="bi-card bi-card--success">
+              <mat-icon>wifi</mat-icon>
+              <h3>Conectados Actualmente</h3>
+              <p class="bi-value" id="kpi-online-users">{{ ov.summary.online_users }}</p>
+              <p class="bi-subtitle">{{ ov.summary.active_sessions_count }} sesión(es) activa(s) ahora</p>
+            </div>
+            <div class="bi-card bi-card--info">
+              <mat-icon>wifi_off</mat-icon>
+              <h3>Desconectados</h3>
+              <p class="bi-value" id="kpi-offline-users">{{ ov.summary.offline_users }}</p>
+              <p class="bi-subtitle">Sin actividad reciente</p>
+            </div>
+            <div class="bi-card bi-card--primary">
+              <mat-icon>schedule</mat-icon>
+              <h3>Tiempo Total de Uso</h3>
+              <p class="bi-value" id="kpi-total-usage">{{ formatDuration(ov.summary.total_usage_seconds) }}</p>
+              <p class="bi-subtitle">{{ ov.summary.total_sessions_count }} sesiones · {{ formatDuration(ov.summary.period_usage_seconds) }} en {{ activityDays() }}d</p>
+            </div>
+          </div>
+
+          <!-- 2. Gráficos de Actividad Diaria y Comparativa entre Usuarios (3.3 / 3.4) -->
+          <div class="activity-charts-grid">
+            <div class="chart-card">
+              <div class="chart-card-header">
+                <h2 class="subsection-title"><mat-icon>bar_chart</mat-icon> Actividad Diaria ({{ activityDays() }} días)</h2>
+                <span class="chart-meta">Total período: <strong>{{ formatDuration(ov.summary.period_usage_seconds) }}</strong></span>
+              </div>
+              <div class="bar-chart-vertical">
+                @for (pt of ov.daily_activity; track pt.date) {
+                  <div class="vbar-col"
+                    [matTooltip]="pt.label + ': ' + formatDuration(pt.duration_seconds) + ' · ' + pt.sessions_count + ' sesión(es) · ' + pt.active_users_count + ' usuario(s)'"
+                    matTooltipPosition="above" matTooltipClass="wms-tooltip">
+                    <span class="vbar-value">{{ pt.duration_seconds > 0 ? formatCompactDuration(pt.duration_seconds) : '' }}</span>
+                    <div class="vbar-track">
+                      <div class="vbar-fill" [style.height.%]="getBarPercent(pt.duration_seconds, maxOverviewDailySeconds())"></div>
+                    </div>
+                    <span class="vbar-label">{{ pt.label }}</span>
+                    <span class="vbar-sub">{{ pt.sessions_count }}s</span>
+                  </div>
+                }
               </div>
             </div>
+
+            <div class="chart-card">
+              <div class="chart-card-header">
+                <h2 class="subsection-title"><mat-icon>leaderboard</mat-icon> Comparativa de Uso por Usuario</h2>
+                <span class="chart-meta">Haz clic para ver detalle</span>
+              </div>
+              <div class="hbar-list">
+                @for (u of ov.users.slice(0, 8); track u.user_id) {
+                  <div class="hbar-row" [class.selected]="selectedActivityUserId() === u.user_id"
+                    (click)="selectActivityUser(u.user_id)">
+                    <div class="hbar-meta">
+                      <span class="hbar-user">
+                        <span class="active-dot" [class.inactive]="!u.is_online"></span>
+                        {{ u.user_name }}
+                        <span class="role-badge" [ngClass]="getRoleBadgeClass(u.role)">{{ getRoleLabel(u.role) }}</span>
+                      </span>
+                      <span class="hbar-val">{{ formatDuration(u.total_duration_seconds) }} · {{ u.total_sessions }} ses.</span>
+                    </div>
+                    <div class="hbar-track">
+                      <div class="hbar-fill"
+                        [class.online]="u.is_online"
+                        [style.width.%]="getBarPercent(u.total_duration_seconds, maxComparisonUserSeconds())">
+                      </div>
+                    </div>
+                  </div>
+                }
+                @if (ov.users.length === 0) {
+                  <p class="empty-lines-hint">Sin usuarios visibles para comparar.</p>
+                }
+              </div>
+            </div>
+          </div>
+
+          <!-- 3. Detalle Individual del Usuario Seleccionado (3.2 & 3.3) -->
+          @if (selectedActivityUserId() !== null) {
+            <div class="user-detail-panel" id="user-activity-detail-panel">
+              @if (selectedUserDetailLoading() && !selectedUserDetail()) {
+                <mat-progress-bar mode="indeterminate"></mat-progress-bar>
+              }
+              @if (selectedUserDetail(); as detail) {
+                <div class="user-detail-header">
+                  <div class="user-detail-identity">
+                    <div class="user-avatar">{{ (detail.user.user_name[0] || '?').toUpperCase() }}</div>
+                    <div>
+                      <h2 class="location-detail-title">
+                        {{ detail.user.user_name }}
+                        <span class="role-badge" [ngClass]="getRoleBadgeClass(detail.user.role)">{{ getRoleLabel(detail.user.role) }}</span>
+                        <span class="conn-badge" [class.online]="detail.user.is_online">
+                          <span class="active-dot" [class.inactive]="!detail.user.is_online"></span>
+                          {{ detail.user.is_online ? 'Conectado' : 'Desconectado' }}
+                        </span>
+                      </h2>
+                      <p class="section-subtitle">
+                        @if (detail.user.email) { {{ detail.user.email }} · }
+                        ID #{{ detail.user.user_id }} · Frecuencia: <strong>{{ detail.user.frequency_label }}</strong>
+                      </p>
+                    </div>
+                  </div>
+                  <div class="header-actions">
+                    <select id="user-detail-days-filter" class="status-select"
+                      [ngModel]="selectedUserDetailDays()" (ngModelChange)="onUserDetailDaysChange($event)">
+                      <option [ngValue]="7">Últimos 7 días</option>
+                      <option [ngValue]="14">Últimos 14 días</option>
+                      <option [ngValue]="30">Últimos 30 días</option>
+                    </select>
+                    <button mat-icon-button type="button" (click)="closeActivityUserDetail()"
+                      matTooltip="Cerrar detalle" matTooltipClass="wms-tooltip">
+                      <mat-icon>close</mat-icon>
+                    </button>
+                  </div>
+                </div>
+
+                <!-- Estadísticas Individuales (3.3) -->
+                <div class="user-metrics-grid">
+                  <div class="mini-metric-card">
+                    <span class="mini-metric-label">Tiempo Total Conectado</span>
+                    <strong class="mini-metric-value">{{ formatDuration(detail.user.total_duration_seconds) }}</strong>
+                    <span class="mini-metric-sub">Acumulado histórico</span>
+                  </div>
+                  <div class="mini-metric-card">
+                    <span class="mini-metric-label">Promedio por Sesión</span>
+                    <strong class="mini-metric-value">{{ formatDuration(detail.user.avg_session_seconds) }}</strong>
+                    <span class="mini-metric-sub">{{ detail.user.total_sessions }} sesión(es) iniciadas</span>
+                  </div>
+                  <div class="mini-metric-card">
+                    <span class="mini-metric-label">Actividad Hoy / 7 días</span>
+                    <strong class="mini-metric-value">{{ formatDuration(detail.user.today_duration_seconds) }}</strong>
+                    <span class="mini-metric-sub">Semanal: {{ formatDuration(detail.user.week_duration_seconds) }}</span>
+                  </div>
+                  <div class="mini-metric-card">
+                    <span class="mini-metric-label">Frecuencia de Uso</span>
+                    <strong class="mini-metric-value">{{ detail.user.sessions_last_7_days }} ses./sem</strong>
+                    <span class="mini-metric-sub">{{ detail.user.active_days_last_30_days }} día(s) activos (30d) · {{ detail.user.avg_sessions_per_active_day }} ses/día</span>
+                  </div>
+                  <div class="mini-metric-card">
+                    <span class="mini-metric-label">Última Conexión</span>
+                    <strong class="mini-metric-value small-val">
+                      {{ detail.user.last_login_at ? (detail.user.last_login_at | date:'dd/MM/yyyy HH:mm') : 'Sin registro' }}
+                    </strong>
+                    <span class="mini-metric-sub">Origen: {{ getClientTypeLabel(detail.user.last_client_type) }}</span>
+                  </div>
+                  <div class="mini-metric-card">
+                    <span class="mini-metric-label">Última Actividad</span>
+                    <strong class="mini-metric-value small-val">
+                      {{ detail.user.last_activity_at ? (detail.user.last_activity_at | date:'dd/MM/yyyy HH:mm:ss') : 'Sin registro' }}
+                    </strong>
+                    <span class="mini-metric-sub">{{ detail.user.is_online ? 'Sesión activa' : 'Último latido registrado' }}</span>
+                  </div>
+                </div>
+
+                <!-- Gráfico de Actividad Diaria del Usuario -->
+                <div class="user-daily-chart-box">
+                  <h3 class="subsection-title" style="font-size: 14px; margin-bottom: 12px;">
+                    Actividad diaria de {{ detail.user.user_name }} ({{ selectedUserDetailDays() }} días)
+                  </h3>
+                  <div class="bar-chart-vertical compact">
+                    @for (pt of detail.daily_activity; track pt.date) {
+                      <div class="vbar-col"
+                        [matTooltip]="pt.label + ': ' + formatDuration(pt.duration_seconds) + ' (' + pt.sessions_count + ' sesiones)'"
+                        matTooltipPosition="above" matTooltipClass="wms-tooltip">
+                        <span class="vbar-value">{{ pt.duration_seconds > 0 ? formatCompactDuration(pt.duration_seconds) : '' }}</span>
+                        <div class="vbar-track">
+                          <div class="vbar-fill user-bar" [style.height.%]="getBarPercent(pt.duration_seconds, maxUserDetailDailySeconds())"></div>
+                        </div>
+                        <span class="vbar-label">{{ pt.label }}</span>
+                      </div>
+                    }
+                  </div>
+                </div>
+
+                <!-- Historial de Conexiones del Usuario (3.2) -->
+                <h3 class="subsection-title" style="font-size: 14px; margin: 18px 0 10px;">
+                  Historial de Conexiones ({{ detail.sessions.length }} registros)
+                </h3>
+                @if (detail.sessions.length > 0) {
+                  <div class="table-card">
+                    <table class="wms-table native-table">
+                      <thead>
+                        <tr>
+                          <th>Fecha</th>
+                          <th>Inicio</th>
+                          <th>Finalización</th>
+                          <th>Última Actividad</th>
+                          <th>Duración</th>
+                          <th>Origen</th>
+                          <th>Estado</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        @for (sess of detail.sessions; track sess.id) {
+                          <tr class="table-row">
+                            <td>{{ sess.started_at | date:'dd/MM/yyyy' }}</td>
+                            <td><code class="mono">{{ sess.started_at | date:'HH:mm:ss' }}</code></td>
+                            <td>
+                              @if (sess.ended_at) {
+                                <code class="mono">{{ sess.ended_at | date:'dd/MM HH:mm:ss' }}</code>
+                              } @else {
+                                <span class="healthy-text">En curso</span>
+                              }
+                            </td>
+                            <td>{{ sess.last_activity_at | date:'dd/MM HH:mm:ss' }}</td>
+                            <td><strong>{{ formatDuration(sess.duration_seconds) }}</strong></td>
+                            <td><span class="client-pill">{{ getClientTypeLabel(sess.client_type) }}</span></td>
+                            <td>
+                              <span class="status-chip" [ngClass]="getSessionStatusClass(sess)">
+                                {{ getSessionStatusLabel(sess) }}
+                              </span>
+                            </td>
+                          </tr>
+                        }
+                      </tbody>
+                    </table>
+                  </div>
+                } @else {
+                  <div class="empty-location-box">
+                    <mat-icon>history</mat-icon>
+                    <p>Este usuario aún no registra sesiones históricas desde la activación del módulo.</p>
+                  </div>
+                }
+              }
+            </div>
           }
-          @if (!visibleUsers().length && !usersLoading()) {
-            <div class="empty-state"><mat-icon>group_off</mat-icon><p>No hay usuarios disponibles</p></div>
-          }
-        </div>
+
+          <!-- 4. Tabla General de Usuarios y sus Principales Métricas (3.4) -->
+          <div class="activity-table-section">
+            <div class="layout-block-header">
+              <h2 class="subsection-title"><mat-icon>people</mat-icon> Usuarios y Métricas Individuales</h2>
+              <div class="header-actions">
+                <select id="activity-status-filter" class="status-select"
+                  [ngModel]="activityStatusFilter()" (ngModelChange)="activityStatusFilter.set($event)">
+                  <option value="">Todos ({{ ov.users.length }})</option>
+                  <option value="online">Conectados ({{ ov.summary.online_users }})</option>
+                  <option value="offline">Desconectados ({{ ov.summary.offline_users }})</option>
+                </select>
+                <input id="activity-user-search" class="search-input" type="text" placeholder="Buscar usuario o rol..."
+                  [ngModel]="activitySearch()" (ngModelChange)="activitySearch.set($event)" />
+              </div>
+            </div>
+
+            <div class="table-card">
+              <table class="wms-table native-table">
+                <thead>
+                  <tr>
+                    <th>Usuario</th>
+                    <th>Estado</th>
+                    <th>Sesiones</th>
+                    <th>Tiempo Total</th>
+                    <th>Prom. / Sesión</th>
+                    <th>Hoy / 7 días</th>
+                    <th>Frecuencia</th>
+                    <th>Última Conexión</th>
+                    <th>Última Actividad</th>
+                    <th></th>
+                  </tr>
+                </thead>
+                <tbody>
+                  @for (u of filteredActivityUsers(); track u.user_id) {
+                    <tr class="table-row clickable-row"
+                      [class.selected-user-row]="selectedActivityUserId() === u.user_id"
+                      (click)="selectActivityUser(u.user_id)"
+                      [id]="'activity-user-row-' + u.user_id">
+                      <td>
+                        <div class="table-user-cell">
+                          <div class="user-avatar small">{{ (u.user_name[0] || '?').toUpperCase() }}</div>
+                          <div>
+                            <div class="table-user-name">{{ u.user_name }}</div>
+                            <span class="role-badge" [ngClass]="getRoleBadgeClass(u.role)">{{ getRoleLabel(u.role) }}</span>
+                          </div>
+                        </div>
+                      </td>
+                      <td>
+                        <span class="conn-badge" [class.online]="u.is_online">
+                          <span class="active-dot" [class.inactive]="!u.is_online"></span>
+                          {{ u.is_online ? 'Conectado' : 'Desconectado' }}
+                        </span>
+                      </td>
+                      <td><strong>{{ u.total_sessions }}</strong></td>
+                      <td><strong>{{ formatDuration(u.total_duration_seconds) }}</strong></td>
+                      <td>{{ formatDuration(u.avg_session_seconds) }}</td>
+                      <td>
+                        <div>{{ formatDuration(u.today_duration_seconds) }}</div>
+                        <small class="text-muted">7d: {{ formatDuration(u.week_duration_seconds) }}</small>
+                      </td>
+                      <td><span class="freq-tag">{{ u.frequency_label }}</span></td>
+                      <td>{{ u.last_login_at ? (u.last_login_at | date:'dd/MM HH:mm') : '—' }}</td>
+                      <td>{{ u.last_activity_at ? (u.last_activity_at | date:'dd/MM HH:mm') : '—' }}</td>
+                      <td style="text-align: right;">
+                        <button mat-stroked-button type="button" class="mini-move-btn"
+                          [id]="'view-user-history-' + u.user_id"
+                          (click)="$event.stopPropagation(); selectActivityUser(u.user_id)">
+                          <mat-icon>history</mat-icon>
+                          {{ selectedActivityUserId() === u.user_id ? 'Ocultar' : 'Historial' }}
+                        </button>
+                      </td>
+                    </tr>
+                  }
+                </tbody>
+              </table>
+              @if (!filteredActivityUsers().length) {
+                <div class="empty-state"><mat-icon>group_off</mat-icon><p>No hay usuarios que coincidan con el filtro</p></div>
+              }
+            </div>
+          </div>
+
+          <!-- 5. Actividad Reciente de los Usuarios (3.4) -->
+          <div class="activity-table-section" style="margin-top: 24px;">
+            <div class="layout-block-header">
+              <h2 class="subsection-title"><mat-icon>history</mat-icon> Actividad Reciente de Conexiones</h2>
+              <span class="text-muted">Últimas {{ ov.recent_activity.length }} sesiones registradas</span>
+            </div>
+            <div class="table-card">
+              <table class="wms-table native-table">
+                <thead>
+                  <tr>
+                    <th>Usuario</th>
+                    <th>Rol</th>
+                    <th>Inicio</th>
+                    <th>Finalización</th>
+                    <th>Duración</th>
+                    <th>Origen</th>
+                    <th>Estado</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  @for (s of ov.recent_activity; track s.id) {
+                    <tr class="table-row clickable-row" (click)="selectActivityUser(s.user_id)">
+                      <td><strong>{{ s.user_name }}</strong></td>
+                      <td><span class="role-badge" [ngClass]="getRoleBadgeClass(s.role)">{{ getRoleLabel(s.role) }}</span></td>
+                      <td>{{ s.started_at | date:'dd/MM/yyyy HH:mm' }}</td>
+                      <td>
+                        @if (s.ended_at) {
+                          {{ s.ended_at | date:'dd/MM/yyyy HH:mm' }}
+                        } @else {
+                          <span class="healthy-text">En curso</span>
+                        }
+                      </td>
+                      <td><strong>{{ formatDuration(s.duration_seconds) }}</strong></td>
+                      <td><span class="client-pill">{{ getClientTypeLabel(s.client_type) }}</span></td>
+                      <td>
+                        <span class="status-chip" [ngClass]="getSessionStatusClass(s)">
+                          {{ getSessionStatusLabel(s) }}
+                        </span>
+                      </td>
+                    </tr>
+                  }
+                </tbody>
+              </table>
+              @if (ov.recent_activity.length === 0) {
+                <div class="empty-state"><mat-icon>schedule</mat-icon><p>Aún no hay sesiones registradas</p></div>
+              }
+            </div>
+          </div>
+        }
       </section>
     }
 
@@ -1266,10 +1647,22 @@
             <p class="bi-subtitle">US-BI-01 · Tiempo de procesamiento</p>
           </div>
           <div class="bi-card" [class.bi-card--danger]="criticalStockCount() > 0" [class.bi-card--success]="criticalStockCount() === 0">
-            <mat-icon>{{ criticalStockCount() > 0 ? 'warning' : 'check_circle' }}</mat-icon>
+            <mat-icon>{{ criticalStockCount() > 0 ? 'error' : 'check_circle' }}</mat-icon>
             <h3>Stock Crítico</h3>
             <p class="bi-value">{{ criticalStockCount() }}</p>
-            <p class="bi-subtitle">US-BI-02 · SKUs bajo punto de reorden</p>
+            <p class="bi-subtitle">US-BI-02 · SKUs en o bajo punto de reorden</p>
+          </div>
+          <div class="bi-card" [class.bi-card--warning]="warningStockCount() > 0" [class.bi-card--success]="warningStockCount() === 0">
+            <mat-icon>{{ warningStockCount() > 0 ? 'warning' : 'verified' }}</mat-icon>
+            <h3>Stock en Advertencia</h3>
+            <p class="bi-value">{{ warningStockCount() }}</p>
+            <p class="bi-subtitle">Stock bajo (entre 1× y 2× punto de reorden)</p>
+          </div>
+          <div class="bi-card bi-card--success">
+            <mat-icon>inventory</mat-icon>
+            <h3>Stock Saludable</h3>
+            <p class="bi-value">{{ healthyStockCount() }}</p>
+            <p class="bi-subtitle">Por sobre 2× punto de reorden</p>
           </div>
           <div class="bi-card bi-card--info">
             <mat-icon>assignment</mat-icon>
@@ -1277,34 +1670,47 @@
             <p class="bi-value">{{ pendingWoCount() }}</p>
             <p class="bi-subtitle">Pedidos de bodega sin despachar</p>
           </div>
-          <div class="bi-card bi-card--purple">
+          <div class="bi-card bi-card--purple clickable-card" (click)="activeTab.set(2); loadActivityOverview()">
             <mat-icon>group</mat-icon>
-            <h3>Usuarios del Sistema</h3>
-            <p class="bi-value">{{ visibleUsers().length }}</p>
-            <p class="bi-subtitle">Activos en SmartWMS</p>
+            <h3>Usuarios y Actividad</h3>
+            <p class="bi-value">{{ onlineUsersCount() }} / {{ visibleUsers().length }}</p>
+            <p class="bi-subtitle">
+              Conectados · {{ offlineUsersCount() }} desconectados
+              @if (activityOverview(); as ov) {
+                · Uso total: {{ formatDuration(ov.summary.total_usage_seconds) }}
+              }
+            </p>
           </div>
         </div>
         <div class="stock-alert-section">
-          <h2 class="subsection-title">Alertas Predictivas de Stock</h2>
-          <div class="stock-alerts">
-            @for (p of products(); track p.sku) {
-              @if (getStockStatus(p) !== 'ok') {
-                <div class="stock-alert-row" [class.critical]="getStockStatus(p) === 'critical'">
-                  <mat-icon>{{ getStockStatus(p) === 'critical' ? 'error' : 'warning' }}</mat-icon>
-                  <div class="stock-alert-info">
-                    <span class="alert-sku">{{ p.sku }}</span>
-                    <span class="alert-name">{{ p.product_name }}</span>
-                  </div>
-                  <span class="alert-qty">Físico: {{ p.stock_quantity }} | Disponible: {{ p.available_qty }}</span>
-                  <mat-progress-bar mode="determinate"
-                    [value]="(p.stock_quantity / (p.reorder_point * 3)) * 100"
-                    [color]="getStockStatus(p) === 'critical' ? 'warn' : 'accent'"
-                    class="alert-bar">
-                  </mat-progress-bar>
-                </div>
-              }
+          <h2 class="subsection-title">
+            Alertas Predictivas de Stock
+            @if (alertStockCount() > 0) {
+              <span class="section-subtitle" style="margin-left: 8px; font-weight: 400;">
+                ({{ criticalStockCount() }} críticos · {{ warningStockCount() }} en advertencia)
+              </span>
             }
-            @if (criticalStockCount() === 0) {
+          </h2>
+          <div class="stock-alerts">
+            @for (p of alertStockProducts(); track p.sku) {
+              <div class="stock-alert-row" [class.critical]="getStockStatus(p) === 'critical'">
+                <mat-icon>{{ getStockStatus(p) === 'critical' ? 'error' : 'warning' }}</mat-icon>
+                <div class="stock-alert-info">
+                  <span class="alert-sku">{{ p.sku }}</span>
+                  <span class="alert-name">{{ p.product_name }}</span>
+                </div>
+                <span class="status-chip" [ngClass]="getStockStatusChipClass(p)">
+                  {{ getStockStatusLabel(p) }}
+                </span>
+                <span class="alert-qty">Físico: {{ p.stock_quantity }} | Disponible: {{ p.available_qty }} (Reorden: {{ p.reorder_point }})</span>
+                <mat-progress-bar mode="determinate"
+                  [value]="getStockAlertProgress(p)"
+                  [color]="getStockStatus(p) === 'critical' ? 'warn' : 'accent'"
+                  class="alert-bar">
+                </mat-progress-bar>
+              </div>
+            }
+            @if (alertStockCount() === 0) {
               <div class="all-ok">
                 <mat-icon>check_circle</mat-icon>
                 <p>Todo el inventario está en niveles saludables</p>

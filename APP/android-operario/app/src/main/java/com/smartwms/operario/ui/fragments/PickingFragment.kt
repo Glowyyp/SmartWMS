@@ -6,6 +6,8 @@ package com.smartwms.operario.ui.fragments
 
 import android.app.AlertDialog
 import android.os.Bundle
+import android.os.Handler
+import android.os.Looper
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
@@ -17,11 +19,11 @@ import com.smartwms.operario.data.api.PickingItem
 import com.smartwms.operario.data.api.WorkOrder
 import com.smartwms.operario.databinding.FragmentPickingBinding
 import com.smartwms.operario.ui.OrderViewModel
+import com.smartwms.operario.ui.PickingScanAccumulator
 import com.smartwms.operario.ui.SmartCaptureActivity
 import com.smartwms.operario.ui.adapters.PickingAdapter
 import com.smartwms.operario.ui.adapters.WorkOrderAdapter
 import com.journeyapps.barcodescanner.ScanContract
-import com.journeyapps.barcodescanner.ScanOptions
 import com.journeyapps.barcodescanner.ScanIntentResult
 import androidx.navigation.fragment.findNavController
 import com.smartwms.operario.R
@@ -41,7 +43,10 @@ class PickingFragment : Fragment() {
     private lateinit var workOrderAdapter: WorkOrderAdapter
     private lateinit var pickingAdapter: PickingAdapter
 
-    // Ya no mantenemos estado duplicado local. El adapter usará el estado que le pasemos.
+    // Feedback visual instantáneo sin acumulación de Toasts en escaneos rápidos
+    private val feedbackHandler = Handler(Looper.getMainLooper())
+    private var hideFeedbackRunnable: Runnable? = null
+    private var activeToast: Toast? = null
 
     // Launcher para escanear código de pedido (QR o Código de barras)
     private val orderScanLauncher = registerForActivityResult(ScanContract()) { result: ScanIntentResult ->
@@ -223,24 +228,34 @@ class PickingFragment : Fragment() {
     }
 
     private fun renderPickingList(order: WorkOrder, pickedMap: Map<String, Int>) {
-        val newList = order.items.map { item ->
-            val pickedQty = pickedMap[item.sku] ?: 0
-            PickingItem(
-                sku            = item.sku,
-                productName    = item.productName,
-                quantity       = item.quantity,
-                location       = orderVm.getSkuLocation(item.sku) ?: "",
-                pickedQuantity = pickedQty
-            )
+        // Consolidar ítems repetidos por SKU para mostrar un único registro acumulado por producto
+        val grouped = LinkedHashMap<String, PickingItem>()
+        for (item in order.items) {
+            val existing = grouped[item.sku]
+            if (existing == null) {
+                val pickedQty = pickedMap[item.sku] ?: 0
+                grouped[item.sku] = PickingItem(
+                    sku            = item.sku,
+                    productName    = item.productName,
+                    quantity       = item.quantity,
+                    location       = orderVm.getSkuLocation(item.sku) ?: "",
+                    pickedQuantity = pickedQty
+                )
+            } else {
+                grouped[item.sku] = existing.copy(quantity = existing.quantity + item.quantity)
+            }
         }
+        val newList = grouped.values.toList()
         pickingAdapter.updateItems(newList)
 
-        val total = newList.size
-        val done  = newList.count { it.isPicked }
-        val pct   = if (total > 0) (done * 100) / total else 0
+        val totalUnits = newList.sumOf { it.quantity }
+        val doneUnits  = newList.sumOf { minOf(it.pickedQuantity, it.quantity) }
+        val totalLines = newList.size
+        val doneLines  = newList.count { it.isPicked }
+        val pct        = if (totalUnits > 0) (doneUnits * 100) / totalUnits else 0
 
         binding.progressPicking.progress = pct
-        binding.tvProgress.text = "$pct% completado ($done/$total)"
+        binding.tvProgress.text = "$pct% completado ($doneUnits/$totalUnits uds · $doneLines/$totalLines SKUs)"
     }
 
     // ── LECTURA E INGRESO MANUAL DE PEDIDO ────────────────────────────────────
@@ -378,95 +393,62 @@ class PickingFragment : Fragment() {
             .show()
     }
 
+    /**
+     * Registra automáticamente +1 unidad por cada escaneo (o ingreso manual de código)
+     * sin mostrar ningún diálogo ni formulario para ingresar cantidades manualmente.
+     */
     private fun processProductCode(scannedOrManualCode: String) {
-        val cleanCode = scannedOrManualCode.trim()
-        if (cleanCode.isEmpty()) {
-            Toast.makeText(requireContext(), "Código vacío.", Toast.LENGTH_SHORT).show()
-            return
-        }
-
         val order = orderVm.selectedOrder.value ?: return
-        val item = order.items.find { it.sku.trim().equals(cleanCode, ignoreCase = true) }
-        
-        if (item == null) {
-            AlertDialog.Builder(requireContext())
-                .setTitle("❌ Código Inválido")
-                .setMessage("El producto con código '$cleanCode' no pertenece a este pedido (${order.orderNumber}).")
-                .setPositiveButton("OK", null)
-                .show()
-            return
-        }
 
-        val currentQty = orderVm.pickedSkus.value?.get(item.sku) ?: 0
-        val pendingQty = item.quantity - currentQty
+        when (val result = orderVm.registerProductScan(scannedOrManualCode)) {
+            is PickingScanAccumulator.ScanResult.EmptyCode -> {
+                showQuickToast("Código vacío.")
+            }
+            is PickingScanAccumulator.ScanResult.InvalidCode -> {
+                AlertDialog.Builder(requireContext())
+                    .setTitle("❌ Código Inválido")
+                    .setMessage("El producto con código '${result.rawCode}' no pertenece a este pedido (${order.orderNumber}).")
+                    .setPositiveButton("OK", null)
+                    .show()
+            }
+            is PickingScanAccumulator.ScanResult.AlreadyComplete -> {
+                AlertDialog.Builder(requireContext())
+                    .setTitle("⚠️ Producto completado")
+                    .setMessage("Ya recolectaste todas las unidades requeridas de ${result.productName} (${result.requiredQuantity}/${result.requiredQuantity}).")
+                    .setPositiveButton("OK", null)
+                    .show()
+            }
+            is PickingScanAccumulator.ScanResult.Added -> {
+                pickingAdapter.setLastScannedSku(result.sku)
 
-        if (pendingQty <= 0) {
-            AlertDialog.Builder(requireContext())
-                .setTitle("⚠️ Producto completado")
-                .setMessage("Ya recolectaste todas las unidades requeridas de ${item.productName} (${item.quantity}/${item.quantity}).")
-                .setPositiveButton("OK", null)
-                .show()
-            return
-        }
-
-        if (item.quantity == 1) {
-            // Si solo se pidió 1 unidad, sumar de inmediato sin pedir diálogo adicional
-            processQuantityInput(item, 1)
-        } else {
-            // Solicitar cantidad pendiente
-            showQuantityInputDialog(item, pendingQty)
-        }
-    }
-
-    private fun showQuantityInputDialog(item: com.smartwms.operario.data.api.WorkOrderItem, pendingQty: Int) {
-        val input = android.widget.EditText(requireContext())
-        input.inputType = android.text.InputType.TYPE_CLASS_NUMBER
-        input.hint = "Max: $pendingQty"
-        
-        // Estilo básico para el padding
-        val container = android.widget.FrameLayout(requireContext())
-        val params = android.widget.FrameLayout.LayoutParams(
-            android.view.ViewGroup.LayoutParams.MATCH_PARENT,
-            android.view.ViewGroup.LayoutParams.WRAP_CONTENT
-        )
-        params.setMargins(50, 20, 50, 0)
-        input.layoutParams = params
-        container.addView(input)
-
-        AlertDialog.Builder(requireContext())
-            .setTitle("Ingresar Cantidad")
-            .setMessage("¿Cuántas unidades de ${item.productName} vas a recolectar?\n(Pendientes: $pendingQty)")
-            .setView(container)
-            .setPositiveButton("Confirmar") { _, _ ->
-                val qtyStr = input.text.toString()
-                val qty = qtyStr.toIntOrNull()
-                
-                if (qty != null && qty > 0 && qty <= pendingQty) {
-                    processQuantityInput(item, qty)
+                if (result.orderComplete) {
+                    showQuickToast("✅ Picking completado (${result.productName} ${result.newQuantity}/${result.requiredQuantity})")
+                    findNavController().popBackStack(R.id.homeFragment, false)
+                    findNavController().navigate(R.id.packingFragment)
                 } else {
-                    Toast.makeText(requireContext(), "Cantidad inválida. Debe ser entre 1 y $pendingQty.", Toast.LENGTH_LONG).show()
+                    val feedbackText = "✓ +1 agregado · ${result.productName} (${result.newQuantity} / ${result.requiredQuantity})"
+                    showScanFeedbackBanner(feedbackText)
+                    showQuickToast("✓ ${result.productName} (${result.newQuantity}/${result.requiredQuantity})")
                 }
             }
-            .setNegativeButton("Cancelar", null)
-            .show()
+        }
     }
 
-    private fun processQuantityInput(item: com.smartwms.operario.data.api.WorkOrderItem, qtyToAdd: Int) {
-        val success = orderVm.addSkuPicked(item.sku, item.quantity, qtyToAdd)
-        if (!success) {
-            Toast.makeText(requireContext(), "Error al registrar la cantidad.", Toast.LENGTH_SHORT).show()
-            return
+    private fun showScanFeedbackBanner(message: String) {
+        val b = _binding ?: return
+        hideFeedbackRunnable?.let { feedbackHandler.removeCallbacks(it) }
+        b.tvScanFeedback.text = message
+        b.tvScanFeedback.visibility = View.VISIBLE
+        val runnable = Runnable {
+            _binding?.tvScanFeedback?.visibility = View.GONE
         }
+        hideFeedbackRunnable = runnable
+        feedbackHandler.postDelayed(runnable, 2800L)
+    }
 
-        if (orderVm.isPickingComplete()) {
-            Toast.makeText(requireContext(), "✅ Picking completado", Toast.LENGTH_SHORT).show()
-            // Automáticamente salir de Picking e ir a Cerrar pedido
-            findNavController().popBackStack(R.id.homeFragment, false)
-            findNavController().navigate(R.id.packingFragment)
-        } else {
-            val currentQty = (orderVm.pickedSkus.value?.get(item.sku) ?: 0)
-            Toast.makeText(requireContext(), "✓ ${item.productName} ($currentQty / ${item.quantity})", Toast.LENGTH_SHORT).show()
-        }
+    private fun showQuickToast(message: String) {
+        activeToast?.cancel()
+        activeToast = Toast.makeText(requireContext(), message, Toast.LENGTH_SHORT).also { it.show() }
     }
 
     // ── DIÁLOGO DE LOCALIZACIÓN ❓ ────────────────────────────────────────────
@@ -504,6 +486,10 @@ class PickingFragment : Fragment() {
 
     override fun onDestroyView() {
         super.onDestroyView()
+        hideFeedbackRunnable?.let { feedbackHandler.removeCallbacks(it) }
+        hideFeedbackRunnable = null
+        activeToast?.cancel()
+        activeToast = null
         _binding = null
     }
 }

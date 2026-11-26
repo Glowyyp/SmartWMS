@@ -7,10 +7,16 @@
   <span class="toolbar-title">Inventario de Productos</span>
   <span class="spacer"></span>
 
-  @if (lowStockCount > 0) {
+  @if (warningStockCount() > 0) {
+    <span class="warning-stock-badge">
+      <mat-icon>warning_amber</mat-icon>
+      {{ warningStockCount() }} en advertencia
+    </span>
+  }
+  @if (criticalStockCount() > 0) {
     <span class="low-stock-badge">
-      <mat-icon>warning</mat-icon>
-      {{ lowStockCount }} en stock crítico
+      <mat-icon>error</mat-icon>
+      {{ criticalStockCount() }} en stock crítico
     </span>
   }
 
@@ -34,8 +40,19 @@
         placeholder="SKU-00567 o Teclado..."
       />
     </mat-form-field>
-    <span class="result-count" style="display:flex; align-items:center; gap:1rem;">
-      {{ filteredProducts().length }} de {{ allProducts().length }} productos
+    <span class="result-count" style="display:flex; align-items:center; gap:0.75rem; flex-wrap: wrap;">
+      <select
+        id="inventory-status-filter"
+        class="status-filter-select"
+        [ngModel]="statusFilter()"
+        (ngModelChange)="statusFilter.set($event)"
+      >
+        <option value="">Todos los estados</option>
+        <option value="healthy">Saludable ({{ healthyStockCount() }})</option>
+        <option value="warning">Advertencia ({{ warningStockCount() }})</option>
+        <option value="critical">Crítico ({{ criticalStockCount() }})</option>
+      </select>
+      <span>{{ filteredProducts().length }} de {{ allProducts().length }} productos</span>
       <button mat-stroked-button (click)="loadProducts()" style="display:flex; align-items:center;">
         <mat-icon style="margin-right: 4px;">refresh</mat-icon> Actualizar
       </button>
@@ -69,7 +86,7 @@
             <mat-progress-bar
               mode="determinate"
               [value]="getStockProgress(product)"
-              [color]="getStockStatus(product) === 'ok' ? 'primary' : 'warn'"
+              [color]="getStockStatus(product) === 'healthy' ? 'primary' : (getStockStatus(product) === 'warning' ? 'accent' : 'warn')"
               class="stock-bar"
             ></mat-progress-bar>
           </div>
@@ -121,8 +138,8 @@
           <span class="status-badge status-badge--{{ getStockStatus(product) }}">
             @switch (getStockStatus(product)) {
               @case ('critical') { <mat-icon>cancel</mat-icon> Crítico }
-              @case ('warning')  { <mat-icon>warning</mat-icon> Bajo }
-              @default           { <mat-icon>check_circle</mat-icon> Normal }
+              @case ('warning')  { <mat-icon>warning</mat-icon> Advertencia }
+              @default           { <mat-icon>check_circle</mat-icon> Saludable }
             }
           </span>
         </td>

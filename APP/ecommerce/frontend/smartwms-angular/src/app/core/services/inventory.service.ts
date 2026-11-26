@@ -16,6 +16,8 @@ export interface ProductLocationBreakdown {
   stored_at: string;
 }
 
+export type StockStatus = 'healthy' | 'warning' | 'critical';
+
 export interface ProductInventory {
   id: number;
   sku: string;
@@ -23,6 +25,8 @@ export interface ProductInventory {
   stock_quantity: number;   // Stock físico real
   unit_price: number;
   reorder_point: number;
+  warning_threshold?: number;
+  stock_status?: StockStatus;
   is_low_stock: boolean;
   warehouse_location: string | null;  // Zona física en el almacén (A, B, C, D, etc.)
   pending_quantity: number;
@@ -40,6 +44,42 @@ export interface ProductInventory {
   available_qty: number;    // stock_quantity - reserved_qty
   unlocated_qty?: number;
   location_stocks?: ProductLocationBreakdown[];
+}
+
+/**
+ * Clasificación canónica de stock en 3 niveles (sincronizada con el backend):
+ *  - 'critical' (Rojo — Crítico):      disponible <= 0 o disponible <= reorder_point
+ *  - 'warning'  (Amarillo — Advertencia): reorder_point < disponible <= reorder_point * 2
+ *  - 'healthy'  (Verde — Saludable):   disponible > reorder_point * 2 (y > 0)
+ */
+export function resolveStockStatus(product: Pick<ProductInventory, 'available_qty' | 'stock_quantity' | 'reorder_point' | 'stock_status'>): StockStatus {
+  const qty = Math.max(0, Number(product.available_qty ?? product.stock_quantity ?? 0));
+  const rp = Math.max(0, Number(product.reorder_point ?? 0));
+  if (qty <= 0 || qty <= rp) return 'critical';
+  if (rp > 0 && qty <= rp * 2) return 'warning';
+  return 'healthy';
+}
+
+export function getStockStatusLabel(status: StockStatus): string {
+  switch (status) {
+    case 'critical':
+      return 'Crítico';
+    case 'warning':
+      return 'Advertencia';
+    default:
+      return 'Saludable';
+  }
+}
+
+export function getStockStatusChipClass(status: StockStatus): string {
+  switch (status) {
+    case 'critical':
+      return 'chip-danger';
+    case 'warning':
+      return 'chip-warning';
+    default:
+      return 'chip-success';
+  }
 }
 
 export interface PendingReception {

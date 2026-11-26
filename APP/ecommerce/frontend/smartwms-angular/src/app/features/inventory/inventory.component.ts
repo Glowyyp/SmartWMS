@@ -18,7 +18,13 @@ import { MatChipsModule } from '@angular/material/chips';
 import { MatBadgeModule } from '@angular/material/badge';
 import { MatTooltipModule } from '@angular/material/tooltip';
 import { MatProgressBarModule } from '@angular/material/progress-bar';
-import { InventoryService, ProductInventory, PendingReception } from '../../core/services/inventory.service';
+import {
+  InventoryService,
+  ProductInventory,
+  StockStatus,
+  resolveStockStatus,
+  getStockStatusLabel,
+} from '../../core/services/inventory.service';
 import { AuthService } from '../../core/services/auth.service';
 import { MatDialogModule, MatDialog } from '@angular/material/dialog';
 
@@ -49,20 +55,37 @@ export class InventoryComponent implements OnInit {
   displayedColumns = ['sku', 'product_name', 'available_qty', 'reserved_qty', 'pending_quantity', 'dimensions', 'status'];
 
   searchQuery = signal('');
+  statusFilter = signal<'' | StockStatus>('');
 
   allProducts = signal<ProductInventory[]>([]);
 
   filteredProducts = computed(() => {
-    const q = this.searchQuery().toLowerCase();
-    const products = this.allProducts();
-    if (!q) return products;
-    return products.filter(
-      (p) => p.sku.toLowerCase().includes(q) || p.product_name.toLowerCase().includes(q)
-    );
+    const q = this.searchQuery().toLowerCase().trim();
+    const status = this.statusFilter();
+    return this.allProducts().filter((p) => {
+      const matchesQuery =
+        !q ||
+        p.sku.toLowerCase().includes(q) ||
+        p.product_name.toLowerCase().includes(q);
+      const matchesStatus = !status || this.getStockStatus(p) === status;
+      return matchesQuery && matchesStatus;
+    });
   });
 
+  criticalStockCount = computed(() =>
+    this.allProducts().filter((p) => this.getStockStatus(p) === 'critical').length
+  );
+
+  warningStockCount = computed(() =>
+    this.allProducts().filter((p) => this.getStockStatus(p) === 'warning').length
+  );
+
+  healthyStockCount = computed(() =>
+    this.allProducts().filter((p) => this.getStockStatus(p) === 'healthy').length
+  );
+
   get lowStockCount(): number {
-    return this.allProducts().filter((p) => p.available_qty <= p.reorder_point).length;
+    return this.criticalStockCount();
   }
 
   constructor(
@@ -81,16 +104,16 @@ export class InventoryComponent implements OnInit {
     });
   }
 
-  getStockStatus(product: ProductInventory): 'critical' | 'warning' | 'ok' {
-    const ratio = product.available_qty / product.reorder_point;
-    if (product.available_qty <= 0) return 'critical';
-    if (ratio <= 1)  return 'critical';
-    if (ratio <= 2)  return 'warning';
-    return 'ok';
+  getStockStatus(product: ProductInventory): StockStatus {
+    return resolveStockStatus(product);
+  }
+
+  getStockStatusLabel(product: ProductInventory): string {
+    return getStockStatusLabel(this.getStockStatus(product));
   }
 
   getStockProgress(product: ProductInventory): number {
-    const max = product.reorder_point * 5;
+    const max = Math.max(1, product.reorder_point * 5);
     return Math.min((product.available_qty / max) * 100, 100);
   }
 

@@ -53,6 +53,20 @@ class MainActivity : AppCompatActivity() {
         loadUserInfoInActionBar()
     }
 
+    override fun onStart() {
+        super.onStart()
+        val vm = androidx.lifecycle.ViewModelProvider(this)[OrderViewModel::class.java]
+        vm.resumePolling()
+    }
+
+    override fun onStop() {
+        super.onStop()
+        // Al pasar a segundo plano o cerrarse la app, pausar polling/heartbeats
+        // para que el backend no contabilice tiempo de conexión inactivo.
+        val vm = androidx.lifecycle.ViewModelProvider(this)[OrderViewModel::class.java]
+        vm.pausePolling()
+    }
+
     private fun loadUserInfoInActionBar() {
         lifecycleScope.launch {
             val tokenStore = TokenStore(applicationContext)

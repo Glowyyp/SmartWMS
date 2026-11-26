@@ -23,6 +23,8 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 
 class OrderViewModel(application: Application) : AndroidViewModel(application) {
 
@@ -70,6 +72,8 @@ class OrderViewModel(application: Application) : AndroidViewModel(application) {
     val mfaStatus: LiveData<MfaStatusResponse?> = _mfaStatus
 
     // ── Estado: SKUs recolectados para el pedido activo ───────────────────────
+    private val scanAccumulator = PickingScanAccumulator()
+    private val persistMutex = Mutex()
     private val _pickedSkus = MutableLiveData<Map<String, Int>>(emptyMap())
     val pickedSkus: LiveData<Map<String, Int>> = _pickedSkus
 
@@ -189,7 +193,8 @@ class OrderViewModel(application: Application) : AndroidViewModel(application) {
                         val activeOrder = orders.find { it.id == activeId }
                         if (activeOrder != null) {
                             _selectedOrder.postValue(activeOrder)
-                            _pickedSkus.postValue(tokenStore.getPickedSkus(activeId))
+                            val restored = scanAccumulator.reset(tokenStore.getPickedSkus(activeId))
+                            _pickedSkus.postValue(restored)
                         } else {
                             tokenStore.saveActiveOrderId(null)
                         }
@@ -243,6 +248,7 @@ class OrderViewModel(application: Application) : AndroidViewModel(application) {
                 delay(15_000L)
                 try {
                     val token = tokenStore.bearerToken()
+                    if (token == "Bearer ") continue
                     val email = tokenStore.getEmail()
                     val response = api.getWorkOrders(
                         token = token,
@@ -258,6 +264,28 @@ class OrderViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
+    fun resumePolling() {
+        sendHeartbeat()
+        if (pollingJob?.isActive != true) {
+            startPolling()
+        }
+    }
+
+    fun pausePolling() {
+        stopPolling()
+    }
+
+    fun sendHeartbeat() {
+        viewModelScope.launch {
+            try {
+                val token = tokenStore.bearerToken()
+                if (token != "Bearer ") {
+                    api.heartbeat(token)
+                }
+            } catch (_: Exception) { /* Silencioso */ }
+        }
+    }
+
     fun stopPolling() {
         pollingJob?.cancel()
         pollingJob = null
@@ -270,43 +298,71 @@ class OrderViewModel(application: Application) : AndroidViewModel(application) {
         viewModelScope.launch {
             val existingStart = tokenStore.getActiveOrderStartTime()
             tokenStore.saveActiveOrderId(order.id, existingStart ?: System.currentTimeMillis())
-            _pickedSkus.postValue(tokenStore.getPickedSkus(order.id))
+            val restored = scanAccumulator.reset(tokenStore.getPickedSkus(order.id))
+            _pickedSkus.postValue(restored)
         }
     }
 
     fun clearSelectedOrder() {
         _selectedOrder.value = null
-        _pickedSkus.value = emptyMap()
+        val cleared = scanAccumulator.reset(emptyMap())
+        _pickedSkus.value = cleared
         viewModelScope.launch {
             tokenStore.saveActiveOrderId(null)
         }
     }
 
+    /**
+     * Registra un escaneo de producto incrementando automáticamente +1 unidad.
+     * Serializa la persistencia en DataStore mediante Mutex para evitar carreras
+     * cuando el operario escanea múltiples unidades consecutivamente.
+     */
+    fun registerProductScan(rawCode: String): PickingScanAccumulator.ScanResult {
+        val order = _selectedOrder.value ?: return PickingScanAccumulator.ScanResult.EmptyCode
+        val specs = order.items.map {
+            PickingScanAccumulator.OrderItemSpec(
+                sku = it.sku,
+                productName = it.productName,
+                requiredQuantity = it.quantity
+            )
+        }
+        val result = scanAccumulator.recordScan(rawCode, specs)
+        if (result is PickingScanAccumulator.ScanResult.Added) {
+            val snapshot = scanAccumulator.snapshot()
+            _pickedSkus.value = snapshot
+            persistPickedSnapshot(order.id)
+        }
+        return result
+    }
+
     fun addSkuPicked(sku: String, maxQuantity: Int, quantityToAdd: Int = 1): Boolean {
         val order = _selectedOrder.value ?: return false
-        val current = _pickedSkus.value?.toMutableMap() ?: mutableMapOf()
-        val currentQty = current[sku] ?: 0
-        if (currentQty + quantityToAdd <= maxQuantity) {
-            current[sku] = currentQty + quantityToAdd
-            _pickedSkus.value = current
-            viewModelScope.launch {
-                tokenStore.savePickedSkus(order.id, current)
+        val updated = scanAccumulator.addQuantity(sku, maxQuantity, quantityToAdd) ?: return false
+        _pickedSkus.value = updated
+        persistPickedSnapshot(order.id)
+        return true
+    }
+
+    private fun persistPickedSnapshot(orderId: Int) {
+        viewModelScope.launch {
+            persistMutex.withLock {
+                // Siempre persistir el estado más reciente para evitar sobrescrituras desordenadas
+                val latest = scanAccumulator.snapshot()
+                tokenStore.savePickedSkus(orderId, latest)
             }
-            return true
         }
-        return false
     }
 
     fun isPickingComplete(): Boolean {
         val order = _selectedOrder.value ?: return false
-        val current = _pickedSkus.value ?: emptyMap()
-        for (item in order.items) {
-            val pickedQty = current[item.sku] ?: 0
-            if (pickedQty < item.quantity) {
-                return false
-            }
+        val specs = order.items.map {
+            PickingScanAccumulator.OrderItemSpec(
+                sku = it.sku,
+                productName = it.productName,
+                requiredQuantity = it.quantity
+            )
         }
-        return true
+        return scanAccumulator.isOrderComplete(specs)
     }
 
     /**
@@ -328,7 +384,7 @@ class OrderViewModel(application: Application) : AndroidViewModel(application) {
                         _workOrders.value?.filter { it.id != dispatched.id } ?: emptyList()
                     )
                     _selectedOrder.postValue(null)
-                    _pickedSkus.postValue(emptyMap())
+                    _pickedSkus.postValue(scanAccumulator.reset(emptyMap()))
                     tokenStore.saveActiveOrderId(null)
                     // Actualizar pedidos pendientes e historial completo tras despacho
                     loadPendingOrders()
