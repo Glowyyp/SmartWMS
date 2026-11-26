@@ -21,7 +21,7 @@ SmartWMS es una plataforma WMS full-stack para gestión de inventario, recepció
   - 4 mesas predeterminadas (`M-01`..`M-04`) más administración completa de mesas, zonas y estanterías.
   - Consulta en vivo del contenido y fecha de almacenamiento de cada ubicación.
   - Putaway en APK Android con autocompletado de SKUs, escáner QR/Barras, almacenamiento inicial o traslado entre ubicaciones sin duplicar stock y trazabilidad de movimientos.
-- **Despliegue Automático (CI/CD):** Cada `git push` a `main` dispara Cloud Build ([deploy/gcp/cloudbuild.yaml](deploy/gcp/cloudbuild.yaml)) para compilar y actualizar automáticamente los 3 servicios en Cloud Run.
+- **Despliegue Automático (CI/CD):** Cada `git push` a `main` dispara Cloud Build ([APP/deploy/gcp/cloudbuild.yaml](deploy/gcp/cloudbuild.yaml)) para compilar y actualizar automáticamente los 3 servicios en Cloud Run.
 
 ---
 
@@ -29,49 +29,51 @@ SmartWMS es una plataforma WMS full-stack para gestión de inventario, recepció
 
 ```text
 SmartWMS/
-├── Fase 1/                         # Documentación y entregables Fase 1
-├── Fase 2/                         # Documentación y entregables Fase 2
-├── Fase 3/                         # Documentación y entregables Fase 3
-├── android-operario/               # App móvil nativa Android (Kotlin)
-├── bot/                            # Servicio Bot IA (FastAPI + Gemini)
-├── deploy/gcp/                     # Pipeline CI/CD (cloudbuild.yaml) y script manual de aprovisionamiento
-├── ecommerce/
-│   ├── backend/                    # API REST FastAPI, modelos SQLAlchemy, tests y simulador webhook
-│   └── frontend/smartwms-angular/  # Portal web Angular + Nginx para Cloud Run
-└── scripts/                        # Utilidades administrativas (init_db, reset_user_mfa) y pruebas
+├── Fase 1/                                 # Documentación y entregables Fase 1
+├── Fase 2/                                 # Documentación y entregables Fase 2
+├── Fase 3/                                 # Documentación y entregables Fase 3
+└── APP/                                    # Código fuente, despliegue y utilidades de la aplicación
+    ├── android-operario/                   # App móvil nativa Android (Kotlin)
+    ├── bot/                                # Servicio Bot IA (FastAPI + Gemini)
+    ├── deploy/gcp/                         # Pipeline CI/CD (cloudbuild.yaml) y script manual de aprovisionamiento
+    ├── ecommerce/
+    │   ├── backend/                        # API REST FastAPI, modelos SQLAlchemy, tests y simulador webhook
+    │   └── frontend/smartwms-angular/      # Portal web Angular + Nginx para Cloud Run
+    ├── scripts/                            # Utilidades administrativas (init_db, reset_user_mfa) y pruebas
+    └── README.md                           # Documentación técnica de la aplicación
 ```
 
 ---
 
 ## Despliegue en la Nube (CI/CD)
 
-1. Los servicios `smartwms-bot`, `smartwms-backend` y `smartwms-frontend` se compilan mediante sus respectivos `Dockerfile` y se actualizan automáticamente en Cloud Run al hacer push a `main` usando [deploy/gcp/cloudbuild.yaml](deploy/gcp/cloudbuild.yaml).
+1. Los servicios `smartwms-bot`, `smartwms-backend` y `smartwms-frontend` se compilan mediante sus respectivos `Dockerfile` y se actualizan automáticamente en Cloud Run al hacer push a `main` usando [APP/deploy/gcp/cloudbuild.yaml](deploy/gcp/cloudbuild.yaml).
 2. Las variables sensibles (`JWT_SECRET`, credenciales de Cloud SQL, `WEBHOOK_SECRET`, claves de Gemini, `MFA_REQUIRED_ROLES`) se administran directamente en **Cloud Run** y **Secret Manager**.
-3. Como respaldo ante una recreación desde cero de infraestructura GCP, se conserva [deploy/gcp/deploy-gcp.ps1](deploy/gcp/deploy-gcp.ps1).
+3. Como respaldo ante una recreación desde cero de infraestructura GCP, se conserva [APP/deploy/gcp/deploy-gcp.ps1](deploy/gcp/deploy-gcp.ps1).
 
 ---
 
-## Compilación de la App Móvil Android (`android-operario`)
+## Compilación de la App Móvil Android (`APP/android-operario`)
 
 Para generar el APK apuntando al entorno de producción en Cloud Run:
 
 ```bash
-cd android-operario
+cd APP/android-operario
 .\gradlew assembleProductionDebug
 ```
 
-El APK generado queda en `android-operario/app/build/outputs/apk/production/debug/app-production-debug.apk`. Desde la pantalla de inicio de sesión también es posible ajustar la URL del servidor si se requiere apuntar a otro entorno.
+El APK generado queda en `APP/android-operario/app/build/outputs/apk/production/debug/app-production-debug.apk`. Desde la pantalla de inicio de sesión también es posible ajustar la URL del servidor si se requiere apuntar a otro entorno.
 
 ---
 
 ## Utilidades y Pruebas de Desarrollo
 
-- **Pruebas del backend:** `ecommerce/backend/test_mfa.py`, `test_phase5.py`, `test_scenarios.py`, `test_security_and_acid.py` y `scripts/test_*.py`.
+- **Pruebas del backend:** `APP/ecommerce/backend/test_mfa.py`, `test_phase5.py`, `test_scenarios.py`, `test_security_and_acid.py` y `APP/scripts/test_*.py`.
 - **Simulador de webhooks de e-commerce:**
   ```bash
-  python ecommerce/backend/webhook_simulator.py --url <URL_BACKEND>/api/v1/webhooks/orders
+  python APP/ecommerce/backend/webhook_simulator.py --url <URL_BACKEND>/api/v1/webhooks/orders
   ```
 - **Administración CLI (usando `DATABASE_URL` o Cloud SQL Auth Proxy):**
-  - `python scripts/init_db.py` — Verifica/inicializa tablas y datos base si la BD está vacía.
-  - `python scripts/reset_user_mfa.py --list` — Lista o resetea MFA de usuarios.
-  - `python ecommerce/backend/db_viewer.py` — Inspección rápida de tablas en consola.
+  - `python APP/scripts/init_db.py` — Verifica/inicializa tablas y datos base si la BD está vacía.
+  - `python APP/scripts/reset_user_mfa.py --list` — Lista o resetea MFA de usuarios.
+  - `python APP/ecommerce/backend/db_viewer.py` — Inspección rápida de tablas en consola.
