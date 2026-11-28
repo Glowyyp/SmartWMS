@@ -62,7 +62,7 @@ cd APP/android-operario
 .\gradlew assembleProductionDebug
 ```
 
-El APK generado queda en `APP/android-operario/app/build/outputs/apk/production/debug/app-production-debug.apk`. Desde la pantalla de inicio de sesión también es posible ajustar la URL del servidor si se requiere apuntar a otro entorno.
+El APK compilado listo para instalar se encuentra en `APP/android-operario/apk/SmartWMS-Operario-production.apk` (y la salida directa de Gradle en `APP/android-operario/app/build/outputs/apk/production/debug/app-production-debug.apk`). Desde la pantalla de inicio de sesión también es posible ajustar la URL del servidor si se requiere apuntar a otro entorno.
 
 ---
 
