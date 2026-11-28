@@ -25,7 +25,7 @@ dist/
 
 # Android / Java / Kotlin
 *.apk
-!APP/android-operario/apk/*.apk
+!Fase 3/Evidencias de Proyecto/APP/android-operario/apk/*.apk
 *.ap_
 *.aab
 *.dex

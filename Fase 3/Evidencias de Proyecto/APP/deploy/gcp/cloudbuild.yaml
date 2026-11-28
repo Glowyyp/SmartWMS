@@ -17,7 +17,7 @@ steps:
       - ${_REGION}-docker.pkg.dev/$PROJECT_ID/${_AR_REPO}/smartwms-bot:$SHORT_SHA
       - -t
       - ${_REGION}-docker.pkg.dev/$PROJECT_ID/${_AR_REPO}/smartwms-bot:latest
-      - ./APP/bot
+      - './Fase 3/Evidencias de Proyecto/APP/bot'
 
   - id: push-bot
     name: gcr.io/cloud-builders/docker
@@ -36,7 +36,7 @@ steps:
       - ${_REGION}-docker.pkg.dev/$PROJECT_ID/${_AR_REPO}/smartwms-backend:$SHORT_SHA
       - -t
       - ${_REGION}-docker.pkg.dev/$PROJECT_ID/${_AR_REPO}/smartwms-backend:latest
-      - ./APP/ecommerce/backend
+      - './Fase 3/Evidencias de Proyecto/APP/ecommerce/backend'
 
   - id: push-backend
     name: gcr.io/cloud-builders/docker
@@ -55,7 +55,7 @@ steps:
       - ${_REGION}-docker.pkg.dev/$PROJECT_ID/${_AR_REPO}/smartwms-frontend:$SHORT_SHA
       - -t
       - ${_REGION}-docker.pkg.dev/$PROJECT_ID/${_AR_REPO}/smartwms-frontend:latest
-      - ./APP/ecommerce/frontend/smartwms-angular
+      - './Fase 3/Evidencias de Proyecto/APP/ecommerce/frontend/smartwms-angular'
 
   - id: push-frontend
     name: gcr.io/cloud-builders/docker
