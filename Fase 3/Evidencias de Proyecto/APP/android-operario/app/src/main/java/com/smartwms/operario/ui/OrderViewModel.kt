@@ -313,9 +313,9 @@ class OrderViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     /**
-     * Registra un escaneo de producto incrementando automáticamente +1 unidad.
-     * Serializa la persistencia en DataStore mediante Mutex para evitar carreras
-     * cuando el operario escanea múltiples unidades consecutivamente.
+     * Registra el escaneo QR/barras o ingreso manual de un SKU marcando automáticamente
+     * la cantidad total requerida de ese producto (ej. 500/500 en una sola lectura).
+     * Serializa la persistencia en DataStore mediante Mutex para evitar carreras.
      */
     fun registerProductScan(rawCode: String): PickingScanAccumulator.ScanResult {
         val order = _selectedOrder.value ?: return PickingScanAccumulator.ScanResult.EmptyCode

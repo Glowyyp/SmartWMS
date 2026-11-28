@@ -394,8 +394,9 @@ class PickingFragment : Fragment() {
     }
 
     /**
-     * Registra automáticamente +1 unidad por cada escaneo (o ingreso manual de código)
-     * sin mostrar ningún diálogo ni formulario para ingresar cantidades manualmente.
+     * Al escanear el código QR/barras o ingresar manualmente un SKU válido,
+     * marca automáticamente la cantidad total requerida de ese SKU (ej. 500/500)
+     * sin solicitar cantidad manual ni exigir escaneos repetidos.
      */
     private fun processProductCode(scannedOrManualCode: String) {
         val order = orderVm.selectedOrder.value ?: return
@@ -422,11 +423,11 @@ class PickingFragment : Fragment() {
                 pickingAdapter.setLastScannedSku(result.sku)
 
                 if (result.orderComplete) {
-                    showQuickToast("✅ Picking completado (${result.productName} ${result.newQuantity}/${result.requiredQuantity})")
+                    showQuickToast("✅ Picking completado: ${result.productName} (${result.newQuantity}/${result.requiredQuantity})")
                     findNavController().popBackStack(R.id.homeFragment, false)
                     findNavController().navigate(R.id.packingFragment)
                 } else {
-                    val feedbackText = "✓ +1 agregado · ${result.productName} (${result.newQuantity} / ${result.requiredQuantity})"
+                    val feedbackText = "✓ ${result.productName} completado (${result.newQuantity} / ${result.requiredQuantity} uds)"
                     showScanFeedbackBanner(feedbackText)
                     showQuickToast("✓ ${result.productName} (${result.newQuantity}/${result.requiredQuantity})")
                 }

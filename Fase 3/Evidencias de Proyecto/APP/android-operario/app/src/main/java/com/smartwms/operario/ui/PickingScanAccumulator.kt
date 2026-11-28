@@ -1,14 +1,16 @@
 package com.smartwms.operario.ui
 
 /**
- * Acumulador thread-safe para el escaneo de productos en Picking.
+ * Acumulador thread-safe para el escaneo e ingreso manual de productos en Picking.
  *
  * Reglas:
- *  - Cada escaneo válido suma exactamente +1 unidad al SKU correspondiente.
- *  - Reconoce productos repetidos (insensible a mayúsculas/minúsculas) y acumula
- *    en la clave canónica del ítem sin generar registros duplicados.
- *  - Nunca supera la cantidad requerida del pedido.
- *  - Sincronizado para evitar condiciones de carrera ante escaneos rápidos consecutivos.
+ *  - Una sola lectura de QR/código de barras o un único ingreso manual del SKU
+ *    marca automáticamente como recolectada la CANTIDAD TOTAL requerida de ese SKU
+ *    (ej. si el pedido pide 500 unidades, un solo escaneo completa 500/500).
+ *  - Reconoce el SKU sin distinguir mayúsculas/minúsculas y consolida líneas repetidas
+ *    bajo la clave canónica del producto sin generar duplicados.
+ *  - Si el SKU ya está completo, devuelve AlreadyComplete sin exceder la cantidad requerida.
+ *  - Sincronizado para evitar condiciones de carrera ante lecturas simultáneas.
  */
 class PickingScanAccumulator {
 
@@ -30,6 +32,7 @@ class PickingScanAccumulator {
         data class Added(
             val sku: String,
             val productName: String,
+            val addedQuantity: Int,
             val newQuantity: Int,
             val requiredQuantity: Int,
             val orderComplete: Boolean
@@ -58,8 +61,8 @@ class PickingScanAccumulator {
     }
 
     /**
-     * Consolida la cantidad requerida por SKU (si existieran líneas repetidas) y
-     * suma exactamente +1 unidad al producto escaneado.
+     * Consolida la cantidad requerida por SKU y, con una sola lectura o ingreso manual,
+     * marca automáticamente todas las unidades requeridas de ese producto como recolectadas.
      */
     fun recordScan(rawCode: String, orderItems: List<OrderItemSpec>): ScanResult = synchronized(lock) {
         val cleanCode = rawCode.trim()
@@ -81,21 +84,22 @@ class PickingScanAccumulator {
             )
         }
 
-        val updatedQty = currentQty + 1
-        pickedBySku[canonicalSku] = updatedQty
+        val addedQty = requiredQty - currentQty
+        pickedBySku[canonicalSku] = requiredQty
 
         val complete = isCompleteLocked(orderItems)
         ScanResult.Added(
             sku = canonicalSku,
             productName = productName,
-            newQuantity = updatedQty,
+            addedQuantity = addedQty,
+            newQuantity = requiredQty,
             requiredQuantity = requiredQty,
             orderComplete = complete
         )
     }
 
     /**
-     * Agrega una cantidad controlada (por defecto 1) al SKU canónico.
+     * Agrega una cantidad controlada al SKU canónico.
      * Devuelve el nuevo snapshot si se aplicó, o null si excede maxQuantity o es inválida.
      */
     fun addQuantity(sku: String, maxQuantity: Int, quantityToAdd: Int = 1): Map<String, Int>? = synchronized(lock) {
