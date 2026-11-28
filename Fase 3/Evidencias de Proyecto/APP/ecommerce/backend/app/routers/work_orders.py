@@ -114,6 +114,7 @@ class DispatchIn(BaseModel):
     packages: List[DispatchPackageIn] = []
     total_weight: float | None = None
     total_volume: float | None = None
+    packing_table_code: str | None = None
 
 
 class WorkOrderPackageOut(BaseModel):
@@ -890,9 +891,14 @@ def dispatch_work_order(
     try:
         _apply_dispatch_stock_deduction(wo, current_user, db, payload=payload)
 
+        table_note = (
+            f" en mesa {payload.packing_table_code.strip().upper()}"
+            if payload and payload.packing_table_code and payload.packing_table_code.strip()
+            else ""
+        )
         _record_status_change(
             wo, old_status, "dispatched", current_user, db,
-            notes=f"Pedido despachado por {current_user.email}",
+            notes=f"Pedido despachado por {current_user.email}{table_note}",
         )
 
         db.flush()

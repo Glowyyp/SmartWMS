@@ -30,6 +30,7 @@ export interface LayoutLocation {
   occupied_skus_count: number;
   total_units: number;
   is_occupied: boolean;
+  qr_code?: string | null;
   items: LocationItemDetail[];
 }
 

@@ -14,14 +14,16 @@ import androidx.fragment.app.Fragment
 import androidx.fragment.app.activityViewModels
 import androidx.navigation.fragment.findNavController
 import com.smartwms.operario.R
+import com.smartwms.operario.data.api.WarehouseLocationItem
 import com.smartwms.operario.databinding.FragmentPackingBinding
 import com.smartwms.operario.ui.OrderViewModel
+import com.smartwms.operario.ui.PackingTableMatcher
 import com.smartwms.operario.ui.SmartCaptureActivity
 import com.journeyapps.barcodescanner.ScanContract
-import com.journeyapps.barcodescanner.ScanOptions
 import com.journeyapps.barcodescanner.ScanIntentResult
 import android.app.AlertDialog
-import android.widget.EditText
+import android.widget.ArrayAdapter
+import android.widget.AutoCompleteTextView
 import android.widget.FrameLayout
 import android.text.InputType
 
@@ -32,6 +34,9 @@ class PackingFragment : Fragment() {
 
     // Mismo ViewModel que PickingFragment — comparten el mismo estado
     private val orderVm: OrderViewModel by activityViewModels()
+
+    // Mesas activas sincronizadas dinámicamente desde el Layout del Supervisor
+    private var availableTables: List<WarehouseLocationItem> = emptyList()
 
     // Launcher para el escáner QR de ZXing
     private val qrLauncher = registerForActivityResult(ScanContract()) { result: ScanIntentResult ->
@@ -54,6 +59,13 @@ class PackingFragment : Fragment() {
         binding.btnBackPacking.setOnClickListener {
             navigateBackSafely()
         }
+
+        // Observar mesas reales del Layout del Supervisor (dinámicas: 5 o las que agregue)
+        orderVm.warehouseLocations.observe(viewLifecycleOwner) { locs ->
+            availableTables = PackingTableMatcher.extractTables(locs ?: emptyList())
+            renderAvailableTablesSummary()
+        }
+        orderVm.refreshInventory()
 
         // Observar el pedido seleccionado para actualizar la vista
         orderVm.selectedOrder.observe(viewLifecycleOwner) { order ->
@@ -218,14 +230,49 @@ class PackingFragment : Fragment() {
         }
     }
 
+    private fun renderAvailableTablesSummary() {
+        val b = _binding ?: return
+        if (availableTables.isEmpty()) {
+            b.tvAvailableTables.text = "Sincronizando mesas del Layout del Supervisor..."
+        } else {
+            val codes = availableTables.joinToString(" · ") { it.code }
+            b.tvAvailableTables.text = "Mesas del Layout (${availableTables.size}): $codes"
+        }
+    }
+
     private fun showManualTableDialog() {
         val order = orderVm.selectedOrder.value ?: return
-        val expectedCode = "MESA-${order.orderNumber}"
-        val input = EditText(requireContext()).apply {
-            hint = "Ej: $expectedCode"
-            inputType = InputType.TYPE_CLASS_TEXT
+        if (availableTables.isEmpty()) {
+            orderVm.refreshInventory()
+            Toast.makeText(
+                requireContext(),
+                "Cargando mesas del Layout del Supervisor. Intenta nuevamente.",
+                Toast.LENGTH_SHORT
+            ).show()
+            return
+        }
+
+        val tableCodes = availableTables.map { it.code }
+        val tableLabels = availableTables.joinToString(", ") { it.code }
+        val sampleCode = tableCodes.firstOrNull() ?: "M-01"
+
+        val input = AutoCompleteTextView(requireContext()).apply {
+            hint = "Ej: $sampleCode"
+            inputType = InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_FLAG_CAP_CHARACTERS
             setTextColor(Color.WHITE)
             setHintTextColor(Color.GRAY)
+            threshold = 0
+            setAdapter(
+                ArrayAdapter(
+                    requireContext(),
+                    android.R.layout.simple_dropdown_item_1line,
+                    tableCodes
+                )
+            )
+            setOnClickListener { showDropDown() }
+            setOnFocusChangeListener { _, hasFocus ->
+                if (hasFocus) showDropDown()
+            }
         }
         val container = FrameLayout(requireContext()).apply {
             val params = FrameLayout.LayoutParams(
@@ -238,8 +285,8 @@ class PackingFragment : Fragment() {
         }
 
         AlertDialog.Builder(requireContext())
-            .setTitle("⌨️ Ingreso Manual de Mesa")
-            .setMessage("Ingresa el identificador de la mesa de empaque asignada:")
+            .setTitle("⌨️ Seleccionar / Ingresar Mesa")
+            .setMessage("Pedido ${order.orderNumber}\nMesas activas del Layout: $tableLabels")
             .setView(container)
             .setPositiveButton("Confirmar Mesa") { _, _ ->
                 val code = input.text.toString().trim()
@@ -259,10 +306,22 @@ class PackingFragment : Fragment() {
 
     private fun processTableCode(code: String) {
         val order = orderVm.selectedOrder.value ?: return
-        val expectedCode = "MESA-${order.orderNumber}"
         val clean = code.trim()
+        val allLocations = orderVm.warehouseLocations.value ?: emptyList()
+        val tables = PackingTableMatcher.extractTables(allLocations)
 
-        if (clean.equals(expectedCode, ignoreCase = true) || clean.equals(order.orderNumber, ignoreCase = true)) {
+        if (tables.isEmpty()) {
+            orderVm.refreshInventory()
+            AlertDialog.Builder(requireContext())
+                .setTitle("⚠️ Layout no cargado")
+                .setMessage("No se encontraron mesas cargadas desde el Layout del Supervisor. Verifica la conexión e intenta nuevamente.")
+                .setPositiveButton("OK", null)
+                .show()
+            return
+        }
+
+        val matchedTable = PackingTableMatcher.matchTable(clean, allLocations)
+        if (matchedTable != null) {
             // Leer valores de los bultos
             val l = binding.etPkgLength.text.toString().toDoubleOrNull()
             val w = binding.etPkgWidth.text.toString().toDoubleOrNull()
@@ -278,18 +337,33 @@ class PackingFragment : Fragment() {
             val payload = com.smartwms.operario.data.api.DispatchIn(
                 packages = pkgList,
                 totalWeight = weight,
-                totalVolume = if (l != null && w != null && h != null) (l * w * h) else null
+                totalVolume = if (l != null && w != null && h != null) (l * w * h) else null,
+                packingTableCode = matchedTable.code
             )
 
-            Toast.makeText(requireContext(), "✓ Mesa verificada. Finalizando despacho...", Toast.LENGTH_SHORT).show()
+            Toast.makeText(
+                requireContext(),
+                "✓ Mesa ${matchedTable.code} (${matchedTable.name}) verificada. Finalizando despacho...",
+                Toast.LENGTH_SHORT
+            ).show()
             orderVm.dispatchSelectedOrder(payload)
         } else {
+            val validList = tables.joinToString(", ") { it.code }
             AlertDialog.Builder(requireContext())
-                .setTitle("❌ Mesa Incorrecta")
-                .setMessage("El código ingresado o escaneado no corresponde a la mesa de este pedido.\n\nCódigo recibido: $clean\nEsperado: $expectedCode")
+                .setTitle("❌ Mesa No Válida")
+                .setMessage(
+                    "El código '$clean' no corresponde a ninguna mesa registrada en el Layout del Supervisor.\n\n" +
+                    "Mesas válidas (${tables.size}): $validList"
+                )
                 .setPositiveButton("OK", null)
                 .show()
         }
+    }
+
+    override fun onResume() {
+        super.onResume()
+        // Recargar mesas del Layout por si el supervisor agregó o editó mesas recientemente
+        orderVm.refreshInventory()
     }
 
     override fun onDestroyView() {

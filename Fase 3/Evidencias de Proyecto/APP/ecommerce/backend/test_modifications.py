@@ -342,7 +342,16 @@ def run_tests():
                 assert "def classify_stock_status" in src and "🟡 ADVERTENCIA" in src
                 print("  [OK] 9. Clasificación de 3 niveles verificada en bot/main.py.")
 
-        print("\n✅ TODAS LAS PRUEBAS PASARON EXITOSAMENTE (9/9).\n")
+            # Verificar que GET /api/v1/layout entrega qr_code SVG para cada mesa del Layout
+            r_layout = client.get("/api/v1/layout", headers=admin_h)
+            assert r_layout.status_code == 200, f"Error obteniendo layout: {r_layout.text}"
+            tables = r_layout.json()["tables"]
+            assert len(tables) >= 4, "Deben existir mesas en el layout"
+            for t in tables:
+                assert t.get("qr_code", "").startswith("data:image/svg+xml"), f"Mesa {t.get('code')} sin QR SVG"
+            print("  [OK] 10. Layout del Supervisor genera qr_code SVG para cada mesa de bodega.")
+
+        print("\n✅ TODAS LAS PRUEBAS PASARON EXITOSAMENTE (10/10).\n")
     finally:
         _cleanup()
 

@@ -19,6 +19,7 @@ import com.smartwms.operario.R
 import com.smartwms.operario.data.api.WorkOrder
 import com.smartwms.operario.data.local.TokenStore
 import com.smartwms.operario.databinding.FragmentHomeBinding
+import com.smartwms.operario.ui.OrderTimeHelper
 import com.smartwms.operario.ui.OrderViewModel
 import java.text.SimpleDateFormat
 import java.util.*
@@ -139,15 +140,13 @@ class HomeFragment : Fragment() {
 
     private fun observeViewModel() {
         // Actualizar nombre cuando el ViewModel tenga el email cargado
-        orderVm.workOrders.observe(viewLifecycleOwner) { orders ->
-            // Refrescar info de usuario (ya disponible)
-            val email = orderVm.currentUserEmail
-            val name = formatDisplayName(email)
-            binding.tvUserName.text = name
-            binding.tvAvatar.text = getInitials(name)
-            binding.tvRoleLabel.text = formatRole(orderVm.currentUserRole)
+        orderVm.workOrders.observe(viewLifecycleOwner) {
+            refreshHeaderUserInfo()
+        }
 
-            // Historial de hoy: pedidos completados HOY (dispatched)
+        // Historial de hoy: observar allOrders (incluye despachados, cancelados y pendientes)
+        orderVm.allOrders.observe(viewLifecycleOwner) { orders ->
+            refreshHeaderUserInfo()
             renderTodayHistory(orders)
         }
 
@@ -162,6 +161,14 @@ class HomeFragment : Fragment() {
             // Re-renderizar progreso
             orderVm.selectedOrder.value?.let { renderActiveOrder(it) }
         }
+    }
+
+    private fun refreshHeaderUserInfo() {
+        val email = orderVm.currentUserEmail
+        val name = formatDisplayName(email)
+        binding.tvUserName.text = name
+        binding.tvAvatar.text = getInitials(name)
+        binding.tvRoleLabel.text = formatRole(orderVm.currentUserRole)
     }
 
     // ── ORDEN ACTIVA ──────────────────────────────────────────────────────────
@@ -242,10 +249,10 @@ class HomeFragment : Fragment() {
     private fun renderTodayHistory(allOrders: List<WorkOrder>) {
         binding.llTodayOrders.removeAllViews()
 
-        // Filtrar pedidos de HOY (usando created_at)
-        val todayOrders = allOrders.filter { order ->
-            isToday(order.createdAt)
-        }
+        // Filtrar pedidos de HOY en zona horaria local (despachados, cancelados o creados hoy)
+        val todayOrders = allOrders
+            .filter { OrderTimeHelper.isOrderFromToday(it) }
+            .sortedByDescending { it.dispatchedAt ?: it.cancelledAt ?: it.createdAt }
 
         if (todayOrders.isEmpty()) {
             binding.layoutNoHistory.visibility = View.VISIBLE
@@ -255,7 +262,7 @@ class HomeFragment : Fragment() {
 
         binding.layoutNoHistory.visibility = View.GONE
         val completed = todayOrders.count { it.status == "dispatched" }
-        binding.tvTodayCount.text = "$completed completados"
+        binding.tvTodayCount.text = "$completed completado${if (completed == 1) "" else "s"}"
 
         todayOrders.forEach { order ->
             val itemView = layoutInflater.inflate(
@@ -272,32 +279,38 @@ class HomeFragment : Fragment() {
             val statusBar    = itemView.findViewById<View>(R.id.view_status_bar)
 
             tvOrderId.text = order.orderNumber
-            tvProducts.text = "${order.items.size} productos"
+            val totalUnits = order.items.sumOf { it.quantity }
+            tvProducts.text = "${order.items.size} SKU(s) · $totalUnits uds"
 
             when (order.status) {
                 "dispatched" -> {
                     tvStatus.text = "✓ Completado"
                     tvStatus.setTextColor(0xFF4ade80.toInt())
                     statusBar.setBackgroundColor(0xFF4ade80.toInt())
-                    val startTime = formatTime(order.createdAt)
-                    val endTime   = formatTime(order.dispatchedAt ?: order.createdAt)
+                    val startTime = OrderTimeHelper.formatLocalTime(order.createdAt)
+                    val endTime   = OrderTimeHelper.formatLocalTime(order.dispatchedAt ?: order.createdAt)
                     tvTimeRange.text = "$startTime → $endTime"
-                    tvDuration.text  = calcDuration(order.createdAt, order.dispatchedAt)
+                    tvDuration.text  = OrderTimeHelper.calcDuration(order.createdAt, order.dispatchedAt)
                 }
                 "cancelled"  -> {
                     tvStatus.text = "✗ Cancelado"
                     tvStatus.setTextColor(0xFFf87171.toInt())
                     statusBar.setBackgroundColor(0xFFf87171.toInt())
-                    tvTimeRange.text = formatTime(order.createdAt)
+                    tvTimeRange.text = OrderTimeHelper.formatLocalTime(order.cancelledAt ?: order.createdAt)
                     tvDuration.text  = "—"
                 }
                 else -> {
                     tvStatus.text = "● En progreso"
                     tvStatus.setTextColor(0xFFfbbf24.toInt())
                     statusBar.setBackgroundColor(0xFFfbbf24.toInt())
-                    tvTimeRange.text = formatTime(order.createdAt)
+                    tvTimeRange.text = OrderTimeHelper.formatLocalTime(order.createdAt)
                     tvDuration.text  = "activo"
                 }
+            }
+
+            itemView.setOnClickListener {
+                val bundle = Bundle().apply { putInt("orderId", order.id) }
+                findNavController().navigate(R.id.orderDetailFragment, bundle)
             }
 
             binding.llTodayOrders.addView(itemView)
@@ -329,48 +342,11 @@ class HomeFragment : Fragment() {
         else          -> "Operario"
     }
 
-    private fun isToday(dateStr: String): Boolean {
-        return try {
-            val sdf = SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss", Locale.getDefault())
-            val date = sdf.parse(dateStr.take(19)) ?: return false
-            val cal = Calendar.getInstance()
-            val today = Calendar.getInstance()
-            cal.time = date
-            cal.get(Calendar.DAY_OF_YEAR) == today.get(Calendar.DAY_OF_YEAR) &&
-            cal.get(Calendar.YEAR) == today.get(Calendar.YEAR)
-        } catch (e: Exception) { false }
-    }
-
-    private fun formatTime(dateStr: String?): String {
-        if (dateStr == null) return "—"
-        return try {
-            val sdf = SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss", Locale.getDefault())
-            val date = sdf.parse(dateStr.take(19)) ?: return "—"
-            SimpleDateFormat("HH:mm", Locale.getDefault()).format(date)
-        } catch (e: Exception) { "—" }
-    }
-
-    private fun calcDuration(start: String, end: String?): String {
-        if (end == null) return "—"
-        return try {
-            val sdf = SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss", Locale.getDefault())
-            val s = sdf.parse(start.take(19))?.time ?: return "—"
-            val e = sdf.parse(end.take(19))?.time ?: return "—"
-            val mins = ((e - s) / 60000).toInt()
-            when {
-                mins < 1   -> "< 1 min"
-                mins < 60  -> "$mins min"
-                else        -> "${mins / 60}h ${mins % 60}min"
-            }
-        } catch (ex: Exception) { "—" }
-    }
-
-
-
     override fun onResume() {
         super.onResume()
-        // Refrescar datos al volver al tab Inicio
+        // Refrescar pedidos pendientes e historial completo al volver al tab Inicio
         orderVm.loadPendingOrders()
+        orderVm.loadAllOrders()
         setupGreeting()
     }
 

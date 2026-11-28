@@ -143,9 +143,21 @@
         </LinearLayout>
 
         <TextView
+            android:id="@+id/tv_available_tables"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:text="Para finalizar el pedido, escanea el código QR de la mesa de empaque asignada."
+            android:text="Cargando mesas del Layout..."
+            android:textSize="12.5sp"
+            android:textColor="@color/purple_light"
+            android:background="#1f6366f1"
+            android:padding="10dp"
+            android:layout_marginBottom="10dp"
+            android:textAlignment="center"/>
+
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="Para finalizar el pedido, escanea el código QR (o barras) de cualquiera de las mesas del Layout."
             android:textSize="13sp"
             android:textColor="@color/text_secondary"
             android:layout_marginBottom="12dp"

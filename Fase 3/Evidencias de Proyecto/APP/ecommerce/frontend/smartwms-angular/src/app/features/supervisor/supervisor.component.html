@@ -1404,6 +1404,12 @@
                     </div>
                   </div>
                   <div class="mesa-actions">
+                    <button mat-icon-button type="button"
+                      [color]="expandedTableQrId() === t.id ? 'accent' : ''"
+                      (click)="toggleTableQr(t, $event)"
+                      matTooltip="Ver código QR / Barras" matTooltipClass="wms-tooltip" [id]="'qr-mesa-' + t.code">
+                      <mat-icon>qr_code_2</mat-icon>
+                    </button>
                     <button mat-icon-button type="button" (click)="openEditTableForm(t, $event)"
                       matTooltip="Editar mesa" matTooltipClass="wms-tooltip" [id]="'edit-mesa-' + t.code">
                       <mat-icon>edit</mat-icon>
@@ -1425,6 +1431,61 @@
               </div>
             }
           </div>
+
+          <!-- PANEL DE CÓDIGO QR / BARRAS DE LA MESA SELECCIONADA -->
+          @if (selectedTableQr(); as qrTable) {
+            <div class="location-detail-card table-qr-card" [id]="'table-qr-panel-' + qrTable.code">
+              <div class="location-detail-header">
+                <div>
+                  <h2 class="location-detail-title">
+                    <mat-icon>qr_code_2</mat-icon>
+                    Código de Mesa: <code class="mono">{{ qrTable.code }}</code> — {{ qrTable.name }}
+                  </h2>
+                </div>
+                <button mat-icon-button type="button" (click)="expandedTableQrId.set(null)"
+                  matTooltip="Cerrar código QR" matTooltipClass="wms-tooltip">
+                  <mat-icon>close</mat-icon>
+                </button>
+              </div>
+              <div class="product-qr-panel" style="padding: 8px 4px 4px;">
+                <div class="qr-card-box">
+                  @if (getTableCodeMode(qrTable.id) === 'qr') {
+                    @if (qrTable.qr_code) {
+                      <img [src]="qrTable.qr_code" [alt]="'Código QR Mesa ' + qrTable.code" class="product-qr-img" />
+                    } @else {
+                      <p class="text-muted">QR no disponible</p>
+                    }
+                  } @else {
+                    <img [src]="getBarcodeDataUri(qrTable.code)" [alt]="'Código de barras Mesa ' + qrTable.code" class="product-barcode-img" />
+                  }
+                  <code class="qr-sku-caption">{{ qrTable.code }}</code>
+                  <button type="button" class="qr-mode-toggle-btn" (click)="toggleTableCodeMode(qrTable.id)" [id]="'toggle-table-code-mode-' + qrTable.id">
+                    @if (getTableCodeMode(qrTable.id) === 'qr') {
+                      <svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true">
+                        <rect x="1" y="2" width="1.5" height="12"/>
+                        <rect x="4" y="2" width="1" height="12"/>
+                        <rect x="6.5" y="2" width="2" height="12"/>
+                        <rect x="10" y="2" width="1" height="12"/>
+                        <rect x="12.5" y="2" width="2.5" height="12"/>
+                      </svg>
+                      <span>Código de barras</span>
+                    } @else {
+                      <mat-icon>qr_code_2</mat-icon>
+                      <span>Código QR</span>
+                    }
+                  </button>
+                </div>
+                <div class="qr-meta-info">
+                  <p class="qr-product-name">{{ qrTable.name }} ({{ qrTable.code }})</p>
+                  <p class="qr-hint">
+                    {{ getTableCodeMode(qrTable.id) === 'qr'
+                      ? 'Escanea este código QR desde la aplicación móvil de operario al cerrar un pedido en esta mesa.'
+                      : 'Escanea este código de barras (Code 128) desde la aplicación móvil de operario al cerrar un pedido en esta mesa.' }}
+                  </p>
+                </div>
+              </div>
+            </div>
+          }
         </div>
 
         <!-- PANEL DE DETALLE DE UBICACIÓN SELECCIONADA (MESA O ESTANTERÍA) -->

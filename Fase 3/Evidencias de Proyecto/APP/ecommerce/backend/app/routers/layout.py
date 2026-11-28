@@ -74,6 +74,7 @@ class LayoutLocationOut(BaseModel):
     occupied_skus_count: int = 0
     total_units: int = 0
     is_occupied: bool = False
+    qr_code: Optional[str] = None
     items: List[LocationItemDetailOut] = []
 
 
@@ -153,6 +154,7 @@ def _build_reserved_map(db: Session) -> dict[str, int]:
     return {r.sku: int(r.reserved) for r in rows}
 
 
+from app.core.qr import generate_sku_qr_data_uri
 from app.core.stock_status import compute_stock_status
 
 def _serialize_location(
@@ -198,6 +200,7 @@ def _serialize_location(
         occupied_skus_count=len(items),
         total_units=total_units,
         is_occupied=len(items) > 0,
+        qr_code=generate_sku_qr_data_uri(loc.code),
         items=items,
     )
 

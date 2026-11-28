@@ -319,6 +319,14 @@ export class SupervisorComponent implements OnInit, OnDestroy {
   layoutMovements = signal<PutawayMovement[]>([]);
   layoutLoading = signal(false);
   selectedLocationId = signal<number | null>(null);
+  expandedTableQrId = signal<number | null>(null);
+  tableCodeModeMap = signal<Record<number, 'qr' | 'barcode'>>({});
+
+  selectedTableQr = computed<LayoutLocation | null>(() => {
+    const id = this.expandedTableQrId();
+    if (!id) return null;
+    return this.layoutTables().find(t => t.id === id) ?? null;
+  });
 
   allLayoutLocations = computed(() => [
     ...this.layoutTables(),
@@ -1532,6 +1540,20 @@ export class SupervisorComponent implements OnInit, OnDestroy {
   selectLayoutLocation(loc: LayoutLocation): void {
     this.movingItem.set(null);
     this.selectedLocationId.update(cur => cur === loc.id ? null : loc.id);
+  }
+
+  toggleTableQr(table: LayoutLocation, event: Event): void {
+    event.stopPropagation();
+    this.expandedTableQrId.update(cur => cur === table.id ? null : table.id);
+  }
+
+  getTableCodeMode(tableId: number): 'qr' | 'barcode' {
+    return this.tableCodeModeMap()[tableId] ?? 'qr';
+  }
+
+  toggleTableCodeMode(tableId: number): void {
+    const nextMode = this.getTableCodeMode(tableId) === 'qr' ? 'barcode' : 'qr';
+    this.tableCodeModeMap.update(prev => ({ ...prev, [tableId]: nextMode }));
   }
 
   openNewTableForm(): void {

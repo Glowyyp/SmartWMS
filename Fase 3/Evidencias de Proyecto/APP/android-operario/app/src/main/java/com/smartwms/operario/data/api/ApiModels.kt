@@ -153,7 +153,8 @@ data class DispatchPackageIn(
 data class DispatchIn(
     val packages: List<DispatchPackageIn> = emptyList(),
     @SerializedName("total_weight") val totalWeight: Double? = null,
-    @SerializedName("total_volume") val totalVolume: Double? = null
+    @SerializedName("total_volume") val totalVolume: Double? = null,
+    @SerializedName("packing_table_code") val packingTableCode: String? = null
 )
 
 // ─── Putaway ──────────────────────────────────────────────────────────────────

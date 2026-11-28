@@ -11,6 +11,7 @@ import androidx.fragment.app.activityViewModels
 import androidx.navigation.fragment.findNavController
 import com.smartwms.operario.R
 import com.smartwms.operario.databinding.FragmentOrderDetailBinding
+import com.smartwms.operario.ui.OrderTimeHelper
 import com.smartwms.operario.ui.OrderViewModel
 import java.text.SimpleDateFormat
 import java.util.Locale
@@ -92,12 +93,7 @@ class OrderDetailFragment : Fragment() {
     }
 
     private fun formatDateTime(dateStr: String?): String {
-        if (dateStr == null) return "—"
-        return try {
-            val sdf = SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss", Locale.getDefault())
-            val date = sdf.parse(dateStr.take(19)) ?: return "—"
-            SimpleDateFormat("dd/MM/yyyy HH:mm", Locale.getDefault()).format(date)
-        } catch (e: Exception) { "—" }
+        return OrderTimeHelper.formatLocalDateTime(dateStr)
     }
 
     override fun onDestroyView() {

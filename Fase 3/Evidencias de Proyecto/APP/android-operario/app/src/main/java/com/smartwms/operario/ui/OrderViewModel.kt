@@ -258,6 +258,8 @@ class OrderViewModel(application: Application) : AndroidViewModel(application) {
                     if (response.isSuccessful) {
                         _workOrders.postValue(response.body() ?: emptyList())
                         loadInventory()
+                        loadWarehouseLocations()
+                        loadAllOrders()
                     }
                 } catch (_: Exception) { /* Silencioso */ }
             }
@@ -383,6 +385,15 @@ class OrderViewModel(application: Application) : AndroidViewModel(application) {
                     _workOrders.postValue(
                         _workOrders.value?.filter { it.id != dispatched.id } ?: emptyList()
                     )
+                    // Reflejar inmediatamente el pedido despachado en allOrders (para "Pedidos de hoy" e Historial)
+                    val currentAll = _allOrders.value?.toMutableList() ?: mutableListOf()
+                    val existingIdx = currentAll.indexOfFirst { it.id == dispatched.id }
+                    if (existingIdx >= 0) {
+                        currentAll[existingIdx] = dispatched
+                    } else {
+                        currentAll.add(0, dispatched)
+                    }
+                    _allOrders.postValue(currentAll)
                     _selectedOrder.postValue(null)
                     _pickedSkus.postValue(scanAccumulator.reset(emptyMap()))
                     tokenStore.saveActiveOrderId(null)
